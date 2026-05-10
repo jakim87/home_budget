@@ -1,3 +1,12 @@
+import os
+import sys
+
+# Upewnij się, że katalog główny projektu jest na samym początku ścieżki wyszukiwania
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+
 from app import create_app, db
 from sqlalchemy import text
 

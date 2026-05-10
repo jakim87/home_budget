@@ -1,0 +1,15 @@
+# Środowiska wirtualne Pythona
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Zmienne środowiskowe
+.env
+
+# Lokalne pliki (zgodnie z README)
+local_data/
+
+# Pliki systemowe (np. macOS, Windows)
+.DS_Store
+Thumbs.db

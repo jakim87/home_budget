@@ -49,7 +49,7 @@ Planned technologies:
 
 To run and work on this project, you will need:
 
-- Python 3.14+
+- Python 3.12+
 - Git
 - PostgreSQL
 - pgAdmin 4

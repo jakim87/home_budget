@@ -1,15 +1,38 @@
-# Środowiska wirtualne Pythona
+# Python - Virtual Environments and Bytecode
 venv/
 env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
 __pycache__/
 *.pyc
+*.py[codz]
+*$py.class
 
-# Zmienne środowiskowe
+# Build and distribution
+build/
+dist/
+.eggs/
+*.egg-info/
+
+# Environment variables and secrets
 .env
+.env.local
+.streamlit/secrets.toml
 
-# Lokalne pliki (zgodnie z README)
+# Databases and local data
+*.sqlite3
 local_data/
 
-# Pliki systemowe (np. macOS, Windows)
+# System files
 .DS_Store
 Thumbs.db
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+
+# Inne
+tempCodeRunnerFile.py

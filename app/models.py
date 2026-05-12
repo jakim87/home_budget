@@ -1,38 +1,55 @@
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, Numeric, Date, ForeignKey
+from datetime import date
+from typing import Optional
 from app import db
-from datetime import datetime, timezone
+
+class User(db.Model):
+    __tablename__ = 'users'
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
 
 class Account(db.Model):
     __tablename__ = 'accounts'
     
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(64), unique=True, nullable=False)  # np. "ING", "Millennium", "Gotówka"
-    currency = db.Column(db.String(3), nullable=False, default='PLN')
-    account_type = db.Column(db.String(32))  # np. "Checking", "Savings", "Liability" (kredyt)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False) # np. "ING Konto Direct", "Portfel"
+    bank_name: Mapped[str] = mapped_column(String(50)) # np. "ING", "Manual"
+    balance: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0)
+    currency: Mapped[str] = mapped_column(String(3), default='PLN')
     
-    transactions = db.relationship('Transaction', backref='account', lazy=True)
-
-    def __repr__(self):
-        return f'<Account {self.name} ({self.currency})>'
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
 
 class Category(db.Model):
     __tablename__ = 'categories'
     
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(64), unique=True, nullable=False)
-    transactions = db.relationship('Transaction', backref='category', lazy=True)
-
-    def __repr__(self):
-        return f'<Category {self.name}>'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    type: Mapped[str] = mapped_column(String(20)) # np. "expense" (wydatek) lub "income" (przychód)
 
 class Transaction(db.Model):
     __tablename__ = 'transactions'
     
-    id = db.Column(db.Integer, primary_key=True)
-    amount = db.Column(db.Numeric(10, 2), nullable=False)
-    description = db.Column(db.String(255))
-    date = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False)
-    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    contractor: Mapped[Optional[str]] = mapped_column(String(255)) # nadawca/odbiorca
+    
+    # Relacje
+    account_id: Mapped[int] = mapped_column(ForeignKey('accounts.id'), nullable=False)
+    category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
 
-    def __repr__(self):
-        return f'<Transaction {self.amount} - {self.description}>'
+class Budget(db.Model):
+    __tablename__ = 'budgets'
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    month: Mapped[int] = mapped_column(nullable=False) # 1-12
+    year: Mapped[int] = mapped_column(nullable=False)
+    
+    category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=False)

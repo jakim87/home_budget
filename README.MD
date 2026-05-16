@@ -59,25 +59,29 @@ To run and work on this project, you will need:
 - pgAdmin 4
 - Visual Studio Code
 
-## Planned Project Structure
+## Current Project Structure
 
 ```text
 home-budget-app/
 ├── app/
-│   ├── __init__.py
-│   ├── models.py
-│   ├── routes.py
+│   ├── services/
+│   │   ├── __init__.py
+│   │   └── budget_service.py     # Logika biznesowa i operacje na bazie
 │   ├── templates/
-│   ├── static/
-│   ├── imports/
-│   │   └── ing_parser.py
-│   └── services/
-├── local_data/         # Ignored by git (keep your bank CSVs here!)
-├── migrations/
+│   │   └── base.html             # Frontend (Tailwind + JS)
+│   ├── __init__.py               # Inicjalizacja Flask i SQLAlchemy (App Factory)
+│   ├── models.py                 # Modele tabel bazy danych
+│   └── routes.py                 # Endpointy API i ścieżki
+├── local_data/                   # Ignored by git (keep your bank CSVs here!)
+├── migrations/                   # Flask-Migrate (Alembic) versions
 ├── tests/
+│   ├── conftest.py               # Konfiguracja Pytest (baza SQLite w RAM)
+│   ├── test_accounts.py          
+│   └── test_transactions.py      # TDD testy dla transakcji
 ├── .env
 ├── .gitignore
 ├── config.py
 ├── requirements.txt
 ├── run.py
+├── test_db.py                    # Skrypt weryfikujący połączenie z DB
 └── README.md

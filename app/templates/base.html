@@ -712,7 +712,7 @@
             });
         }
 
-        document.getElementById('category-form').addEventListener('submit', function(e) {
+        document.getElementById('category-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             const nameInput = document.getElementById('cat-name');
             const typeInput = document.getElementById('cat-type');
@@ -720,11 +720,28 @@
             const type = typeInput.value;
             
             if (name && !categories.find(c => c.name.toLowerCase() === name.toLowerCase())) {
-                categories.push({ name: name, type: type });
-                nameInput.value = '';
-                renderCategories();
-                updateCategorySelects();
-                showToast(`Dodano kategorię: ${name}`);
+                try {
+                    const response = await fetch('/api/categories', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: name, type: type })
+                    });
+                    
+                    if (response.ok) {
+                        const savedCat = await response.json();
+                        categories.push({ name: savedCat.name, type: savedCat.type });
+                        nameInput.value = '';
+                        renderCategories();
+                        updateCategorySelects();
+                        showToast(`Dodano kategorię: ${name}`);
+                    } else {
+                        const err = await response.json();
+                        showToast(err.error || 'Błąd zapisu na serwerze.', 'error');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    showToast('Błąd połączenia z serwerem.', 'error');
+                }
             } else {
                 showToast('Kategoria o tej nazwie już istnieje!', 'error');
             }

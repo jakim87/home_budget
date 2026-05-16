@@ -1,7 +1,7 @@
 import pytest
 from datetime import date
 from app import db
-from app.models import User, Account, Category, Transaction
+from app.models import User, Account, Category, Transaction, TransactionArchive
 
 def test_api_init_returns_data_from_db(client, app):
     # SETUP - przygotowanie danych w wyizolowanej bazie testowej
@@ -68,3 +68,28 @@ def test_api_add_category(client, app):
     with app.app_context():
         cat = db.session.query(Category).filter_by(name='Hobby').first()
         assert cat is not None
+
+def test_delete_transaction_archives_and_removes(client, app):
+    # SETUP - wstawienie transakcji, którą będziemy usuwać
+    with app.app_context():
+        user = User(username="deluser", email="del@test.com", password_hash="hash")
+        db.session.add(user)
+        db.session.commit()
+        account = Account(name="DelKonto", bank_name="Bank", balance=100.0, user_id=user.id)
+        db.session.add(account)
+        db.session.commit()
+        tx = Transaction(date=date(2023, 5, 10), title="Transakcja do usunięcia", amount=100.0, account_id=account.id, user_id=user.id)
+        db.session.add(tx)
+        db.session.commit()
+        tx_id = tx.id
+
+    # ACTION - Symulujemy wciśnięcie kosza przez użytkownika
+    response = client.delete(f'/api/transactions/{tx_id}')
+    assert response.status_code == 200
+
+    # ASSERT - weryfikacja przeniesienia w bazie danych
+    with app.app_context():
+        assert db.session.get(Transaction, tx_id) is None
+        archive = db.session.query(TransactionArchive).filter_by(original_id=tx_id).first()
+        assert archive is not None
+        assert archive.title == "Transakcja do usunięcia"

@@ -968,10 +968,26 @@
             }
         }
 
-        window.deleteTransaction = function(id) {
-            transactions = transactions.filter(t => t.id !== id);
-            renderTransactions();
-            showToast('Transakcja usunięta.', 'info');
+        window.deleteTransaction = async function(id) {
+            if (!confirm('Czy na pewno chcesz usunąć tę transakcję?')) return;
+            
+            try {
+                const response = await fetch(`/api/transactions/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    transactions = transactions.filter(t => t.id !== id);
+                    renderTransactions();
+                    if (!document.getElementById('tab-summary').classList.contains('tab-hidden')) renderSummary();
+                    showToast('Transakcja usunięta.', 'info');
+                } else {
+                    showToast('Błąd podczas usuwania transakcji na serwerze.', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                showToast('Błąd połączenia z serwerem API.', 'error');
+            }
         }
 
         // --- ROZBIJANIE TRANSAKCJI ---

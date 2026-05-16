@@ -3,6 +3,23 @@ from sqlalchemy import String, Numeric, Date, ForeignKey
 from datetime import date
 from typing import Optional
 from app import db
+from datetime import datetime, timezone
+
+# NOWA TABELA: Shadow table dla usuwanych transakcji
+class TransactionArchive(db.Model):
+    __tablename__ = 'transaction_archive'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    original_id = db.Column(db.Integer, nullable=False) # ID z oryginalnej tabeli
+    title = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    account_id = db.Column(db.Integer, nullable=False)
+    category_id = db.Column(db.Integer, nullable=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    
+    # Znacznik czasu operacji usunięcia
+    deleted_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -29,6 +46,8 @@ class Category(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     type: Mapped[str] = mapped_column(String(20)) # np. "expense" (wydatek) lub "income" (przychód)
+    # NOWE POLE: Miękkie usuwanie
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
 
 class Transaction(db.Model):
     __tablename__ = 'transactions'

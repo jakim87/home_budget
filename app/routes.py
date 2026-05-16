@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, jsonify, request
 from app import db
-from app.models import Transaction, Category, User, Account
+from app.models import Transaction, Category, User, Account, TransactionArchive
 from datetime import datetime
 
 main_bp = Blueprint('main', __name__)
@@ -17,7 +17,7 @@ def init_data():
     Zwraca startowe dane dla frontendu. 
     """
     # 1. Pobieranie kategorii z bazy
-    categories = db.session.query(Category).all()
+    categories = db.session.query(Category).filter_by(is_active=True).all()
     if not categories:
         # Mockowanie początkowych kategorii, jeśli baza jest pusta
         categories = [
@@ -115,3 +115,26 @@ def add_category():
         'name': new_cat.name,
         'type': new_cat.type
     }), 201
+
+@main_bp.route('/api/transactions/<int:tx_id>', methods=['DELETE'])
+def delete_transaction(tx_id):
+    """Usuwa transakcję przenosząc ją najpierw do tabeli archiwalnej (shadow table)."""
+    tx = db.get_or_404(Transaction, tx_id)
+    
+    # 1. Kopiowanie do Shadow Table
+    archive_tx = TransactionArchive(
+        original_id=tx.id,
+        title=tx.title,
+        amount=tx.amount,
+        date=tx.date,
+        account_id=tx.account_id,
+        category_id=tx.category_id,
+        user_id=tx.user_id
+    )
+    db.session.add(archive_tx)
+    
+    # 2. Hard Delete z tabeli faktów
+    db.session.delete(tx)
+    db.session.commit()
+    
+    return jsonify({'message': 'Transakcja zarchiwizowana i usunięta.'}), 200

@@ -2,6 +2,8 @@
 
 A web application for managing a home budget, analyzing expenses, importing bank transactions, and monitoring net worth.
 
+In the future, the application will also be available on mobile platforms (iOS and Android) and will feature receipt scanning.
+
 This project is built as an educational application, developed step-by-step using Python, Flask, and PostgreSQL.
 
 ## Main Project Goals
@@ -16,6 +18,8 @@ This project is built as an educational application, developed step-by-step usin
 - Mortgage handling (treated as a negative value/liability)
 - Manual cash balance entry
 - User authentication (login)
+- Receipt scanning
+- Future availability on iOS and Android
 
 ## Supported Data Sources
 

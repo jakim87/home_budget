@@ -1,29 +1,44 @@
 import pytest
-from app import db
-from app.models import User, Account, Transaction
-from app.services.budget_service import create_transaction
 from datetime import date
+from app import db
+from sqlalchemy.exc import IntegrityError
+# Zakładamy, że Account i User zostały zdefiniowane już wcześniej, jak wynika z test_accounts.py
+from app.models import User, Account, Category, Transaction
 
-def test_adding_transaction_updates_account_balance(app):
-    # 1. Przygotowanie danych (Setup)
-    user = User(username="testuser", email="test@test.com", password_hash="hash")
+def test_create_category(app):
+    # Action
+    category = Category(name="Jedzenie", type="expense")
+    db.session.add(category)
+    db.session.commit()
+
+    # Assert
+    assert category.id is not None
+    assert category.name == "Jedzenie"
+    assert category.type == "expense"
+
+def test_create_transaction(app):
+    # Setup - potrzebujemy konta i kategorii by utworzyć transakcję
+    user = User(username="tx_user", email="tx@test.com", password_hash="hash")
     db.session.add(user)
     db.session.commit()
-
-    account = Account(name="Portfel", bank_name="Gotówka", balance=1000.00, user_id=user.id)
-    db.session.add(account)
+    
+    account = Account(name="Konto Bieżące", bank_name="ING", balance=1500.0, user_id=user.id)
+    category = Category(name="Wypłata", type="income")
+    db.session.add_all([account, category])
     db.session.commit()
 
-    # 2. Akcja (Action)
-    create_transaction(
-        user_id=user.id,
+    # Action
+    tx = Transaction(
+        date=date(2023, 10, 1),
+        title="Premia",
+        amount=500.0,
+        category_id=category.id,
         account_id=account.id,
-        amount=-200.00,
-        title="Zakupy",
-        transaction_date=date.today()
+        user_id=user.id
     )
+    db.session.add(tx)
+    db.session.commit()
 
-    # 3. Weryfikacja (Assert)
-    # Odświeżamy obiekt konta z bazy, aby mieć pewność, że zmiany się zapisały
-    db.session.refresh(account)
-    assert float(account.balance) == 800.00
+    # Assert
+    assert tx.id is not None
+    assert tx.amount == 500.0

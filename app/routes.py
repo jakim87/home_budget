@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, jsonify, request
 from app import db
-from app.models import Transaction, Category, User, Account, TransactionArchive
+from app.models import Transaction, Category, User, Account, TransactionArchive, TransactionSplit
 from datetime import datetime
 
 main_bp = Blueprint('main', __name__)
@@ -34,12 +34,22 @@ def init_data():
     transactions_with_cat = db.session.query(Transaction, Category).outerjoin(Category, Transaction.category_id == Category.id).all()
     transactions_data = []
     for tx, cat in transactions_with_cat:
+        splits_data = []
+        for split in tx.splits:
+            splits_data.append({
+                'id': split.id,
+                'amount': float(split.amount),
+                'desc': split.desc or '',
+                'category': split.category.name if split.category else 'Inne'
+            })
+            
         transactions_data.append({
             'id': tx.id,
             'desc': tx.title,
             'amount': float(tx.amount),
             'date': tx.date.strftime('%Y-%m-%d') if tx.date else '',
-            'category': cat.name if cat else 'Inne'
+            'category': cat.name if cat else 'Inne',
+            'splits': splits_data
         })
     
     return jsonify({
@@ -93,7 +103,8 @@ def add_transaction():
         'desc': new_tx.title,
         'amount': float(new_tx.amount),
         'date': new_tx.date.strftime('%Y-%m-%d'),
-        'category': category.name if category else 'Inne'
+        'category': category.name if category else 'Inne',
+        'splits': []
     }), 201
 
 @main_bp.route('/api/categories', methods=['POST'])
@@ -138,3 +149,38 @@ def delete_transaction(tx_id):
     db.session.commit()
     
     return jsonify({'message': 'Transakcja zarchiwizowana i usunięta.'}), 200
+
+@main_bp.route('/api/categories/<string:cat_name>', methods=['DELETE'])
+def delete_category(cat_name):
+    """Wykonuje miękkie usunięcie (soft delete) kategorii o podanej nazwie."""
+    category = db.session.query(Category).filter_by(name=cat_name).first()
+    if not category:
+        return jsonify({'error': 'Nie znaleziono kategorii.'}), 404
+        
+    category.is_active = False
+    db.session.commit()
+    
+    return jsonify({'message': f'Kategoria {cat_name} została usunięta.'}), 200
+
+@main_bp.route('/api/transactions/<int:tx_id>', methods=['PUT'])
+def update_transaction(tx_id):
+    """Aktualizuje transakcję (na ten moment głównie jej podziały - splits)."""
+    tx = db.get_or_404(Transaction, tx_id)
+    data = request.get_json()
+
+    if 'splits' in data:
+        tx.splits.clear() # Czyści stare podziały (SQLAlchemy usunie je automatycznie z bazy)
+        
+        for split_data in data['splits']:
+            cat_name = split_data.get('category')
+            cat = db.session.query(Category).filter_by(name=cat_name).first()
+            
+            new_split = TransactionSplit(
+                amount=float(split_data.get('amount', 0)),
+                desc=split_data.get('desc', ''),
+                category_id=cat.id if cat else None
+            )
+            tx.splits.append(new_split)
+            
+    db.session.commit()
+    return jsonify({'message': 'Transakcja zaktualizowana pomyślnie.'}), 200

@@ -747,11 +747,27 @@
             }
         });
 
-        window.deleteCategory = function(name) {
-            categories = categories.filter(c => c.name !== name);
-            renderCategories();
-            updateCategorySelects();
-            showToast(`Usunięto kategorię: ${name}`, 'info');
+        window.deleteCategory = async function(name) {
+            if (!confirm(`Czy na pewno chcesz usunąć kategorię: ${name}?`)) return;
+            
+            try {
+                const response = await fetch(`/api/categories/${encodeURIComponent(name)}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    categories = categories.filter(c => c.name !== name);
+                    renderCategories();
+                    updateCategorySelects();
+                    showToast(`Usunięto kategorię: ${name}`, 'info');
+                } else {
+                    const err = await response.json();
+                    showToast(err.error || 'Błąd zapisu na serwerze.', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                showToast('Błąd połączenia z serwerem API.', 'error');
+            }
         }
 
         // --- TRANSAKCJE ---
@@ -1091,7 +1107,7 @@
             }
         }
 
-        window.saveSplitModal = function() {
+        window.saveSplitModal = async function() {
             const tx = transactions.find(t => t.id === splitTxId);
             if (!tx) return;
 
@@ -1102,15 +1118,27 @@
                 return;
             }
 
-            if (currentSplits.length > 0) {
-                tx.splits = currentSplits;
-            } else {
-                delete tx.splits;
+            try {
+                const response = await fetch(`/api/transactions/${splitTxId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ splits: currentSplits })
+                });
+                
+                if (response.ok) {
+                    tx.splits = currentSplits.length > 0 ? currentSplits : undefined;
+                    showToast('Podział został zapisany.');
+                    closeSplitModal();
+                    renderTransactions();
+                    if (!document.getElementById('tab-summary').classList.contains('tab-hidden')) renderSummary();
+                } else {
+                    const err = await response.json();
+                    showToast(err.error || 'Błąd zapisywania podziału.', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                showToast('Błąd połączenia z serwerem API.', 'error');
             }
-            
-            showToast('Podział został zapisany.');
-            closeSplitModal();
-            renderTransactions();
         }
 
         // --- PODSUMOWANIE I FILTRY ---

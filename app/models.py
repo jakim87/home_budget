@@ -87,3 +87,17 @@ class Budget(db.Model):
     year: Mapped[int] = mapped_column(nullable=False)
     
     category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=False)
+
+class TransactionStaging(db.Model):
+    """Tabela tymczasowa (staging) na dane z importu plików CSV przed ich zatwierdzeniem."""
+    __tablename__ = 'transaction_staging'
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    contractor: Mapped[Optional[str]] = mapped_column(String(255))
+    
+    status: Mapped[str] = mapped_column(String(20), default='pending') # np. 'pending', 'approved', 'rejected'
+    account_id: Mapped[Optional[int]] = mapped_column(ForeignKey('accounts.id'))
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey('users.id'))

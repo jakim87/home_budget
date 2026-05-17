@@ -3,7 +3,8 @@ from datetime import date
 from app import db
 from sqlalchemy.exc import IntegrityError
 # Zakładamy, że Account i User zostały zdefiniowane już wcześniej, jak wynika z test_accounts.py
-from app.models import User, Account, Category, Transaction
+from app.models import User, Account, Category, Transaction, TransactionStaging
+from app.services.budget_service import save_transactions_to_staging
 
 def test_create_category(app):
     # Action
@@ -42,3 +43,46 @@ def test_create_transaction(app):
     # Assert
     assert tx.id is not None
     assert tx.amount == 500.0
+
+def test_create_transaction_staging(app):
+    """Testuje zapisywanie surowych danych do tabeli stagingowej."""
+    # Action
+    staging_tx = TransactionStaging(
+        date=date(2023, 10, 25),
+        title="Wypłata z testu",
+        amount=12500.50,
+        contractor="Firma X"
+    )
+    db.session.add(staging_tx)
+    db.session.commit()
+
+    # Assert
+    assert staging_tx.id is not None
+    assert staging_tx.status == 'pending'
+
+def test_save_transactions_to_staging(app):
+    """Testuje zapisywanie listy sparsowanych słowników do tabeli stagingowej."""
+    # Setup - symulujemy wyjście z parsera parse_ing_csv
+    parsed_data = [
+        {
+            'date': date(2023, 10, 25),
+            'title': 'Wypłata z testu',
+            'amount': 12500.50,
+            'contractor': 'Firma X'
+        },
+        {
+            'date': date(2023, 10, 28),
+            'title': 'Opłata',
+            'amount': -7.00,
+            'contractor': None
+        }
+    ]
+    
+    # Action
+    saved = save_transactions_to_staging(parsed_data)
+    
+    # Assert - sprawdzamy, czy funkcja poprawnie zrzuciła dane do bazy
+    assert len(saved) == 2
+    assert saved[0].id is not None
+    assert saved[0].status == 'pending'
+    assert saved[1].title == 'Opłata'

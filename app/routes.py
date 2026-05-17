@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, jsonify, request
 from app import db
 from app.models import Transaction, Category, User, Account, TransactionArchive, TransactionSplit
 from datetime import datetime
+from app.services.budget_service import parse_ing_csv, save_transactions_to_staging
 
 main_bp = Blueprint('main', __name__)
 
@@ -184,3 +185,46 @@ def update_transaction(tx_id):
             
     db.session.commit()
     return jsonify({'message': 'Transakcja zaktualizowana pomyślnie.'}), 200
+
+@main_bp.route('/api/import/ing', methods=['POST'])
+def import_ing_csv():
+    """Odbiera plik CSV z ING, parsuje go i wrzuca do tabeli stagingowej."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'Brak pliku w żądaniu.'}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'Nie wybrano pliku.'}), 400
+
+    try:
+        # Dekodowanie w UTF-8
+        file_content = file.read().decode('utf-8')
+    except UnicodeDecodeError:
+        # Pliki z polskich banków często są w kodowaniu Windows-1250
+        file.seek(0)
+        file_content = file.read().decode('windows-1250')
+
+    # 1. Mockowanie przypisania (dopóki nie mamy uwierzytelniania w aplikacji)
+    user = db.session.query(User).first()
+    if not user:
+        user = User(username="import_user", email="import@test.com", password_hash="secret")
+        db.session.add(user)
+        db.session.commit()
+
+    account = db.session.query(Account).filter_by(user_id=user.id).first()
+    if not account:
+        account = Account(name="Konto do Importu", bank_name="ING", balance=0.0, user_id=user.id)
+        db.session.add(account)
+        db.session.commit()
+
+    # 2. Parsowanie i zapis w tabeli buforowej
+    parsed_data = parse_ing_csv(file_content)
+    if not parsed_data:
+        return jsonify({'error': 'Plik nie zawiera poprawnych transakcji lub jest uszkodzony.'}), 400
+        
+    saved_records = save_transactions_to_staging(parsed_data, user_id=user.id, account_id=account.id)
+
+    return jsonify({
+        'message': f'Udało się zaimportować {len(saved_records)} transakcji do weryfikacji.',
+        'count': len(saved_records)
+    }), 201

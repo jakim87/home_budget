@@ -1,7 +1,8 @@
 import pytest
+import io
 from datetime import date
 from app import db
-from app.models import User, Account, Category, Transaction, TransactionArchive
+from app.models import User, Account, Category, Transaction, TransactionArchive, TransactionStaging
 
 def test_api_init_returns_data_from_db(client, app):
     # SETUP - przygotowanie danych w wyizolowanej bazie testowej
@@ -154,3 +155,27 @@ def test_update_transaction_splits(client, app):
         assert tx_in_db.splits[0].amount == 150.0
         assert tx_in_db.splits[0].desc == 'Spożywcze'
         assert tx_in_db.splits[0].category.name == 'Czesc1'
+
+def test_import_ing_csv_endpoint(client, app):
+    """Testuje wgrywanie pliku CSV z ING przez endpoint API."""
+    # SETUP - wirtualny plik CSV
+    csv_content = """Data transakcji;Data księgowania;Dane kontrahenta;Tytuł;Konto;Kwota;Waluta
+2023-10-25;2023-10-25;Pracodawca;Wypłata;;12500,50;PLN
+2023-10-28;2023-10-28;;Opłata za kartę;;-7,00;PLN
+"""
+    data = {
+        'file': (io.BytesIO(csv_content.encode('utf-8')), 'test_ing.csv')
+    }
+
+    # ACTION - symulacja wgrania pliku w formularzu (multipart/form-data)
+    response = client.post('/api/import/ing', data=data, content_type='multipart/form-data')
+
+    # ASSERT
+    assert response.status_code == 201
+    resp_data = response.get_json()
+    assert resp_data['count'] == 2
+
+    with app.app_context():
+        staged = db.session.query(TransactionStaging).all()
+        assert len(staged) == 2
+        assert staged[0].title == "Wypłata"

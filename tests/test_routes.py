@@ -1,7 +1,7 @@
 import io
 from datetime import date
 from app import db
-from app.models import User, Account, Category, Transaction, TransactionArchive, TransactionStaging
+from app.models import User, Account, Category, Transaction, TransactionArchive, TransactionStaging, Contractor
 
 def test_api_init_returns_data_from_db(client, app):
     # SETUP - przygotowanie danych w wyizolowanej bazie testowej
@@ -37,6 +37,8 @@ def test_api_init_returns_data_from_db(client, app):
     assert response.status_code == 200
     assert 'categories' in data
     assert 'transactions' in data
+    assert 'contractors' in data
+    assert 'accounts' in data
 
     # Sprawdzamy, czy pobrano zapisane kategorie z bazy
     categories = data['categories']
@@ -215,21 +217,53 @@ def test_approve_staging_transaction(client, app):
         db.session.add_all([account, cat])
         db.session.commit()
 
+        cont = Contractor(name="Biedronka", user_id=user.id)
+        db.session.add(cont)
+        db.session.commit()
+
         stg = TransactionStaging(date=date(2023, 11, 5), amount=-50.0, title="Zakupy", status="pending", user_id=user.id, account_id=account.id, proposed_category_id=cat.id)
         db.session.add(stg)
         db.session.commit()
         stg_id = stg.id
+        cont_id = cont.id
+        account_id = account.id
 
-    # ACTION - Wysyłamy żądanie zatwierdzenia transakcji (nadpisując kategorię na wybraną przez usera)
-    response = client.post(f'/api/staging/{stg_id}/approve', json={'category': 'Jedzenie'})
+    # ACTION - Próba zatwierdzenia bez kontrahenta
+    resp_fail = client.post(f'/api/staging/{stg_id}/approve', json={'category': 'Jedzenie'})
+    assert resp_fail.status_code == 400
+
+    # ACTION - Wysyłamy poprawne żądanie zatwierdzenia transakcji
+    response = client.post(f'/api/staging/{stg_id}/approve', json={'category': 'Jedzenie', 'contractor_id': cont_id})
     assert response.status_code == 200
 
     # ASSERT
     with app.app_context():
-        # 1. Status w staging powinien być 'approved'
-        assert db.session.get(TransactionStaging, stg_id).status == 'approved'
+        # 1. Rekord powinien zostać usunięty z poczekalni (przeniesiony)
+        assert db.session.get(TransactionStaging, stg_id) is None
         # 2. Transakcja główna powinna powstać
         new_tx = db.session.query(Transaction).filter_by(title="Zakupy").first()
         assert new_tx is not None
         # 3. Saldo powinno zostać przeliczone przez serwis
-        assert float(db.session.get(Account, account.id).balance) == 50.0
+        assert float(db.session.get(Account, account_id).balance) == 50.0
+
+def test_clear_staging_transactions(client, app):
+    """Testuje masowe usuwanie (odrzucanie) transakcji ze stagingu."""
+    with app.app_context():
+        user = User(username="clearuser", email="clear@test.com", password_hash="hash")
+        db.session.add(user)
+        db.session.commit()
+
+        stg1 = TransactionStaging(date=date(2023, 11, 1), amount=100.0, title="T1", status="pending", user_id=user.id)
+        stg2 = TransactionStaging(date=date(2023, 11, 2), amount=200.0, title="T2", status="pending", user_id=user.id)
+        db.session.add_all([stg1, stg2])
+        db.session.commit()
+        user_id = user.id
+
+    # ACTION
+    response = client.delete('/api/staging/pending')
+    assert response.status_code == 200
+
+    # ASSERT
+    with app.app_context():
+        staged = db.session.query(TransactionStaging).filter_by(user_id=user_id, status='pending').all()
+        assert len(staged) == 0

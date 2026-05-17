@@ -36,9 +36,12 @@ class Account(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False) # np. "ING Konto Direct", "Portfel"
     bank_name: Mapped[str] = mapped_column(String(50)) # np. "ING", "Manual"
+    account_number: Mapped[Optional[str]] = mapped_column(String(50)) # Numer rachunku docelowego
     balance: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0)
     currency: Mapped[str] = mapped_column(String(3), default='PLN')
     
+    # Miękkie usuwanie ze słownika
+    is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
 
 class Category(db.Model):
@@ -59,6 +62,8 @@ class Contractor(db.Model):
     
     default_category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    # NOWE POLE: Miękkie usuwanie
+    is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
 
 class TransactionSplit(db.Model):
     __tablename__ = 'transaction_splits'

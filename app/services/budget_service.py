@@ -14,7 +14,8 @@ def create_transaction(
     title: str,
     transaction_date: date,
     category_id: Optional[int] = None,
-    contractor: Optional[str] = None
+    contractor: Optional[str] = None,
+    contractor_id: Optional[int] = None
 ) -> Transaction:
     """
     Tworzy nową transakcję i automatycznie aktualizuje saldo powiązanego konta.
@@ -30,7 +31,8 @@ def create_transaction(
         title=title,
         date=transaction_date,
         category_id=category_id,
-        contractor=contractor
+        contractor=contractor,
+        contractor_id=contractor_id
     )
 
     # Aktualizacja salda konta (obsługa Decimal dla precyzji finansowej)
@@ -113,12 +115,16 @@ def analyze_transaction_data(title: str, raw_contractor: Optional[str], user_id:
     Analizuje dane transakcji (tytuł, surowy kontrahent) i próbuje dopasować
     znormalizowanego kontrahenta ze słownika oraz jego domyślną kategorię.
     """
-    contractors = db.session.query(Contractor).filter_by(user_id=user_id).all()
+    contractors = db.session.query(Contractor).filter_by(user_id=user_id, is_active=True).all()
     
     # Łączymy cały tekst z banku w jeden mały ciąg znaków (do wygodnego szukania substringów)
     search_text = f"{title} {raw_contractor or ''}".lower()
     
     for contractor in contractors:
+        # 1. Sprawdzenie po dokładnej nazwie kontrahenta (minimum 3 znaki dla bezpieczeństwa)
+        if contractor.name and len(contractor.name) >= 3 and contractor.name.lower() in search_text:
+            return contractor.default_category_id, contractor.id
+            
         if contractor.mapping_rules:
             # Rozdzielamy reguły po przecinku (np. "biedronka, jeronimo martins")
             rules = [rule.strip().lower() for rule in contractor.mapping_rules.split(',')]

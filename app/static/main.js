@@ -5,6 +5,8 @@ let viewDate = new Date(); // Zarządza widocznym miesiącem
 let transactions = [];
 let categories = [];
 let pendingStaging = [];
+let contractors = [];
+let accounts = [];
 
 let currentTxType = 'expense';
 let inlineEditingTxId = null;
@@ -51,6 +53,12 @@ importModal.addEventListener('click', (e) => {
 importForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     importErrorMsg.classList.add('hidden');
+    
+    const accId = document.getElementById('import-account-select').value;
+    if (!accId) {
+        showImportError('Proszę najpierw wybrać konto z listy.');
+        return;
+    }
 
     const file = fileInput.files[0];
     if (!file) {
@@ -65,6 +73,7 @@ importForm.addEventListener('submit', async (e) => {
 
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('account_id', accId);
 
     setImportLoadingState(true);
 
@@ -134,23 +143,47 @@ function renderStaging() {
             const amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
             const amountText = `${isPositive ? '+' : ''}${Math.abs(t.amount).toFixed(2)} PLN`;
             
+            // Sprawdzenie statusu zmapowania przez system
+            const isFullyMapped = t.proposed_category && t.proposed_contractor_id;
+            const isPartiallyMapped = t.proposed_category || t.proposed_contractor_id;
+            
+            let rowBg = 'hover:bg-slate-50';
+            let badgeHtml = '';
+            let btnClass = 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500';
+            
+            if (isFullyMapped) {
+                rowBg = 'bg-emerald-50/40 hover:bg-emerald-100/50';
+                badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wider" title="Transakcja w pełni zmapowana">Zmapowano</span>`;
+                btnClass = 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500';
+            } else if (isPartiallyMapped) {
+                rowBg = 'bg-blue-50/30 hover:bg-blue-100/50';
+                badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 uppercase tracking-wider" title="Znaleziono częściowe dopasowanie">Częściowo</span>`;
+            }
+
             const row = document.createElement('tr');
-            row.className = 'hover:bg-slate-50 transition-colors';
+            row.className = `${rowBg} transition-colors`;
             row.innerHTML = `
                 <td class="p-4 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
                 <td class="p-4 border-b border-slate-100 font-medium text-slate-800">
-                    ${t.title}
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <span>${t.title}</span>
+                        ${badgeHtml}
+                    </div>
                     ${t.contractor ? `<div class="text-xs text-slate-500 font-normal mt-0.5">${t.contractor}</div>` : ''}
                 </td>
                 <td class="p-4 border-b border-slate-100">
-                    <select id="staging-cat-${t.id}" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
+                    <select id="staging-cont-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_contractor_id', this.value)" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-2">
+                        <option value="">Wybierz kontrahenta...</option>
+                        ${getContractorOptionsHtml(t.proposed_contractor_id)}
+                    </select>
+                    <select id="staging-cat-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_category', this.value)" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
                         <option value="">Wybierz kategorię...</option>
                         ${getCategoryOptionsHtml(t.proposed_category)}
                     </select>
                 </td>
                 <td class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
                 <td class="p-4 border-b border-slate-100 text-center">
-                    <button onclick="approveStaging(${t.id})" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    <button onclick="approveStaging(${t.id})" class="px-4 py-2 ${btnClass} text-white text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2">
                         Zatwierdź
                     </button>
                 </td>
@@ -164,15 +197,29 @@ function renderStaging() {
     }
 }
 
+window.updateStagingLocalState = function(id, field, value) {
+    const item = pendingStaging.find(t => t.id === id);
+    if (item && value !== '__NEW_CATEGORY__' && value !== '__NEW_CONTRACTOR__') {
+        item[field] = value;
+    }
+}
+
 window.approveStaging = async function(id) {
     const catSelect = document.getElementById(`staging-cat-${id}`);
+    const contSelect = document.getElementById(`staging-cont-${id}`);
     const category = catSelect.value;
+    const contractor_id = contSelect.value;
     
+    if (!category || !contractor_id) {
+        showToast('Błąd: wybierz kontrahenta i kategorię przed zatwierdzeniem.', 'error');
+        return;
+    }
+
     try {
         const response = await fetch(`/api/staging/${id}/approve`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ category: category })
+            body: JSON.stringify({ category: category, contractor_id: contractor_id })
         });
         
         if (response.ok) {
@@ -185,6 +232,58 @@ window.approveStaging = async function(id) {
         } else {
             const err = await response.json();
             showToast(err.error || 'Błąd zatwierdzania transakcji.', 'error');
+        }
+    } catch (error) {
+        console.error(error);
+        showToast('Błąd połączenia z API.', 'error');
+    }
+}
+
+window.approveAllStaging = async function() {
+    // Filtrujemy tylko te transakcje, które mają uzupełnionego i kontrahenta, i kategorię (tzw. "zielone")
+    const mapped = pendingStaging.filter(t => t.proposed_category && t.proposed_contractor_id);
+    
+    if (mapped.length === 0) {
+        showToast('Brak w pełni zmapowanych transakcji (posiadających kategorię i kontrahenta).', 'info');
+        return;
+    }
+    
+    if (!confirm(`Czy na pewno chcesz zatwierdzić ${mapped.length} zmapowanych transakcji?`)) return;
+    
+    let successCount = 0;
+    // Wysyłamy prośby sekwencyjnie (błyskawiczne API Flaska to obsłuży bez zatykania bazy)
+    for (const t of mapped) {
+        const res = await fetch(`/api/staging/${t.id}/approve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category: t.proposed_category, contractor_id: t.proposed_contractor_id })
+        });
+        if (res.ok) successCount++;
+    }
+    
+    if (successCount > 0) {
+        showToast(`Pomyślnie zatwierdzono ${successCount} transakcji!`, 'success');
+        fetchPendingStaging();
+        fetchInitialData();
+    }
+}
+
+window.clearStaging = async function() {
+    if (!confirm('Czy na pewno chcesz odrzucić WSZYSTKIE oczekujące transakcje? Tej operacji nie można cofnąć.')) return;
+    
+    try {
+        const response = await fetch('/api/staging/pending', {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            showToast(result.message, 'info');
+            pendingStaging = [];
+            renderStaging();
+        } else {
+            const err = await response.json();
+            showToast(err.error || 'Błąd podczas odrzucania transakcji.', 'error');
         }
     } catch (error) {
         console.error(error);
@@ -483,19 +582,55 @@ function getCategoryOptionsHtml(selectedValue = null) {
         html += `<option value="${c.name}" ${sel}>${c.name}</option>`;
     });
     html += `</optgroup>`;
+    html += `<option value="__NEW_CATEGORY__" class="font-bold text-blue-600">➕ Dodaj nową kategorię...</option>`;
+    return html;
+}
+
+function getContractorOptionsHtml(selectedId = null) {
+    let html = '';
+    contractors.forEach(c => {
+        const sel = (c.id == selectedId) ? 'selected' : '';
+        html += `<option value="${c.id}" ${sel}>${c.name}</option>`;
+    });
+    html += `<option value="__NEW_CONTRACTOR__" class="font-bold text-blue-600">➕ Dodaj nowego kontrahenta...</option>`;
     return html;
 }
 
 function updateCategorySelects() {
     const formSelect = document.getElementById('tx-category');
     const recSelect = document.getElementById('rec-category');
+    const contCatSelect = document.getElementById('cont-cat');
     
     const currentFormVal = formSelect.value;
     formSelect.innerHTML = getCategoryOptionsHtml(currentFormVal);
 
     if(recSelect) recSelect.innerHTML = getCategoryOptionsHtml();
+    if(contCatSelect) {
+        const currentContCat = contCatSelect.value;
+        contCatSelect.innerHTML = `<option value="">Brak domyślnej kategorii</option>` + getCategoryOptionsHtml(currentContCat);
+    }
     
     renderTransactions(); // Refresh inline selects
+}
+
+function updateContractorSelects() {
+    const txCont = document.getElementById('tx-contractor');
+    if(txCont) {
+        const curr = txCont.value;
+        txCont.innerHTML = `<option value="">Brak kontrahenta</option>` + getContractorOptionsHtml(curr);
+    }
+    renderTransactions();
+}
+
+function updateAccountSelects() {
+    let html = '<option value="">Wybierz konto...</option>';
+    accounts.forEach(a => html += `<option value="${a.id}">${a.name} ${a.bank_name ? `(${a.bank_name})` : ''}</option>`);
+    
+    const txAcc = document.getElementById('tx-account');
+    if (txAcc) txAcc.innerHTML = html;
+    
+    const impAcc = document.getElementById('import-account-select');
+    if (impAcc) impAcc.innerHTML = html;
 }
 
 function renderCategories() {
@@ -580,6 +715,359 @@ window.deleteCategory = async function(name) {
     }
 }
 
+// --- KONTA (SŁOWNIK) ---
+function renderAccounts() {
+    const list = document.getElementById('account-list');
+    list.innerHTML = '';
+    accounts.forEach(a => {
+        const li = document.createElement('li');
+        li.className = 'py-3 px-3 flex justify-between items-center group';
+        li.innerHTML = `
+            <div>
+                <span class="font-medium text-slate-700 block">${a.name} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal ml-1">(${a.bank_name})</span>` : ''}</span>
+                ${a.account_number ? `<span class="text-xs text-slate-500 block break-all font-mono mt-0.5">${a.account_number}</span>` : ''}
+            </div>
+            <div class="flex gap-1">
+                <button onclick="editAccount(${a.id})" class="text-slate-400 hover:text-indigo-600 p-1.5 rounded-md hover:bg-indigo-50 transition-colors opacity-0 group-hover:opacity-100" title="Edytuj konto">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                </button>
+                <button onclick="deleteAccount(${a.id})" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100" title="Usuń konto">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+            </div>
+        `;
+        list.appendChild(li);
+    });
+}
+
+window.editAccount = function(id) {
+    const a = accounts.find(acc => acc.id === id);
+    if (!a) return;
+    document.getElementById('acc-id').value = a.id;
+    document.getElementById('acc-name').value = a.name;
+    document.getElementById('acc-bank').value = a.bank_name || '';
+    document.getElementById('acc-number').value = a.account_number || '';
+    
+    document.getElementById('acc-cancel-btn').classList.remove('hidden');
+    document.getElementById('acc-submit-btn').textContent = 'Zapisz zmiany';
+    document.getElementById('acc-submit-btn').classList.replace('bg-indigo-600', 'bg-blue-600');
+    document.getElementById('acc-submit-btn').classList.replace('hover:bg-indigo-700', 'hover:bg-blue-700');
+};
+
+window.cancelEditAccount = function() {
+    document.getElementById('account-form').reset();
+    document.getElementById('acc-id').value = '';
+    document.getElementById('acc-cancel-btn').classList.add('hidden');
+    document.getElementById('acc-submit-btn').textContent = 'Zapisz do słownika';
+    document.getElementById('acc-submit-btn').classList.replace('bg-blue-600', 'bg-indigo-600');
+    document.getElementById('acc-submit-btn').classList.replace('hover:bg-blue-700', 'hover:bg-indigo-700');
+};
+
+document.getElementById('account-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('acc-id').value;
+    const name = document.getElementById('acc-name').value.trim();
+    const bank_name = document.getElementById('acc-bank').value.trim();
+    const account_number = document.getElementById('acc-number').value.trim();
+    
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/accounts/${id}` : '/api/accounts';
+
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, bank_name, account_number })
+        });
+        if (response.ok) {
+            const saved = await response.json();
+            if (id) {
+                const idx = accounts.findIndex(a => a.id == id);
+                if (idx !== -1) accounts[idx] = saved;
+                showToast('Zaktualizowano konto.');
+            } else {
+                accounts.push(saved);
+                showToast('Dodano konto do słownika.');
+                updateAccountSelects();
+            }
+            cancelEditAccount();
+            renderAccounts();
+        } else {
+            const err = await response.json();
+            showToast(err.error || 'Błąd zapisu', 'error');
+        }
+    } catch (e) { showToast('Błąd zapisywania konta.', 'error'); }
+});
+
+window.deleteAccount = async function(id) {
+    if (!confirm('Usunąć to konto ze słownika?')) return;
+    const res = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+        accounts = accounts.filter(a => a.id !== id);
+        renderAccounts();
+        updateAccountSelects();
+    }
+}
+
+// --- SZYBKIE DODAWANIE W LOCIE ---
+let currentQuickAddSelect = null;
+
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.tagName === 'SELECT') {
+        if (e.target.value === '__NEW_CATEGORY__') {
+            currentQuickAddSelect = e.target;
+            openQuickCategoryModal();
+        } else if (e.target.value === '__NEW_CONTRACTOR__') {
+            currentQuickAddSelect = e.target;
+            openQuickContractorModal();
+        }
+    }
+});
+
+window.openQuickCategoryModal = function() {
+    document.getElementById('quick-cat-name').value = '';
+    document.getElementById('quick-category-modal').classList.remove('hidden');
+    document.getElementById('quick-category-modal').classList.add('flex');
+};
+
+window.closeQuickCategoryModal = function() {
+    document.getElementById('quick-category-modal').classList.add('hidden');
+    document.getElementById('quick-category-modal').classList.remove('flex');
+    if (currentQuickAddSelect && currentQuickAddSelect.value === '__NEW_CATEGORY__') {
+        currentQuickAddSelect.value = '';
+    }
+    currentQuickAddSelect = null;
+};
+
+window.openQuickContractorModal = function() {
+    document.getElementById('quick-cont-name-inp').value = '';
+    document.getElementById('quick-cont-rules-inp').value = '';
+    
+    const qCatSelect = document.getElementById('quick-cont-cat-select');
+    let catHtml = `<option value="">Brak domyślnej kategorii</option>`;
+    categories.filter(c=>c.type==='expense').forEach(c => catHtml += `<option value="${c.name}">${c.name}</option>`);
+    categories.filter(c=>c.type==='income').forEach(c => catHtml += `<option value="${c.name}">${c.name}</option>`);
+    qCatSelect.innerHTML = catHtml;
+
+    document.getElementById('quick-contractor-modal').classList.remove('hidden');
+    document.getElementById('quick-contractor-modal').classList.add('flex');
+};
+
+window.closeQuickContractorModal = function() {
+    document.getElementById('quick-contractor-modal').classList.add('hidden');
+    document.getElementById('quick-contractor-modal').classList.remove('flex');
+    if (currentQuickAddSelect && currentQuickAddSelect.value === '__NEW_CONTRACTOR__') {
+        currentQuickAddSelect.value = '';
+    }
+    currentQuickAddSelect = null;
+};
+
+document.getElementById('quick-category-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const name = document.getElementById('quick-cat-name').value.trim();
+    const type = document.getElementById('quick-cat-type').value;
+
+    try {
+        const response = await fetch('/api/categories', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, type })
+        });
+        if (response.ok) {
+            const saved = await response.json();
+            categories.push(saved);
+            
+            const selectId = currentQuickAddSelect ? currentQuickAddSelect.id : null;
+            if (selectId && selectId.startsWith('staging-cat-')) {
+                const stgId = parseInt(selectId.replace('staging-cat-', ''));
+                updateStagingLocalState(stgId, 'proposed_category', saved.name);
+            }
+
+            updateCategorySelects();
+            renderCategories();
+            renderStaging();
+
+            if (selectId) {
+                const el = document.getElementById(selectId);
+                if (el) el.value = saved.name;
+            }
+            
+            closeQuickCategoryModal();
+            showToast(`Dodano kategorię: ${name}`);
+        } else {
+            const err = await response.json();
+            showToast(err.error || 'Błąd zapisu', 'error');
+        }
+    } catch(e) { showToast('Błąd połączenia', 'error'); }
+});
+
+document.getElementById('quick-contractor-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const name = document.getElementById('quick-cont-name-inp').value.trim();
+    const rules = document.getElementById('quick-cont-rules-inp').value.trim();
+    const category = document.getElementById('quick-cont-cat-select').value;
+
+    try {
+        const response = await fetch('/api/contractors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, rules, category })
+        });
+        if (response.ok) {
+            const saved = await response.json();
+            contractors.push(saved);
+            
+            const selectId = currentQuickAddSelect ? currentQuickAddSelect.id : null;
+            if (selectId && selectId.startsWith('staging-cont-')) {
+                const stgId = parseInt(selectId.replace('staging-cont-', ''));
+                updateStagingLocalState(stgId, 'proposed_contractor_id', saved.id);
+            }
+
+            updateContractorSelects();
+            renderContractors();
+            renderStaging();
+
+            if (selectId) {
+                const el = document.getElementById(selectId);
+                if (el) el.value = saved.id;
+            }
+            
+            closeQuickContractorModal();
+            showToast(`Dodano kontrahenta: ${name}`);
+        } else {
+            const err = await response.json();
+            showToast(err.error || 'Błąd zapisu', 'error');
+        }
+    } catch(e) { showToast('Błąd połączenia', 'error'); }
+});
+
+// --- KONTRAHENCI (SŁOWNIK) ---
+function renderContractors() {
+    const list = document.getElementById('contractor-list');
+    list.innerHTML = '';
+    contractors.forEach(c => {
+        const li = document.createElement('li');
+        li.className = 'py-3 px-3 flex justify-between items-center group';
+        li.innerHTML = `
+            <div>
+                <span class="font-medium text-slate-700 block">${c.name}</span>
+                <span class="text-xs text-slate-400 block break-all">Reguły: ${c.rules || '-'}</span>
+            </div>
+            <div class="flex gap-1">
+                <button onclick="editContractor(${c.id})" class="text-slate-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100" title="Edytuj kontrahenta">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                </button>
+                <button onclick="deleteContractor(${c.id})" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100" title="Usuń kontrahenta">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+            </div>
+        `;
+        list.appendChild(li);
+    });
+}
+
+window.editContractor = function(id) {
+    const c = contractors.find(cont => cont.id === id);
+    if (!c) return;
+    document.getElementById('cont-id').value = c.id;
+    document.getElementById('cont-name').value = c.name;
+    document.getElementById('cont-rules').value = c.rules || '';
+    document.getElementById('cont-cat').value = c.default_category_name || '';
+    
+    document.getElementById('cont-cancel-btn').classList.remove('hidden');
+    document.getElementById('cont-submit-btn').textContent = 'Zapisz zmiany';
+    document.getElementById('cont-submit-btn').classList.replace('bg-emerald-600', 'bg-blue-600');
+    document.getElementById('cont-submit-btn').classList.replace('hover:bg-emerald-700', 'hover:bg-blue-700');
+};
+
+window.cancelEditContractor = function() {
+    document.getElementById('contractor-form').reset();
+    document.getElementById('cont-id').value = '';
+    document.getElementById('cont-cancel-btn').classList.add('hidden');
+    document.getElementById('cont-submit-btn').textContent = 'Zapisz do słownika';
+    document.getElementById('cont-submit-btn').classList.replace('bg-blue-600', 'bg-emerald-600');
+    document.getElementById('cont-submit-btn').classList.replace('hover:bg-blue-700', 'hover:bg-emerald-700');
+};
+
+document.getElementById('contractor-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('cont-id').value;
+    const name = document.getElementById('cont-name').value.trim();
+    const rules = document.getElementById('cont-rules').value.trim();
+    const category = document.getElementById('cont-cat').value;
+    
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/contractors/${id}` : '/api/contractors';
+
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, rules, category })
+        });
+        if (response.ok) {
+            const saved = await response.json();
+            if (id) {
+                const idx = contractors.findIndex(c => c.id == id);
+                if (idx !== -1) contractors[idx] = saved;
+                showToast('Zaktualizowano kontrahenta.');
+            } else {
+                contractors.push(saved);
+                showToast('Dodano kontrahenta do słownika.');
+            }
+            cancelEditContractor();
+            renderContractors();
+            updateContractorSelects();
+        }
+    } catch (e) { showToast('Błąd zapisywania kontrahenta.', 'error'); }
+});
+
+window.deleteContractor = async function(id) {
+    if (!confirm('Usunąć tego kontrahenta?')) return;
+    const res = await fetch(`/api/contractors/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+        contractors = contractors.filter(c => c.id !== id);
+        renderContractors();
+        updateContractorSelects();
+    }
+}
+
+// --- AUTO-UZUPEŁNIANIE NA PODSTAWIE OPISU ---
+window.handleAutoFill = function(textValue, contSelectEl, catSelectEl) {
+    if (!textValue || textValue.length < 2) return;
+    const text = textValue.toLowerCase();
+
+    for (const c of contractors) {
+        let matchFound = false;
+        
+        // Sprawdź dokładną nazwę (minimum 3 znaki, żeby uniknąć losowych trafień)
+        if (c.name && c.name.length >= 3 && text.includes(c.name.toLowerCase())) {
+            matchFound = true;
+        }
+        
+        // Sprawdź przypisane słowa kluczowe
+        if (!matchFound && c.rules) {
+            const rules = c.rules.split(',').map(r => r.trim().toLowerCase()).filter(r => r.length >= 2);
+            for (const rule of rules) {
+                if (text.includes(rule)) {
+                    matchFound = true;
+                    break;
+                }
+            }
+        }
+
+        if (matchFound) {
+            if (contSelectEl && contSelectEl.value != c.id) {
+                contSelectEl.value = c.id;
+            }
+            if (catSelectEl && c.default_category_name && catSelectEl.value !== c.default_category_name) {
+                catSelectEl.value = c.default_category_name;
+            }
+            return; // Zatrzymujemy szukanie na pierwszym dopasowaniu
+        }
+    }
+}
+
 // --- TRANSAKCJE ---
 function toggleTxType(type) {
     currentTxType = type;
@@ -595,15 +1083,33 @@ function toggleTxType(type) {
     }
 }
 
+// Podpięcie Auto-uzupełniania do głównych formularzy
+document.getElementById('tx-desc').addEventListener('input', function(e) {
+    handleAutoFill(e.target.value, document.getElementById('tx-contractor'), document.getElementById('tx-category'));
+});
+
+const recDesc = document.getElementById('rec-desc');
+if (recDesc) {
+    recDesc.addEventListener('input', function(e) {
+        handleAutoFill(e.target.value, null, document.getElementById('rec-category'));
+    });
+}
+
 document.getElementById('transaction-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const dateInput = document.getElementById('tx-date').value;
     const descInput = document.getElementById('tx-desc').value.trim();
     const rawAmount = parseFloat(document.getElementById('tx-amount').value);
     const categoryInput = document.getElementById('tx-category').value;
+    const contractorInput = document.getElementById('tx-contractor').value;
+    const accountInput = document.getElementById('tx-account').value;
 
     if (!dateInput || !descInput || isNaN(rawAmount) || rawAmount <= 0) {
         showToast('Wypełnij poprawnie wszystkie pola.', 'error');
+        return;
+    }
+    if (!accountInput) {
+        showToast('Proszę najpierw wybrać konto.', 'error');
         return;
     }
 
@@ -613,7 +1119,9 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
         date: dateInput,
         desc: descInput,
         amount: finalAmount,
-        category: categoryInput
+        category: categoryInput,
+        contractor_id: contractorInput ? parseInt(contractorInput) : null,
+        account_id: parseInt(accountInput)
     };
 
     try {
@@ -631,6 +1139,7 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
             
             document.getElementById('tx-desc').value = '';
             document.getElementById('tx-amount').value = '';
+            document.getElementById('tx-contractor').value = '';
             
             showToast('Transakcja została zapisana pomyślnie.');
             renderTransactions();
@@ -658,6 +1167,7 @@ function saveInlineEdit(id) {
     const descVal = document.getElementById(`edit-desc-${id}`).value.trim();
     const rawAmount = parseFloat(document.getElementById(`edit-amount-${id}`).value);
     const categoryVal = document.getElementById(`edit-cat-${id}`).value;
+    const contractorVal = document.getElementById(`edit-cont-${id}`).value;
     const isIncome = document.getElementById(`edit-type-${id}`).value === 'income';
 
     if (!dateVal || !descVal || isNaN(rawAmount) || rawAmount <= 0) {
@@ -671,6 +1181,7 @@ function saveInlineEdit(id) {
         tx.desc = descVal;
         tx.amount = isIncome ? Math.abs(rawAmount) : -Math.abs(rawAmount);
         tx.category = categoryVal;
+        tx.contractor_id = contractorVal ? parseInt(contractorVal) : null;
         
         // Usunięcie podziałów, bo zmieniono dane główne (uproszczenie logiki dla użytkownika)
         if (tx.splits) delete tx.splits; 
@@ -689,7 +1200,14 @@ function renderTransactions() {
     // Pobierz transakcje z aktualnego miesiąca (zwykłe + cykliczne)
     const allTx = getFullTransactionsList(null, null, null); 
     const filtered = allTx.filter(t => isSameMonthAndYear(t.date, viewDate));
-    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+    filtered.sort((a, b) => {
+        const dateDiff = new Date(b.date) - new Date(a.date);
+        if (dateDiff !== 0) return dateDiff;
+        // W przypadku tej samej daty, ułóż nowe pozycje (o wyższym ID) na samej górze
+        const idA = typeof a.id === 'number' ? a.id : 0;
+        const idB = typeof b.id === 'number' ? b.id : 0;
+        return idB - idA;
+    });
 
     // Nazwa miesiąca w nagłówku
     const monthNames = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
@@ -715,7 +1233,13 @@ function renderTransactions() {
                         <input type="date" id="edit-date-${t.id}" value="${t.date}" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                     </td>
                     <td class="p-2 border-b border-blue-100">
-                        <input type="text" id="edit-desc-${t.id}" value="${t.desc}" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                        <input type="text" id="edit-desc-${t.id}" value="${t.desc}" oninput="handleAutoFill(this.value, document.getElementById('edit-cont-${t.id}'), document.getElementById('edit-cat-${t.id}'))" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                    </td>
+                    <td class="p-2 border-b border-blue-100">
+                        <select id="edit-cont-${t.id}" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                            <option value="">Brak kontrahenta</option>
+                            ${getContractorOptionsHtml(t.contractor_id)}
+                        </select>
                     </td>
                     <td class="p-2 border-b border-blue-100">
                         ${isSplit ? 
@@ -762,6 +1286,9 @@ function renderTransactions() {
                 row.innerHTML = `
                     <td class="p-4 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
                     <td class="p-4 border-b border-slate-100 font-medium text-slate-800">${iconHtml}${t.desc}</td>
+                    <td class="p-4 border-b border-slate-100 text-slate-600 text-sm">
+                        ${t.contractor_name || t.contractor || '-'}
+                    </td>
                     <td class="p-4 border-b border-slate-100 text-slate-600 text-sm">
                         ${isSplit ? 
                             '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 font-medium text-xs border border-indigo-100" title="Transakcja rozbita na pozycje"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Sprawdź szczegóły</span>' 
@@ -1092,9 +1619,15 @@ async function fetchInitialData() {
         const data = await response.json();
         transactions = data.transactions || [];
         categories = data.categories || [];
+        contractors = data.contractors || [];
+        accounts = data.accounts || [];
         
         updateCategorySelects();
+        updateContractorSelects();
+        updateAccountSelects();
         renderCategories();
+        renderContractors();
+        renderAccounts();
         renderTransactions();
     } catch (error) {
         console.error('Błąd pobierania danych z API:', error);

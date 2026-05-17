@@ -27,7 +27,7 @@
                 Do weryfikacji <span id="staging-badge" class="hidden bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
             </button>
             <button onclick="switchTab('summary')" id="btn-tab-summary" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Podsumowanie</button>
-            <button onclick="switchTab('categories')" id="btn-tab-categories" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Kategorie</button>
+            <button onclick="switchTab('categories')" id="btn-tab-categories" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Słowniki</button>
         </nav>
 
         <main>
@@ -59,6 +59,8 @@
                         <input type="date" id="tx-date" required class="p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                         <input type="text" id="tx-desc" placeholder="Opis (np. Zakupy, Czynsz)" required class="flex-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                         <input type="number" id="tx-amount" placeholder="Kwota" step="0.01" min="0.01" required class="w-full md:w-32 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                        <select id="tx-account" required class="w-full md:w-40 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"><option value="">Wybierz konto...</option></select>
+                        <select id="tx-contractor" class="w-full md:w-48 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"><option value="">Brak kontrahenta</option></select>
                         <select id="tx-category" required class="w-full md:w-48 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"></select>
                         <button type="submit" id="submit-btn" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 w-full md:w-auto">Zapisz</button>
                     </form>
@@ -80,6 +82,7 @@
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                     <th class="p-4 font-semibold w-32">Data</th>
                                     <th class="p-4 font-semibold">Opis</th>
+                                    <th class="p-4 font-semibold w-40">Kontrahent</th>
                                     <th class="p-4 font-semibold w-48">Kategoria</th>
                                     <th class="p-4 font-semibold w-32 text-right">Kwota</th>
                                     <th class="p-4 font-semibold w-24 text-center">Akcje</th>
@@ -102,7 +105,11 @@
                 <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                         <h2 class="font-semibold text-slate-800 flex items-center gap-2">Transakcje oczekujące na zatwierdzenie</h2>
-                        <button onclick="fetchPendingStaging()" class="text-sm text-blue-600 hover:text-blue-700 font-medium">Odśwież</button>
+                        <div class="flex gap-4">
+                            <button onclick="clearStaging()" class="text-sm text-rose-600 hover:text-rose-700 font-medium">Odrzuć wszystkie</button>
+                            <button onclick="approveAllStaging()" class="text-sm text-emerald-600 hover:text-emerald-700 font-medium">Zatwierdź zmapowane</button>
+                            <button onclick="fetchPendingStaging()" class="text-sm text-blue-600 hover:text-blue-700 font-medium">Odśwież</button>
+                        </div>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse">
@@ -110,7 +117,7 @@
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                     <th class="p-4 font-semibold w-32">Data</th>
                                     <th class="p-4 font-semibold">Tytuł z banku</th>
-                                    <th class="p-4 font-semibold w-48">Kategoria (Podpowiedź)</th>
+                                    <th class="p-4 font-semibold w-56">Kontrahent i Kategoria</th>
                                     <th class="p-4 font-semibold w-32 text-right">Kwota</th>
                                     <th class="p-4 font-semibold w-24 text-center">Akcja</th>
                                 </tr>
@@ -201,23 +208,70 @@
 
             <!-- ZAKŁADKA 3: KATEGORIE -->
             <div id="tab-categories" class="tab-hidden space-y-6">
-                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <h2 class="font-bold text-slate-800 mb-4">Dodaj nową kategorię</h2>
-                    <form id="category-form" class="flex flex-col sm:flex-row gap-3">
-                        <input type="text" id="cat-name" placeholder="Nazwa kategorii (np. Siłownia)" required class="flex-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                        <select id="cat-type" class="w-full sm:w-48 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
-                            <option value="expense">Wydatek</option>
-                            <option value="income">Przychód</option>
-                        </select>
-                        <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Dodaj kategorię</button>
-                    </form>
-                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Lewa kolumna: Kategorie -->
+                    <div class="space-y-6">
+                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                            <h2 class="font-bold text-slate-800 mb-4">Dodaj nową kategorię</h2>
+                            <form id="category-form" class="flex flex-col gap-3">
+                                <div class="flex flex-col sm:flex-row gap-3">
+                                    <input type="text" id="cat-name" placeholder="Nazwa kategorii (np. Siłownia)" required class="flex-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                    <select id="cat-type" class="w-full sm:w-32 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
+                                        <option value="expense">Wydatek</option>
+                                        <option value="income">Przychód</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm w-full">Dodaj kategorię</button>
+                            </form>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+                            <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje kategorie</h3>
+                            <ul id="category-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Prawa kolumna: Kontrahenci -->
+                    <div class="space-y-6">
+                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                            <h2 class="font-bold text-slate-800 mb-4">Słownik kontrahentów</h2>
+                            <form id="contractor-form" class="flex flex-col gap-3">
+                                <input type="hidden" id="cont-id">
+                                <input type="text" id="cont-name" placeholder="Znormalizowana nazwa (np. Biedronka)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                <input type="text" id="cont-rules" placeholder="Słowa kluczowe do analizy (np. biedronka, jeronimo)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                <select id="cont-cat" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"><option value="">Brak domyślnej kategorii</option></select>
+                                <div class="flex gap-2">
+                                    <button type="button" id="cont-cancel-btn" onclick="cancelEditContractor()" class="hidden px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-all shadow-sm w-1/3 text-sm">Anuluj</button>
+                                    <button type="submit" id="cont-submit-btn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-all shadow-sm flex-1 text-sm">Zapisz do słownika</button>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+                            <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Zapisani kontrahenci</h3>
+                            <ul id="contractor-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+                        </div>
+                    </div>
 
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
-                    <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje kategorie</h3>
-                    <ul id="category-list" class="divide-y divide-slate-100 p-2">
-                        <!-- Lista Kategorii -->
-                    </ul>
+                    <!-- Prawa kolumna: Konta (Słownik kont) -->
+                    <div class="space-y-6">
+                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                            <h2 class="font-bold text-slate-800 mb-4">Słownik kont</h2>
+                            <form id="account-form" class="flex flex-col gap-3">
+                                <input type="hidden" id="acc-id">
+                                <input type="text" id="acc-name" placeholder="Nazwa konta (np. Oszczędnościowe)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                <input type="text" id="acc-bank" placeholder="Bank (np. mBank)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                <input type="text" id="acc-number" placeholder="Nr rachunku (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-mono">
+                                <div class="flex gap-2">
+                                    <button type="button" id="acc-cancel-btn" onclick="cancelEditAccount()" class="hidden px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-all shadow-sm w-1/3 text-sm">Anuluj</button>
+                                    <button type="submit" id="acc-submit-btn" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all shadow-sm flex-1 text-sm">Zapisz do słownika</button>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+                            <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje konta</h3>
+                            <ul id="account-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+                        </div>
+                    </div>
+                </div>
                 </div>
             </div>
         </main>
@@ -235,6 +289,10 @@
             <div class="p-6">
                 <form id="importForm">
                     <div class="mb-5">
+                        <label class="block text-sm font-medium text-slate-700 mb-2">
+                            Konto docelowe (Do jakiego konta wgrać plik?)
+                        </label>
+                        <select id="import-account-select" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-4"></select>
                         <label for="csvFileInput" class="block text-sm font-medium text-slate-700 mb-2">
                             Wybierz plik z historią (.csv)
                         </label>
@@ -396,6 +454,71 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Szybkiego Dodawania Kategorii -->
+    <div id="quick-category-modal" class="fixed inset-0 bg-slate-900/50 hidden flex-col items-center justify-center z-[60] px-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="text-lg font-bold text-slate-800">Nowa kategoria</h3>
+                <button type="button" onclick="closeQuickCategoryModal()" class="text-slate-400 hover:text-slate-600 focus:outline-none transition-colors rounded-lg">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <form id="quick-category-form" class="flex flex-col gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nazwa kategorii</label>
+                        <input type="text" id="quick-cat-name" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Typ</label>
+                        <select id="quick-cat-type" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
+                            <option value="expense">Wydatek</option>
+                            <option value="income">Przychód</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-end gap-3 mt-4">
+                        <button type="button" onclick="closeQuickCategoryModal()" class="px-5 py-2.5 text-slate-700 font-medium bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-all focus:ring-2 focus:ring-slate-200">Anuluj</button>
+                        <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Dodaj</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Szybkiego Dodawania Kontrahenta -->
+    <div id="quick-contractor-modal" class="fixed inset-0 bg-slate-900/50 hidden flex-col items-center justify-center z-[60] px-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="text-lg font-bold text-slate-800">Nowy kontrahent</h3>
+                <button type="button" onclick="closeQuickContractorModal()" class="text-slate-400 hover:text-slate-600 focus:outline-none transition-colors rounded-lg">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <form id="quick-contractor-form" class="flex flex-col gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Znormalizowana nazwa (np. Biedronka)</label>
+                        <input type="text" id="quick-cont-name-inp" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Słowa kluczowe z wyciągu (opcjonalnie)</label>
+                        <input type="text" id="quick-cont-rules-inp" placeholder="np. jeronimo martins, biedronka" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Domyślna kategoria</label>
+                        <select id="quick-cont-cat-select" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
+                            <option value="">Brak domyślnej kategorii</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-end gap-3 mt-4">
+                        <button type="button" onclick="closeQuickContractorModal()" class="px-5 py-2.5 text-slate-700 font-medium bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-all focus:ring-2 focus:ring-slate-200">Anuluj</button>
+                        <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">Dodaj</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

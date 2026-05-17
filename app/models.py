@@ -9,17 +9,17 @@ from datetime import datetime, timezone
 class TransactionArchive(db.Model):
     __tablename__ = 'transaction_archive'
     
-    id = db.Column(db.Integer, primary_key=True)
-    original_id = db.Column(db.Integer, nullable=False) # ID z oryginalnej tabeli
-    title = db.Column(db.String(100), nullable=False)
-    amount = db.Column(db.Numeric(10, 2), nullable=False)
-    date = db.Column(db.Date, nullable=False)
-    account_id = db.Column(db.Integer, nullable=False)
-    category_id = db.Column(db.Integer, nullable=True)
-    user_id = db.Column(db.Integer, nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    original_id: Mapped[int] = mapped_column(nullable=False) # ID z oryginalnej tabeli
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    account_id: Mapped[int] = mapped_column(nullable=False)
+    category_id: Mapped[Optional[int]] = mapped_column()
+    user_id: Mapped[int] = mapped_column(nullable=False)
     
     # Znacznik czasu operacji usunięcia
-    deleted_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    deleted_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), nullable=False)
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -75,6 +75,9 @@ class Transaction(db.Model):
     category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
 
+    # Znacznik czasu ostatniej modyfikacji
+    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), server_default=db.func.now())
+
     # Relacja do podziałów - selectin sprawi, że zapytanie będzie bardzo wydajne (brak problemu N+1)
     splits = relationship('TransactionSplit', backref='transaction', lazy='selectin', cascade='all, delete-orphan')
 
@@ -87,6 +90,7 @@ class Budget(db.Model):
     year: Mapped[int] = mapped_column(nullable=False)
     
     category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
 
 class TransactionStaging(db.Model):
     """Tabela tymczasowa (staging) na dane z importu plików CSV przed ich zatwierdzeniem."""
@@ -97,6 +101,8 @@ class TransactionStaging(db.Model):
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     contractor: Mapped[Optional[str]] = mapped_column(String(255))
+    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), server_default=db.func.now())
+    
     
     status: Mapped[str] = mapped_column(String(20), default='pending') # np. 'pending', 'approved', 'rejected'
     account_id: Mapped[Optional[int]] = mapped_column(ForeignKey('accounts.id'))

@@ -6,6 +6,11 @@ In the future, the application will also be available on mobile platforms (iOS a
 
 This project is built as an educational application, developed step-by-step using Python, Flask, and PostgreSQL.
 
+## Architektura edycji danych (Audit Trail)
+
+W przypadku edycji istniejących wpisów aplikacja celowo nie przechowuje pełnej historii zmian (tzw. Audit Trail) w osobnych tabelach historycznych. Dla aplikacji domowego budżetu byłoby to zjawiskiem overengineeringu. Zamiast tego modyfikacje po prostu nadpisują istniejące dane w bazie, a zaktualizowany zostaje jedynie znacznik czasu (`updated_at`). 
+Wyjątkiem jest usuwanie transakcji – aby zabezpieczyć użytkownika przed utratą danych, usunięte wpisy trafiają wpierw do tabeli `TransactionArchive` (tzw. Shadow Table).
+
 ## Main Project Goals
 
 - Import transactions from bank export files

@@ -32,7 +32,12 @@ def init_data():
     categories_data = [{'name': c.name, 'type': c.type} for c in categories]
     
     # 2. Pobieranie transakcji i formatowanie ich dla frontendu
-    transactions_with_cat = db.session.query(Transaction, Category).outerjoin(Category, Transaction.category_id == Category.id).all()
+    user = db.session.query(User).first()
+    if user:
+        transactions_with_cat = db.session.query(Transaction, Category).outerjoin(Category, Transaction.category_id == Category.id).filter(Transaction.user_id == user.id).all()
+    else:
+        transactions_with_cat = []
+        
     transactions_data = []
     for tx, cat in transactions_with_cat:
         splits_data = []
@@ -86,17 +91,15 @@ def add_transaction():
     category_name = data.get('category')
     category = db.session.query(Category).filter_by(name=category_name).first()
 
-    # 3. Zapis do bazy
-    new_tx = Transaction(
-        title=title,
-        amount=amount,
-        date=tx_date,
-        account_id=account.id,
+    # 3. Zapis do bazy za pomocą serwisu (który przy okazji zaktualizuje saldo konta)
+    new_tx = create_transaction(
         user_id=user.id,
+        account_id=account.id,
+        amount=amount,
+        title=title,
+        transaction_date=tx_date,
         category_id=category.id if category else None
     )
-    db.session.add(new_tx)
-    db.session.commit()
     
     # Zwracamy pełny obiekt transakcji, aby frontend mógł go od razu wyświetlić
     return jsonify({
@@ -165,10 +168,22 @@ def delete_category(cat_name):
 
 @main_bp.route('/api/transactions/<int:tx_id>', methods=['PUT'])
 def update_transaction(tx_id):
-    """Aktualizuje transakcję (na ten moment głównie jej podziały - splits)."""
+    """Aktualizuje transakcję (podstawowe dane oraz podziały)."""
     tx = db.get_or_404(Transaction, tx_id)
     data = request.get_json()
 
+    # 1. Aktualizacja głównych danych transakcji
+    if 'title' in data or 'desc' in data:
+        tx.title = data.get('title') or data.get('desc', tx.title)
+    if 'amount' in data:
+        tx.amount = float(data.get('amount', tx.amount))
+    if 'date' in data:
+        tx.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+    if 'category' in data:
+        cat = db.session.query(Category).filter_by(name=data['category']).first()
+        tx.category_id = cat.id if cat else tx.category_id
+
+    # 2. Aktualizacja podziałów (splits)
     if 'splits' in data:
         tx.splits.clear() # Czyści stare podziały (SQLAlchemy usunie je automatycznie z bazy)
         

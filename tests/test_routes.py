@@ -1,4 +1,3 @@
-import pytest
 import io
 from datetime import date
 from app import db

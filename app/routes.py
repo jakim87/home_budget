@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, jsonify, request
 from app import db
-from app.models import Transaction, Category, User, Account, TransactionArchive, TransactionSplit
+from app.models import Transaction, Category, User, Account, TransactionArchive, TransactionSplit, TransactionStaging
 from datetime import datetime
-from app.services.budget_service import parse_ing_csv, save_transactions_to_staging
+from app.services.budget_service import parse_ing_csv, save_transactions_to_staging, create_transaction
 
 main_bp = Blueprint('main', __name__)
 
@@ -212,8 +212,8 @@ def import_ing_csv():
         return jsonify({'error': 'Nie wybrano pliku.'}), 400
 
     try:
-        # Dekodowanie w UTF-8
-        file_content = file.read().decode('utf-8')
+        # Używamy utf-8-sig, które automatycznie usuwa niewidoczny znacznik BOM
+        file_content = file.read().decode('utf-8-sig')
     except UnicodeDecodeError:
         # Pliki z polskich banków często są w kodowaniu Windows-1250
         file.seek(0)
@@ -243,3 +243,61 @@ def import_ing_csv():
         'message': f'Udało się zaimportować {len(saved_records)} transakcji do weryfikacji.',
         'count': len(saved_records)
     }), 201
+
+@main_bp.route('/api/staging/pending', methods=['GET'])
+def get_pending_staging_transactions():
+    """Pobiera listę transakcji oczekujących na zatwierdzenie z tabeli stagingowej."""
+    user = db.session.query(User).first()
+    if not user:
+        return jsonify([]), 200
+        
+    pending_txs = db.session.query(TransactionStaging, Category).outerjoin(
+        Category, TransactionStaging.proposed_category_id == Category.id
+    ).filter(
+        user_id=user.id, 
+        status='pending'
+    ).order_by(TransactionStaging.date.desc()).all()
+    
+    data = []
+    for tx, cat in pending_txs:
+        data.append({
+            'id': tx.id,
+            'date': tx.date.strftime('%Y-%m-%d'),
+            'amount': float(tx.amount),
+            'title': tx.title,
+            'contractor': tx.contractor or '',
+            'status': tx.status,
+            'proposed_category': cat.name if cat else ''
+        })
+        
+    return jsonify(data), 200
+
+@main_bp.route('/api/staging/<int:stg_id>/approve', methods=['POST'])
+def approve_staging_transaction(stg_id):
+    """Zatwierdza transakcję ze stagingu i przenosi ją do głównej tabeli, aktualizując saldo."""
+    data = request.get_json() or {}
+    stg_tx = db.session.get(TransactionStaging, stg_id)
+    
+    if not stg_tx or stg_tx.status != 'pending':
+        return jsonify({'error': 'Nie znaleziono oczekującej transakcji.'}), 404
+        
+    category_name = data.get('category')
+    category = db.session.query(Category).filter_by(name=category_name).first() if category_name else None
+    
+    try:
+        # Użycie logiki biznesowej do stworzenia wpisu i aktualizacji konta
+        new_tx = create_transaction(
+            user_id=stg_tx.user_id,
+            account_id=stg_tx.account_id,
+            amount=float(stg_tx.amount),
+            title=stg_tx.title,
+            transaction_date=stg_tx.date,
+            category_id=category.id if category else None,
+            contractor=stg_tx.contractor
+        )
+        # Zmiana statusu, by nie wyświetlała się już na liście pending
+        stg_tx.status = 'approved'
+        db.session.commit()
+        return jsonify({'message': 'Transakcja zatwierdzona.', 'transaction_id': new_tx.id}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400

@@ -1,7 +1,7 @@
 from datetime import date
 from app import db
 # Zakładamy, że Account i User zostały zdefiniowane już wcześniej, jak wynika z test_accounts.py
-from app.models import User, Account, Category, Transaction, TransactionStaging
+from app.models import User, Account, Category, Transaction, TransactionStaging, Contractor
 from app.services.budget_service import save_transactions_to_staging
 
 def test_create_category(app):
@@ -61,12 +61,24 @@ def test_create_transaction_staging(app):
 def test_save_transactions_to_staging(app):
     """Testuje zapisywanie listy sparsowanych słowników do tabeli stagingowej."""
     # Setup - symulujemy wyjście z parsera parse_ing_csv
+    user = User(username="stg_user", email="stg@test.com", password_hash="hash")
+    db.session.add(user)
+    db.session.commit()
+
+    cat = Category(name="Jedzenie", type="expense")
+    db.session.add(cat)
+    db.session.commit()
+
+    contractor = Contractor(name="Biedronka", mapping_rules="biedronka, jeronimo", default_category_id=cat.id, user_id=user.id)
+    db.session.add(contractor)
+    db.session.commit()
+
     parsed_data = [
         {
             'date': date(2023, 10, 25),
-            'title': 'Wypłata z testu',
+            'title': 'Zakupy Biedronka Warszawa',
             'amount': 12500.50,
-            'contractor': 'Firma X'
+            'contractor': 'Jeronimo Martins'
         },
         {
             'date': date(2023, 10, 28),
@@ -77,10 +89,14 @@ def test_save_transactions_to_staging(app):
     ]
     
     # Action
-    saved = save_transactions_to_staging(parsed_data)
+    saved = save_transactions_to_staging(parsed_data, user_id=user.id)
     
     # Assert - sprawdzamy, czy funkcja poprawnie zrzuciła dane do bazy
     assert len(saved) == 2
     assert saved[0].id is not None
     assert saved[0].status == 'pending'
-    assert saved[1].title == 'Opłata'
+    # Sprawdzamy czy pierwsza transakcja otrzymała propozycje
+    assert saved[0].proposed_contractor_id == contractor.id
+    assert saved[0].proposed_category_id == cat.id
+    # Druga nie pasuje do reguł "Biedronka", więc propozycje są puste
+    assert saved[1].proposed_contractor_id is None

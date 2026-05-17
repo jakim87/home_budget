@@ -158,9 +158,9 @@ def test_update_transaction_splits(client, app):
 def test_import_ing_csv_endpoint(client, app):
     """Testuje wgrywanie pliku CSV z ING przez endpoint API."""
     # SETUP - wirtualny plik CSV
-    csv_content = """Data transakcji;Data księgowania;Dane kontrahenta;Tytuł;Konto;Kwota;Waluta
-2023-10-25;2023-10-25;Pracodawca;Wypłata;;12500,50;PLN
-2023-10-28;2023-10-28;;Opłata za kartę;;-7,00;PLN
+    csv_content = """Data transakcji;Data księgowania;Dane kontrahenta;Tytuł;Konto;Bank;Szczegóły;NrTx;Kwota;Waluta
+2023-10-25;2023-10-25;Pracodawca;Wypłata;;Bank;;;12500,50;PLN
+2023-10-28;2023-10-28;;Opłata za kartę;;Bank;;;-7,00;PLN
 """
     data = {
         'file': (io.BytesIO(csv_content.encode('utf-8')), 'test_ing.csv')
@@ -178,3 +178,58 @@ def test_import_ing_csv_endpoint(client, app):
         staged = db.session.query(TransactionStaging).all()
         assert len(staged) == 2
         assert staged[0].title == "Wypłata"
+
+def test_get_pending_staging_transactions(client, app):
+    """Testuje pobieranie oczekujących (pending) transakcji ze stagingu."""
+    # SETUP
+    with app.app_context():
+        user = User(username="stguser", email="stg@test.com", password_hash="hash")
+        db.session.add(user)
+        db.session.commit()
+
+        stg1 = TransactionStaging(date=date(2023, 11, 1), amount=100.0, title="Pending TX", status="pending", user_id=user.id)
+        stg2 = TransactionStaging(date=date(2023, 11, 2), amount=200.0, title="Approved TX", status="approved", user_id=user.id)
+        db.session.add_all([stg1, stg2])
+        db.session.commit()
+
+    # ACTION
+    response = client.get('/api/staging/pending')
+    
+    # ASSERT
+    assert response.status_code == 200
+    data = response.get_json()
+    assert len(data) == 1
+    assert data[0]['title'] == "Pending TX"
+    assert data[0]['status'] == "pending"
+
+def test_approve_staging_transaction(client, app):
+    """Testuje zatwierdzanie transakcji ze stagingu i przeniesienie jej do głównej tabeli."""
+    # SETUP
+    with app.app_context():
+        user = User(username="appruser", email="appr@test.com", password_hash="hash")
+        db.session.add(user)
+        db.session.commit()
+
+        account = Account(name="Konto Appr", bank_name="Bank", balance=100.0, user_id=user.id)
+        cat = Category(name="Jedzenie", type="expense")
+        db.session.add_all([account, cat])
+        db.session.commit()
+
+        stg = TransactionStaging(date=date(2023, 11, 5), amount=-50.0, title="Zakupy", status="pending", user_id=user.id, account_id=account.id, proposed_category_id=cat.id)
+        db.session.add(stg)
+        db.session.commit()
+        stg_id = stg.id
+
+    # ACTION - Wysyłamy żądanie zatwierdzenia transakcji (nadpisując kategorię na wybraną przez usera)
+    response = client.post(f'/api/staging/{stg_id}/approve', json={'category': 'Jedzenie'})
+    assert response.status_code == 200
+
+    # ASSERT
+    with app.app_context():
+        # 1. Status w staging powinien być 'approved'
+        assert db.session.get(TransactionStaging, stg_id).status == 'approved'
+        # 2. Transakcja główna powinna powstać
+        new_tx = db.session.query(Transaction).filter_by(title="Zakupy").first()
+        assert new_tx is not None
+        # 3. Saldo powinno zostać przeliczone przez serwis
+        assert float(db.session.get(Account, account.id).balance) == 50.0

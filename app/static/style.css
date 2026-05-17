@@ -1,0 +1,37 @@
+body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+.tab-active { border-bottom: 2px solid #3b82f6; color: #2563eb; font-weight: 600; }
+.tab-inactive { color: #64748b; }
+.tab-inactive:hover { color: #334155; }
+.tab-hidden { display: none; }
+
+#toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.toast {
+    min-width: 250px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    opacity: 0;
+    transform: translateY(20px);
+    animation: slideIn 0.3s forwards, fadeOut 0.3s 3s forwards;
+}
+.toast.success { background-color: #10b981; }
+.toast.error { background-color: #ef4444; }
+.toast.info { background-color: #3b82f6; }
+
+@keyframes slideIn {
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeOut {
+    to { opacity: 0; transform: translateY(-10px); }
+}

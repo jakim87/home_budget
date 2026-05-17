@@ -15,6 +15,7 @@ class TransactionArchive(db.Model):
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
     account_id: Mapped[int] = mapped_column(nullable=False)
+    contractor_id: Mapped[Optional[int]] = mapped_column()
     category_id: Mapped[Optional[int]] = mapped_column()
     user_id: Mapped[int] = mapped_column(nullable=False)
     
@@ -49,6 +50,16 @@ class Category(db.Model):
     # NOWE POLE: Miękkie usuwanie
     is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
 
+class Contractor(db.Model):
+    __tablename__ = 'contractors'
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False) # Znormalizowana nazwa, np. "Biedronka"
+    mapping_rules: Mapped[Optional[str]] = mapped_column(String(500)) # np. "biedronka, jeronimo martins"
+    
+    default_category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+
 class TransactionSplit(db.Model):
     __tablename__ = 'transaction_splits'
     
@@ -68,10 +79,11 @@ class Transaction(db.Model):
     date: Mapped[date] = mapped_column(Date, nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    contractor: Mapped[Optional[str]] = mapped_column(String(255)) # nadawca/odbiorca
+    contractor: Mapped[Optional[str]] = mapped_column(String(255)) # Surowy tekst nadawcy z banku
     
     # Relacje
     account_id: Mapped[int] = mapped_column(ForeignKey('accounts.id'), nullable=False)
+    contractor_id: Mapped[Optional[int]] = mapped_column(ForeignKey('contractors.id')) # Powiązanie ze słownikiem
     category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
 
@@ -100,9 +112,12 @@ class TransactionStaging(db.Model):
     date: Mapped[date] = mapped_column(Date, nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    contractor: Mapped[Optional[str]] = mapped_column(String(255))
+    contractor: Mapped[Optional[str]] = mapped_column(String(255)) # Surowy tekst z banku
     updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), server_default=db.func.now())
     
+    # Kolumny proponowane przez algorytm analizy przy imporcie
+    proposed_category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
+    proposed_contractor_id: Mapped[Optional[int]] = mapped_column(ForeignKey('contractors.id'))
     
     status: Mapped[str] = mapped_column(String(20), default='pending') # np. 'pending', 'approved', 'rejected'
     account_id: Mapped[Optional[int]] = mapped_column(ForeignKey('accounts.id'))

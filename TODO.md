@@ -12,18 +12,18 @@
 - [x] Architektura bazy: Tabela cieni (`TransactionArchive`) do zachowania historii usuniętych faktów.
 - [x] API: Hard Delete transakcji + zapis do archiwum (`DELETE /api/transactions/<id>`).
 - [x] Frontend: Interfejs w Tailwind CSS, dynamiczna komunikacja (Fetch API) dla zapisów i listowania.
+- [x] Autoryzacja: Logowanie użytkowników (rejestracja, haszowanie haseł) - zaimplementowane, ale tymczasowo omijane na rzecz `default_user`.
+- [x] API: Usunięcie "mockowanego" użytkownika - wszystkie operacje są teraz przypisywane do jednego, globalnego `default_user`.
+- [x] API: Miękkie usuwanie (soft delete) kategorii (`is_active = False`).
+- [x] Endpointy CRUD dla kont bankowych (dodawanie, usuwanie, edycja salda).
+- [x] Frontend: Podpięcie przycisku usunięcia kategorii pod API.
 
 ## ⏳ Do zrobienia (Backend & API)
-- [ ] API: Miękkie usuwanie (soft delete) kategorii (`is_active = False`).
 - [ ] Skrypt CLI (`flask cleanup-archive`) usuwający przestarzałe logi z `transaction_archive` (> 60 dni).
 - [ ] Rozbudowa zapisu (`POST /api/transactions`) i bazy o "Rozbijanie transakcji" (Splits) – w HTML to jest, backend to ignoruje.
 - [ ] Backendowa obsługa "Transakcji Cyklicznych" (przeniesienie logiki z `base.html` JS do backendu np. zadań w tle).
-- [ ] Endpointy CRUD dla kont bankowych (dodawanie, usuwanie, edycja salda).
-- [ ] Autoryzacja: Logowanie użytkowników (rejestracja, haszowanie haseł).
-- [ ] API: Usunięcie "mockowanego" użytkownika - przypisywanie transakcji do faktycznie zalogowanej sesji.
 
 ## 🖥️ Do zrobienia (Frontend & UI)
-- [ ] Podpięcie przycisku usunięcia kategorii (w zakładce Kategorie) pod zapytanie `DELETE` z API (obecnie JS usuwa tylko z lokalnej tablicy).
 - [ ] Dashboard - Główny panel pokazujący całkowitą wartość netto (Net Worth) połączoną ze wszystkich kont.
 - [ ] Wizualizacja Danych: Zastąpienie prostych tekstowych podsumowań interaktywnymi wykresami (Chart.js).
 

@@ -58,11 +58,11 @@ def create_app(config_class=Config):
         from flask_login import current_user, login_user
         from datetime import date
         
-        # Sprawdzamy nie tylko czy zalogowany, ale czy to na pewno nasz nowy użytkownik testowy
-        if not current_user.is_authenticated or getattr(current_user, 'username', '') != "dev_user_with_full_data":
-            user = db.session.query(models.User).filter_by(username="dev_user_with_full_data").first()
+        # Wymuszamy autologowanie i utworzenie jednego "domyślnego" użytkownika
+        if not current_user.is_authenticated or getattr(current_user, 'username', '') != "default_user":
+            user = db.session.query(models.User).filter_by(username="default_user").first()
             if not user:
-                user = models.User(username="dev_user_with_full_data", email="dev3@local", password_hash="dummy")
+                user = models.User(username="default_user", email="default@local", password_hash="dummy")
                 db.session.add(user)
                 db.session.commit()
 

@@ -310,8 +310,9 @@ function showToast(message, type = 'success') {
 }
 
 function isSameMonthAndYear(dateString, targetDateObj) {
-    const d = new Date(dateString);
-    return d.getMonth() === targetDateObj.getMonth() && d.getFullYear() === targetDateObj.getFullYear();
+    if (!dateString) return false;
+    const [year, month] = dateString.split('-');
+    return parseInt(month, 10) - 1 === targetDateObj.getMonth() && parseInt(year, 10) === targetDateObj.getFullYear();
 }
 
 function changeMonth(offset) {
@@ -1209,8 +1210,9 @@ function renderTransactions() {
     const allTx = getFullTransactionsList(null, null, null); 
     const filtered = allTx.filter(t => isSameMonthAndYear(t.date, viewDate));
     filtered.sort((a, b) => {
-        const dateDiff = new Date(b.date) - new Date(a.date);
-        if (dateDiff !== 0) return dateDiff;
+        if (a.date !== b.date) {
+            return b.date.localeCompare(a.date);
+        }
         // W przypadku tej samej daty, ułóż nowe pozycje (o wyższym ID) na samej górze
         const idA = typeof a.id === 'number' ? a.id : 0;
         const idB = typeof b.id === 'number' ? b.id : 0;
@@ -1529,8 +1531,9 @@ function renderSummary() {
     if (monthFilter) {
         const [year, month] = monthFilter.split('-');
         filteredTx = allTx.filter(t => {
-            const d = new Date(t.date);
-            return d.getFullYear() == year && (d.getMonth() + 1) == month;
+                if (!t.date) return false;
+                const [tYear, tMonth] = t.date.split('-');
+                return parseInt(tYear, 10) === parseInt(year, 10) && parseInt(tMonth, 10) === parseInt(month, 10);
         });
     } else if (startFilter || endFilter) {
         filteredTx = allTx.filter(t => {

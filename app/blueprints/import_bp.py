@@ -1,16 +1,19 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_required, current_user
 from marshmallow import ValidationError
 from app import db
-from app.models import TransactionStaging, Category, Contractor
+from app.models import TransactionStaging, Category, Contractor, User
 from app.schemas import StagingApproveSchema
 from app.services.budget_service import parse_ing_csv, save_transactions_to_staging, approve_staging_record
 
 import_bp = Blueprint('import', __name__)
 
 @import_bp.route('/api/import/ing', methods=['POST'])
-@login_required
 def import_ing_csv():
+    default_user = db.session.query(User).filter_by(username="default_user").first()
+    if not default_user:
+        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
+    user_id = default_user.id
+
     if 'file' not in request.files:
         return jsonify({'error': 'Brak pliku w żądaniu.'}), 400
     file = request.files['file']
@@ -31,31 +34,43 @@ def import_ing_csv():
         return jsonify({'error': 'Plik nie zawiera poprawnych transakcji lub jest uszkodzony.'}), 400
         
     try:
-        saved_records = save_transactions_to_staging(parsed_data, user_id=current_user.id, account_id=int(account_id))
+        saved_records = save_transactions_to_staging(parsed_data, user_id=user_id, account_id=int(account_id))
         return jsonify({'message': f'Udało się zaimportować {len(saved_records)} transakcji do weryfikacji.', 'count': len(saved_records)}), 201
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
 
 @import_bp.route('/api/staging/pending', methods=['GET'])
-@login_required
 def get_pending_staging_transactions():
-    pending_txs = db.session.query(TransactionStaging, Category, Contractor).outerjoin(Category, TransactionStaging.proposed_category_id == Category.id).outerjoin(Contractor, TransactionStaging.proposed_contractor_id == Contractor.id).filter(TransactionStaging.user_id == current_user.id, TransactionStaging.status == 'pending').order_by(TransactionStaging.date.desc()).all()
+    default_user = db.session.query(User).filter_by(username="default_user").first()
+    if not default_user:
+        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
+    user_id = default_user.id
+
+    pending_txs = db.session.query(TransactionStaging, Category, Contractor).outerjoin(Category, TransactionStaging.proposed_category_id == Category.id).outerjoin(Contractor, TransactionStaging.proposed_contractor_id == Contractor.id).filter(TransactionStaging.user_id == user_id, TransactionStaging.status == 'pending').order_by(TransactionStaging.date.desc()).all()
     data = [{'id': tx.id, 'date': tx.date.strftime('%Y-%m-%d'), 'amount': float(tx.amount), 'title': tx.title, 'contractor': tx.contractor or '', 'status': tx.status, 'proposed_category': cat.name if cat else '', 'proposed_contractor_id': tx.proposed_contractor_id, 'proposed_contractor_name': cont.name if cont else ''} for tx, cat, cont in pending_txs]
     return jsonify(data), 200
 
 @import_bp.route('/api/staging/pending', methods=['DELETE'])
-@login_required
 def clear_pending_staging_transactions():
-    deleted_count = db.session.query(TransactionStaging).filter_by(user_id=current_user.id, status='pending').delete()
+    default_user = db.session.query(User).filter_by(username="default_user").first()
+    if not default_user:
+        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
+    user_id = default_user.id
+
+    deleted_count = db.session.query(TransactionStaging).filter_by(user_id=user_id, status='pending').delete()
     db.session.commit()
     return jsonify({'message': f'Odrzucono {deleted_count} transakcji.'}), 200
 
 @import_bp.route('/api/staging/<int:stg_id>/approve', methods=['POST'])
-@login_required
 def approve_staging_transaction(stg_id):
+    default_user = db.session.query(User).filter_by(username="default_user").first()
+    if not default_user:
+        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
+    user_id = default_user.id
+
     try:
         data = StagingApproveSchema().load(request.get_json() or {})
-        new_tx = approve_staging_record(current_user.id, stg_id, data)
+        new_tx = approve_staging_record(user_id, stg_id, data)
         return jsonify({'message': 'Transakcja zatwierdzona.', 'transaction_id': new_tx.id}), 200
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400

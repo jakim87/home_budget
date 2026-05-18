@@ -160,7 +160,7 @@ function renderStaging() {
         pendingStaging.forEach(t => {
             const isPositive = t.amount >= 0;
             const amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
-            const amountText = `${isPositive ? '+' : ''}${Math.abs(t.amount).toFixed(2)} PLN`;
+            const amountText = `${isPositive ? '+' : '-'}${Math.abs(t.amount).toFixed(2)} PLN`;
             
             // Sprawdzenie statusu zmapowania przez system
             const isFullyMapped = t.proposed_category && t.proposed_contractor_id;
@@ -1392,7 +1392,7 @@ function renderTransactions() {
                 } else {
                     amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
                 }
-                const amountText = `${isPositive ? '+' : ''}${Math.abs(t.amount).toFixed(2)} PLN`;
+                const amountText = `${isPositive ? '+' : '-'}${Math.abs(t.amount).toFixed(2)} PLN`;
                 
                 const isVirtual = t.isVirtual;
                 const iconHtml = isVirtual 

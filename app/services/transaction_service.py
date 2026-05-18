@@ -1,12 +1,23 @@
 from app import db
-from app.models import Transaction, TransactionArchive, Category, TransactionSplit
+from app.models import Transaction, TransactionArchive, Category, TransactionSplit, Account
 from datetime import datetime
+from decimal import Decimal
 
 def archive_and_delete_transaction(user_id, tx_id):
     try:
         tx = db.session.query(Transaction).filter_by(id=tx_id, user_id=user_id).first()
         if not tx:
             raise ValueError('Transakcja nie istnieje lub brak uprawnień.')
+
+        # --- AKTUALIZACJA SALDA ---
+        # Znajdź konto i zaktualizuj jego saldo, odejmując kwotę usuwanej transakcji.
+        account = db.session.get(Account, tx.account_id)
+        if account:
+            # Upewniamy się, że operujemy na typie Decimal dla zachowania precyzji
+            balance = Decimal(str(account.balance)) if not isinstance(account.balance, Decimal) else account.balance
+            amount = Decimal(str(tx.amount)) if not isinstance(tx.amount, Decimal) else tx.amount
+            account.balance = balance - amount
+        # -------------------------
             
         archive_tx = TransactionArchive(
             original_id=tx.id,
@@ -15,6 +26,7 @@ def archive_and_delete_transaction(user_id, tx_id):
             date=tx.date,
             account_id=tx.account_id,
             category_id=tx.category_id,
+            contractor_id=tx.contractor_id,
             user_id=tx.user_id
         )
         db.session.add(archive_tx)

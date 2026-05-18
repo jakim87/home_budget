@@ -81,19 +81,20 @@ To run and work on this project, you will need:
 home-budget-app/
 ├── app/
 │   ├── services/
-│   │   ├── __init__.py
+│   │   ├── README.md             # Instrukcje dla modułu usług
 │   │   └── budget_service.py     # Logika biznesowa i operacje na bazie
 │   ├── blueprints/               # Podział endpointów (Routing)
+│   │   └── README.md             # Instrukcje tworzenia nowych blueprintów
 │   ├── templates/
-│   │   └── base.html             # Frontend (Tailwind + JS)
+│   │   └── base.html             # Główny szablon (Tailwind + JS)
 │   ├── __init__.py               # Inicjalizacja Flask i SQLAlchemy (App Factory)
 │   └── models.py                 # Modele tabel bazy danych
 ├── local_data/                   # Ignored by git (keep your bank CSVs here!)
 ├── migrations/                   # Flask-Migrate (Alembic) versions
+│   └── README.md             # Instrukcje dla migracji
 ├── tests/
-│   ├── conftest.py               # Konfiguracja Pytest (baza SQLite w RAM)
-│   ├── test_accounts.py          
-│   └── test_transactions.py      # TDD testy dla transakcji
+│   ├── README.md             # Dokumentacja i zasady testowania
+│   └── ...                   # Pliki z testami
 ├── .env
 ├── .gitignore
 ├── config.py

@@ -41,7 +41,7 @@ def create_transaction(
         )
 
         # Aktualizacja salda konta (obsługa Decimal dla precyzji finansowej)
-        account.balance = (Decimal(str(account.balance)) if not isinstance(account.balance, Decimal) else account.balance) + amount
+        account.balance = Decimal(account.balance) + amount
         
         db.session.add(new_transaction)
         
@@ -62,52 +62,47 @@ def create_transaction(
             category = db.session.get(Category, category_id)
             if category and category.type == 'transfer':
                 contractor_obj = db.session.get(Contractor, contractor_id)
-                if contractor_obj and contractor_obj.name.startswith("Moje konto: "):
-                    dest_account_name = contractor_obj.name.replace("Moje konto: ", "")
-                    dest_account = db.session.query(Account).filter_by(user_id=user_id, name=dest_account_name, is_active=True).first()
+                if not (contractor_obj and contractor_obj.name.startswith("Moje konto: ")):
+                    db.session.commit()
+                    return new_transaction
+
+                # --- Logika przelewu wewnętrznego ---
+                # Dla przelewu, transakcja na koncie źródłowym jest zawsze wydatkiem (ujemna),
+                # a na docelowym przychodem (dodatnia). Wymuszamy to, używając abs().
+                outflow_amount = -abs(amount)
+                inflow_amount = abs(amount)
+
+                # Korekta salda i kwoty na transakcji źródłowej, jeśli pierwotna kwota miała zły znak.
+                if amount != outflow_amount:
+                    correction = outflow_amount - amount
+                    account.balance += correction
+                    new_transaction.amount = outflow_amount
+
+                dest_account_name = contractor_obj.name.replace("Moje konto: ", "")
+                dest_account = db.session.query(Account).filter_by(user_id=user_id, name=dest_account_name, is_active=True).first()
+                
+                if not (dest_account and dest_account.id != account_id):
+                    db.session.commit()
+                    return new_transaction
+
+                # Sprawdzamy, czy lustrzana transakcja już istnieje
+                existing_mirror = db.session.query(Transaction).filter_by(user_id=user_id, account_id=dest_account.id, amount=inflow_amount, date=transaction_date).first()
+                if not existing_mirror:
+                    source_cont_name = f"Moje konto: {account.name}"
+                    source_contractor = db.session.query(Contractor).filter_by(user_id=user_id, name=source_cont_name).first()
+                    if not source_contractor:
+                        source_contractor = Contractor(name=source_cont_name, user_id=user_id, default_category_id=category_id)
+                        db.session.add(source_contractor)
+                        db.session.flush()
+                        
+                    mirror_tx = Transaction(user_id=user_id, account_id=dest_account.id, amount=inflow_amount, title=title, date=transaction_date, category_id=category_id, contractor=source_contractor.name, contractor_id=source_contractor.id)
+                    dest_account.balance = Decimal(dest_account.balance) + inflow_amount
+                    db.session.add(mirror_tx)
                     
-                    if dest_account and dest_account.id != account_id:
-                        mirror_amount = -amount
-                        
-                        # Sprawdzamy, czy lustrzana transakcja już istnieje (np. dodana ręcznie lub przez drugi wyciąg)
-                        existing_mirror = db.session.query(Transaction).filter_by(
-                            user_id=user_id,
-                            account_id=dest_account.id,
-                            amount=mirror_amount,
-                            date=transaction_date
-                        ).first()
-                        
-                        if not existing_mirror:
-                            source_cont_name = f"Moje konto: {account.name}"
-                            source_contractor = db.session.query(Contractor).filter_by(user_id=user_id, name=source_cont_name).first()
-                            if not source_contractor:
-                                source_contractor = Contractor(name=source_cont_name, user_id=user_id, default_category_id=category_id)
-                                db.session.add(source_contractor)
-                                db.session.flush()
-                                
-                            mirror_tx = Transaction(
-                                user_id=user_id,
-                                account_id=dest_account.id,
-                                amount=mirror_amount,
-                                title=title,
-                                date=transaction_date,
-                                category_id=category_id,
-                                contractor=source_contractor.name,
-                                contractor_id=source_contractor.id
-                            )
-                            dest_account.balance = (Decimal(str(dest_account.balance)) if not isinstance(dest_account.balance, Decimal) else dest_account.balance) + mirror_amount
-                            db.session.add(mirror_tx)
-                            
-                        # Usuwamy pasujący wpis ze stagingu (aby uniknąć duplikatów przy imporcie z wielu kont)
-                        matching_staging = db.session.query(TransactionStaging).filter_by(
-                            user_id=user_id,
-                            account_id=dest_account.id,
-                            amount=mirror_amount,
-                            date=transaction_date,
-                            status='pending'
-                        ).first()
-                        if matching_staging:
-                            db.session.delete(matching_staging)
+                # Usuwamy pasujący wpis ze stagingu (aby uniknąć duplikatów)
+                matching_staging = db.session.query(TransactionStaging).filter_by(user_id=user_id, account_id=dest_account.id, amount=inflow_amount, date=transaction_date, status='pending').first()
+                if matching_staging:
+                    db.session.delete(matching_staging)
 
         db.session.commit()
         

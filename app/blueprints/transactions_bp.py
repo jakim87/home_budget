@@ -9,9 +9,13 @@ from app.services.budget_service import create_transaction
 
 transactions_bp = Blueprint('transactions', __name__)
 
+def _get_default_user():
+    """Pomocnicza funkcja do pobierania domyślnego użytkownika."""
+    return db.session.query(User).filter_by(username="default_user").first()
+
 @transactions_bp.route('/api/transactions', methods=['POST'])
 def add_transaction():
-    default_user = db.session.query(User).filter_by(username="default_user").first()
+    default_user = _get_default_user()
     if not default_user:
         return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
     user_id = default_user.id
@@ -29,10 +33,25 @@ def add_transaction():
         category_name = data.get('category')
         category = db.session.query(Category).filter_by(name=category_name).first()
         contractor_id = data.get('contractor_id')
+        splits_data = data.get('splits', [])
 
-        new_tx = create_transaction(user_id, account_id, amount, title, tx_date, category.id if category else None, contractor_id=contractor_id)
+        new_tx = create_transaction(
+            user_id, account_id, amount, title, tx_date, 
+            category.id if category else None, 
+            contractor_id=contractor_id,
+            splits_data=splits_data
+        )
         
-        return jsonify({'id': new_tx.id, 'desc': new_tx.title, 'amount': float(new_tx.amount), 'date': new_tx.date.strftime('%Y-%m-%d'), 'category': category.name if category else 'Inne', 'contractor_id': new_tx.contractor_id, 'contractor_name': db.session.get(Contractor, new_tx.contractor_id).name if new_tx.contractor_id else None, 'splits': []}), 201
+        return_splits = []
+        for s in new_tx.splits:
+            return_splits.append({
+                'id': s.id,
+                'amount': float(s.amount),
+                'desc': s.desc,
+                'category': s.category.name if s.category else 'Inne'
+            })
+        
+        return jsonify({'id': new_tx.id, 'desc': new_tx.title, 'amount': float(new_tx.amount), 'date': new_tx.date.strftime('%Y-%m-%d'), 'category': category.name if category else 'Inne', 'contractor_id': new_tx.contractor_id, 'contractor_name': db.session.get(Contractor, new_tx.contractor_id).name if new_tx.contractor_id else None, 'splits': return_splits}), 201
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
     except ValueError as err:
@@ -40,7 +59,7 @@ def add_transaction():
 
 @transactions_bp.route('/api/transactions/<int:tx_id>', methods=['PUT'])
 def edit_transaction(tx_id):
-    default_user = db.session.query(User).filter_by(username="default_user").first()
+    default_user = _get_default_user()
     if not default_user:
         return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
     user_id = default_user.id
@@ -53,7 +72,7 @@ def edit_transaction(tx_id):
 
 @transactions_bp.route('/api/transactions/<int:tx_id>', methods=['DELETE'])
 def remove_transaction(tx_id):
-    default_user = db.session.query(User).filter_by(username="default_user").first()
+    default_user = _get_default_user()
     if not default_user:
         return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
     user_id = default_user.id

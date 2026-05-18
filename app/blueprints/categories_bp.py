@@ -18,5 +18,8 @@ def add_category():
 
 @categories_bp.route('/api/categories/<string:cat_name>', methods=['DELETE'])
 def delete_category(cat_name):
-    soft_delete_category(cat_name)
-    return jsonify({'message': f'Kategoria {cat_name} została usunięta.'}), 200
+    try:
+        soft_delete_category(cat_name)
+        return jsonify({'message': f'Kategoria {cat_name} została usunięta.'}), 200
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400

@@ -17,10 +17,13 @@
 - [x] API: Miękkie usuwanie (soft delete) kategorii (`is_active = False`).
 - [x] Endpointy CRUD dla kont bankowych (dodawanie, usuwanie, edycja salda).
 - [x] Frontend: Podpięcie przycisku usunięcia kategorii pod API.
+- [x] Skrypt CLI (`flask cleanup-archive`) usuwający przestarzałe logi z `transaction_archive` (> 60 dni).
+- [x] Rozbudowa zapisu (`POST /api/transactions`) i bazy o "Rozbijanie transakcji" (Splits) – w HTML to jest, backend to ignoruje.
+- [x] Moduł importu transakcji z plików CSV (ING Bank Śląski).
+- [x] Architektura importu: Tabela tymczasowa (`TransactionStaging`) i proces weryfikacji.
+- [x] Algorytm autokategoryzacji przy imporcie (oparty na słowach kluczowych i przelewach wewnętrznych).
 
 ## ⏳ Do zrobienia (Backend & API)
-- [ ] Skrypt CLI (`flask cleanup-archive`) usuwający przestarzałe logi z `transaction_archive` (> 60 dni).
-- [ ] Rozbudowa zapisu (`POST /api/transactions`) i bazy o "Rozbijanie transakcji" (Splits) – w HTML to jest, backend to ignoruje.
 - [ ] Backendowa obsługa "Transakcji Cyklicznych" (przeniesienie logiki z `base.html` JS do backendu np. zadań w tle).
 
 ## 🖥️ Do zrobienia (Frontend & UI)
@@ -28,9 +31,7 @@
 - [ ] Wizualizacja Danych: Zastąpienie prostych tekstowych podsumowań interaktywnymi wykresami (Chart.js).
 
 ## 🚀 Funkcjonalności Biznesowe (zgodnie z README.md)
-- [ ] Moduł importu transakcji z plików bankowych CSV (Priorytet: ING Bank Śląski).
 - [ ] Wsparcie dla innych banków (Millennium, mBank, Pekao, Revolut).
-- [ ] Algorytm autokategoryzacji przy imporcie (oparty na słowach kluczowych w opisie).
 - [ ] Obsługa wpisów gotówkowych (Manual cash entries).
 - [ ] Moduł planowania budżetu miesięcznego (`Budget`).
 - [ ] Zaawansowana analityka i raportowanie wydatków.

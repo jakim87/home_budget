@@ -67,7 +67,7 @@ def create_app(config_class=Config):
                 db.session.commit()
 
                 # --- WYGENEROWANIE DANYCH TESTOWYCH ---
-                account = models.Account(name="Portfel", bank_name="Gotówka", balance=1500.0, user_id=user.id)
+                account = models.Account(name="Portfel", bank_name="Gotówka", balance=1500.0, user_id=user.id, is_default=True)
                 db.session.add(account)
                 db.session.commit()
                 
@@ -97,5 +97,16 @@ def create_app(config_class=Config):
                 # ----------------------------------------
 
             login_user(user)
+
+    @app.cli.command("cleanup-archive")
+    def cleanup_archive():
+        """Usuwa przestarzale logi z transaction_archive (> 60 dni)."""
+        from app.models import TransactionArchive
+        from datetime import datetime, timedelta, timezone
+        
+        cutoff = datetime.now(timezone.utc) - timedelta(days=60)
+        deleted = db.session.query(TransactionArchive).filter(TransactionArchive.deleted_at < cutoff).delete()
+        db.session.commit()
+        print(f"Pomyślnie usunięto {deleted} przestarzałych wpisów z archiwum.")
 
     return app

@@ -44,6 +44,7 @@ class Account(db.Model):
     
     # Miękkie usuwanie ze słownika
     is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
+    is_default: Mapped[bool] = mapped_column(default=False, server_default='false', nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
 
 class Category(db.Model):
@@ -93,6 +94,12 @@ class Transaction(db.Model):
     contractor_id: Mapped[Optional[int]] = mapped_column(ForeignKey('contractors.id')) # Powiązanie ze słownikiem
     category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+
+    # Właściwości relacyjne (wymagane m.in. dla eager loadingu w zapytaniach)
+    account: Mapped['Account'] = relationship()
+    contractor_details: Mapped[Optional['Contractor']] = relationship("Contractor", foreign_keys=[contractor_id])
+    category: Mapped[Optional['Category']] = relationship()
+    user: Mapped['User'] = relationship()
 
     # Znacznik czasu ostatniej modyfikacji
     updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), server_default=db.func.now())

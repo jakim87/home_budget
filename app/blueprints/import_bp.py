@@ -7,9 +7,13 @@ from app.services.budget_service import parse_ing_csv, save_transactions_to_stag
 
 import_bp = Blueprint('import', __name__)
 
+def _get_default_user():
+    """Pomocnicza funkcja do pobierania domyślnego użytkownika."""
+    return db.session.query(User).filter_by(username="default_user").first()
+
 @import_bp.route('/api/import/ing', methods=['POST'])
 def import_ing_csv():
-    default_user = db.session.query(User).filter_by(username="default_user").first()
+    default_user = _get_default_user()
     if not default_user:
         return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
     user_id = default_user.id
@@ -27,21 +31,22 @@ def import_ing_csv():
         file_content = file.read().decode('windows-1250')
 
     account_id = request.form.get('account_id')
-    if not account_id: return jsonify({'error': 'Brak podanego konta'}), 400
+    if not account_id:
+        return jsonify({'error': 'Nie wybrano konta, którego dotyczy wyciąg.'}), 400
 
-    parsed_data = parse_ing_csv(file_content)
+    parsed_data = parse_ing_csv(file_content, user_id=user_id, main_account_id=int(account_id))
     if not parsed_data:
         return jsonify({'error': 'Plik nie zawiera poprawnych transakcji lub jest uszkodzony.'}), 400
         
     try:
-        saved_records = save_transactions_to_staging(parsed_data, user_id=user_id, account_id=int(account_id))
+        saved_records = save_transactions_to_staging(parsed_data, user_id=user_id)
         return jsonify({'message': f'Udało się zaimportować {len(saved_records)} transakcji do weryfikacji.', 'count': len(saved_records)}), 201
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
 
 @import_bp.route('/api/staging/pending', methods=['GET'])
 def get_pending_staging_transactions():
-    default_user = db.session.query(User).filter_by(username="default_user").first()
+    default_user = _get_default_user()
     if not default_user:
         return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
     user_id = default_user.id
@@ -52,18 +57,22 @@ def get_pending_staging_transactions():
 
 @import_bp.route('/api/staging/pending', methods=['DELETE'])
 def clear_pending_staging_transactions():
-    default_user = db.session.query(User).filter_by(username="default_user").first()
+    default_user = _get_default_user()
     if not default_user:
         return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
     user_id = default_user.id
 
-    deleted_count = db.session.query(TransactionStaging).filter_by(user_id=user_id, status='pending').delete()
-    db.session.commit()
-    return jsonify({'message': f'Odrzucono {deleted_count} transakcji.'}), 200
+    try:
+        deleted_count = db.session.query(TransactionStaging).filter_by(user_id=user_id, status='pending').delete()
+        db.session.commit()
+        return jsonify({'message': f'Odrzucono {deleted_count} transakcji.'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Wystąpił błąd podczas odrzucania transakcji.'}), 500
 
 @import_bp.route('/api/staging/<int:stg_id>/approve', methods=['POST'])
 def approve_staging_transaction(stg_id):
-    default_user = db.session.query(User).filter_by(username="default_user").first()
+    default_user = _get_default_user()
     if not default_user:
         return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
     user_id = default_user.id

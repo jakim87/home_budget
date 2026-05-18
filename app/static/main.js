@@ -18,6 +18,17 @@ let currentRecType = 'expense';
 // Stan okna rozbijania
 let splitTxId = null;
 
+// --- NOWE: GLOBALNY FILTR KONT ---
+let globalAccountFilter = '';
+
+window.changeGlobalAccount = function(val) {
+    globalAccountFilter = val;
+    renderTransactions();
+    if (!document.getElementById('tab-summary').classList.contains('tab-hidden')) {
+        renderSummary();
+    }
+};
+
 // --- IMPORT TRANSAKCJI ---
 const openImportModalBtn = document.getElementById('openImportModalBtn');
 const closeImportModalBtn = document.getElementById('closeImportModalBtn');
@@ -56,7 +67,7 @@ importForm.addEventListener('submit', async (e) => {
     
     const accId = document.getElementById('import-account-select').value;
     if (!accId) {
-        showImportError('Proszę najpierw wybrać konto z listy.');
+        showImportError('Proszę najpierw wybrać konto, którego dotyczy wyciąg.');
         return;
     }
 
@@ -155,14 +166,23 @@ function renderStaging() {
             const isFullyMapped = t.proposed_category && t.proposed_contractor_id;
             const isPartiallyMapped = t.proposed_category || t.proposed_contractor_id;
             
+            const catObj = categories.find(c => c.name === t.proposed_category);
+            const isTransfer = catObj && catObj.type === 'transfer';
+            
             let rowBg = 'hover:bg-slate-50';
             let badgeHtml = '';
             let btnClass = 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500';
             
             if (isFullyMapped) {
-                rowBg = 'bg-emerald-50/40 hover:bg-emerald-100/50';
-                badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wider" title="Transakcja w pełni zmapowana">Zmapowano</span>`;
-                btnClass = 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500';
+                if (isTransfer) {
+                    rowBg = 'bg-sky-50/40 hover:bg-sky-100/50';
+                    badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700 uppercase tracking-wider" title="Transakcja rozpoznana jako przelew wewnętrzny">Przelew</span>`;
+                    btnClass = 'bg-sky-600 hover:bg-sky-700 focus:ring-sky-500';
+                } else {
+                    rowBg = 'bg-emerald-50/40 hover:bg-emerald-100/50';
+                    badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wider" title="Transakcja w pełni zmapowana">Zmapowano</span>`;
+                    btnClass = 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500';
+                }
             } else if (isPartiallyMapped) {
                 rowBg = 'bg-blue-50/30 hover:bg-blue-100/50';
                 badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 uppercase tracking-wider" title="Znaleziono częściowe dopasowanie">Częściowo</span>`;
@@ -172,7 +192,7 @@ function renderStaging() {
             row.className = `${rowBg} transition-colors`;
             row.innerHTML = `
                 <td class="p-4 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
-                <td class="p-4 border-b border-slate-100 font-medium text-slate-800">
+                <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">
                     <div class="flex items-center gap-2 mb-0.5">
                         <span>${t.title}</span>
                         ${badgeHtml}
@@ -191,7 +211,7 @@ function renderStaging() {
                 </td>
                 <td class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
                 <td class="p-4 border-b border-slate-100 text-center">
-                    <button onclick="approveStaging(${t.id})" class="px-4 py-2 ${btnClass} text-white text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2">
+                    <button onclick="approveStaging(${t.id})" class="px-4 py-2 ${btnClass} text-white text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 whitespace-nowrap">
                         Zatwierdź
                     </button>
                 </td>
@@ -227,7 +247,7 @@ window.approveStaging = async function(id) {
         const response = await fetch(`/api/staging/${id}/approve`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ category: category, contractor_id: contractor_id })
+            body: JSON.stringify({ category: category, contractor_id: parseInt(contractor_id, 10) })
         });
         
         if (response.ok) {
@@ -264,7 +284,7 @@ window.approveAllStaging = async function() {
         const res = await fetch(`/api/staging/${t.id}/approve`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ category: t.proposed_category, contractor_id: t.proposed_contractor_id })
+            body: JSON.stringify({ category: t.proposed_category, contractor_id: parseInt(t.proposed_contractor_id, 10) })
         });
         if (res.ok) successCount++;
     }
@@ -386,6 +406,7 @@ function createVirtualTxObject(rt, dateObj) {
         desc: `${rt.desc}`,
         amount: rt.amount,
         category: rt.category,
+            account_id: rt.account_id,
         isVirtual: true,
         virtualSourceId: rt.id
     };
@@ -402,7 +423,12 @@ function getFullTransactionsList(monthFilter, startFilter, endFilter) {
         month = viewDate.getMonth();
     }
     const virtuals = generateVirtualTransactions(year, month, startFilter, endFilter);
-    return [...transactions, ...virtuals];
+    let combined = [...transactions, ...virtuals];
+    
+    if (globalAccountFilter) {
+        combined = combined.filter(t => t.account_id == globalAccountFilter);
+    }
+    return combined;
 }
 
 // --- OKNO TRANSAKCJI CYKLICZNYCH ---
@@ -513,9 +539,10 @@ document.getElementById('recurring-form').addEventListener('submit', function(e)
     const startDate = document.getElementById('rec-start-date').value;
     const isIndefinite = document.getElementById('rec-indefinite').checked;
     const endDate = isIndefinite ? null : document.getElementById('rec-end-date').value;
+    const accountInput = document.getElementById('rec-account').value;
 
-    if (!desc || isNaN(rawAmount) || rawAmount <= 0 || !startDate) {
-        showToast('Wypełnij poprawnie wszystkie pola.', 'error'); return;
+    if (!desc || isNaN(rawAmount) || rawAmount <= 0 || !startDate || !accountInput) {
+        showToast('Wypełnij poprawnie wszystkie pola (w tym konto).', 'error'); return;
     }
     if (!isIndefinite && !endDate) {
         showToast('Podaj datę zakończenia.', 'error'); return;
@@ -544,7 +571,8 @@ document.getElementById('recurring-form').addEventListener('submit', function(e)
 
     recurringTransactions.push({
         id: Date.now(), desc, amount: finalAmount, category, startDate, endDate,
-        freqType, freqMonthsVal, freqDay, freqDaysVal, freqSpecificDays
+        freqType, freqMonthsVal, freqDay, freqDaysVal, freqSpecificDays,
+        account_id: parseInt(accountInput)
     });
     
     showToast('Transakcja cykliczna została dodana.', 'success');
@@ -579,6 +607,7 @@ function switchTab(tabName) {
 function getCategoryOptionsHtml(selectedValue = null) {
     const expCategories = categories.filter(c => c.type === 'expense');
     const incCategories = categories.filter(c => c.type === 'income');
+    const transferCategories = categories.filter(c => c.type === 'transfer');
     
     let html = `<optgroup label="Wydatki">`;
     expCategories.forEach(c => {
@@ -591,6 +620,14 @@ function getCategoryOptionsHtml(selectedValue = null) {
         html += `<option value="${c.name}" ${sel}>${c.name}</option>`;
     });
     html += `</optgroup>`;
+    if (transferCategories.length > 0) {
+        html += `<optgroup label="Transfery">`;
+        transferCategories.forEach(c => {
+            const sel = c.name === selectedValue ? 'selected' : '';
+            html += `<option value="${c.name}" ${sel}>${c.name}</option>`;
+        });
+        html += `</optgroup>`;
+    }
     html += `<option value="__NEW_CATEGORY__" class="font-bold text-blue-600">➕ Dodaj nową kategorię...</option>`;
     return html;
 }
@@ -632,14 +669,50 @@ function updateContractorSelects() {
 }
 
 function updateAccountSelects() {
+    const defaultAcc = accounts.find(a => a.is_default) || (accounts.length > 0 ? accounts[0] : null);
     let html = '<option value="">Wybierz konto...</option>';
-    accounts.forEach(a => html += `<option value="${a.id}">${a.name} ${a.bank_name ? `(${a.bank_name})` : ''}</option>`);
+    accounts.forEach(a => html += `<option value="${a.id}">${a.name} ${a.bank_name ? `(${a.bank_name})` : ''} ${a.is_default ? '(Główne)' : ''}</option>`);
     
     const txAcc = document.getElementById('tx-account');
-    if (txAcc) txAcc.innerHTML = html;
+    if (txAcc) {
+        txAcc.innerHTML = html;
+        if (defaultAcc && !txAcc.dataset.initialized) {
+            txAcc.value = defaultAcc.id;
+            txAcc.dataset.initialized = 'true';
+        }
+    }
     
     const impAcc = document.getElementById('import-account-select');
-    if (impAcc) impAcc.innerHTML = html;
+    if (impAcc) {
+        impAcc.innerHTML = html;
+        if (defaultAcc && !impAcc.dataset.initialized) {
+            impAcc.value = defaultAcc.id;
+            impAcc.dataset.initialized = 'true';
+        }
+    }
+
+    const recAcc = document.getElementById('rec-account');
+    if (recAcc) {
+        recAcc.innerHTML = html;
+        if (defaultAcc && !recAcc.dataset.initialized) {
+            recAcc.value = defaultAcc.id;
+            recAcc.dataset.initialized = 'true';
+        }
+    }
+
+    const globalAcc = document.getElementById('global-account-filter');
+    if (globalAcc) {
+        let gHtml = '<option value="">Wszystkie konta</option>';
+        accounts.forEach(a => gHtml += `<option value="${a.id}">${a.name} ${a.bank_name ? `(${a.bank_name})` : ''} (${a.balance.toFixed(2)} PLN)</option>`);
+        globalAcc.innerHTML = gHtml;
+        globalAcc.value = globalAccountFilter;
+
+        if (!globalAccountFilter && defaultAcc && !globalAcc.dataset.initialized) {
+            globalAccountFilter = defaultAcc.id.toString();
+            globalAcc.value = globalAccountFilter;
+            globalAcc.dataset.initialized = 'true';
+        }
+    }
 }
 
 function renderCategories() {
@@ -648,7 +721,14 @@ function renderCategories() {
     
     categories.forEach(c => {
         const isUsed = transactions.some(t => t.category === c.name || (t.splits && t.splits.some(s => s.category === c.name)));
-        const typeLabel = c.type === 'expense' ? '<span class="text-rose-500 bg-rose-50 px-2 py-0.5 rounded text-xs font-medium">Wydatek</span>' : '<span class="text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded text-xs font-medium">Przychód</span>';
+        let typeLabel;
+        if (c.type === 'expense') {
+            typeLabel = '<span class="text-rose-500 bg-rose-50 px-2 py-0.5 rounded text-xs font-medium">Wydatek</span>';
+        } else if (c.type === 'income') {
+            typeLabel = '<span class="text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded text-xs font-medium">Przychód</span>';
+        } else { // transfer
+            typeLabel = '<span class="text-sky-500 bg-sky-50 px-2 py-0.5 rounded text-xs font-medium">Przelew</span>';
+        }
         
         const li = document.createElement('li');
         li.className = 'py-3 px-3 flex justify-between items-center group';
@@ -733,7 +813,10 @@ function renderAccounts() {
         li.className = 'py-3 px-3 flex justify-between items-center group';
         li.innerHTML = `
             <div>
-                <span class="font-medium text-slate-700 block">${a.name} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal ml-1">(${a.bank_name})</span>` : ''}</span>
+                <span class="font-medium text-slate-700 flex items-center gap-2">
+                    ${a.name} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal">(${a.bank_name})</span>` : ''}
+                    ${a.is_default ? '<svg class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>' : ''}
+                </span>
                 ${a.account_number ? `<span class="text-xs text-slate-500 block break-all font-mono mt-0.5">${a.account_number}</span>` : ''}
             </div>
             <div class="flex gap-1">
@@ -756,6 +839,7 @@ window.editAccount = function(id) {
     document.getElementById('acc-name').value = a.name;
     document.getElementById('acc-bank').value = a.bank_name || '';
     document.getElementById('acc-number').value = a.account_number || '';
+    document.getElementById('acc-default').checked = a.is_default || false;
     
     document.getElementById('acc-cancel-btn').classList.remove('hidden');
     document.getElementById('acc-submit-btn').textContent = 'Zapisz zmiany';
@@ -766,6 +850,7 @@ window.editAccount = function(id) {
 window.cancelEditAccount = function() {
     document.getElementById('account-form').reset();
     document.getElementById('acc-id').value = '';
+    document.getElementById('acc-default').checked = false;
     document.getElementById('acc-cancel-btn').classList.add('hidden');
     document.getElementById('acc-submit-btn').textContent = 'Zapisz do słownika';
     document.getElementById('acc-submit-btn').classList.replace('bg-blue-600', 'bg-indigo-600');
@@ -778,6 +863,7 @@ document.getElementById('account-form').addEventListener('submit', async functio
     const name = document.getElementById('acc-name').value.trim();
     const bank_name = document.getElementById('acc-bank').value.trim();
     const account_number = document.getElementById('acc-number').value.trim();
+    const is_default = document.getElementById('acc-default').checked;
     
     const method = id ? 'PUT' : 'POST';
     const url = id ? `/api/accounts/${id}` : '/api/accounts';
@@ -786,15 +872,17 @@ document.getElementById('account-form').addEventListener('submit', async functio
         const response = await fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, bank_name, account_number })
+            body: JSON.stringify({ name, bank_name, account_number, is_default })
         });
         if (response.ok) {
             const saved = await response.json();
             if (id) {
+                if (is_default) accounts.forEach(a => a.is_default = false);
                 const idx = accounts.findIndex(a => a.id == id);
                 if (idx !== -1) accounts[idx] = saved;
                 showToast('Zaktualizowano konto.');
             } else {
+                if (is_default) accounts.forEach(a => a.is_default = false);
                 accounts.push(saved);
                 showToast('Dodano konto do słownika.');
                 updateAccountSelects();
@@ -1141,17 +1229,15 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
         });
         
         if (response.ok) {
-            const savedTx = await response.json();
-            // Bezpiecznie używamy timestampu jako mock ID, dopóki baza go nie nada
-            savedTx.id = savedTx.id || Date.now(); 
-            transactions.push(savedTx);
-            
             document.getElementById('tx-desc').value = '';
             document.getElementById('tx-amount').value = '';
             document.getElementById('tx-contractor').value = '';
             
+            const defaultAcc = accounts.find(a => a.is_default);
+            if (defaultAcc) document.getElementById('tx-account').value = defaultAcc.id;
+            
             showToast('Transakcja została zapisana pomyślnie.');
-            renderTransactions();
+            fetchInitialData(); // Pobiera na nowo dane by odświeżyć globalne saldo
         } else {
             showToast('Błąd serwera podczas zapisywania transakcji.', 'error');
         }
@@ -1171,7 +1257,7 @@ function cancelInlineEdit() {
     renderTransactions();
 }
 
-function saveInlineEdit(id) {
+async function saveInlineEdit(id) {
     const dateVal = document.getElementById(`edit-date-${id}`).value;
     const descVal = document.getElementById(`edit-desc-${id}`).value.trim();
     const rawAmount = parseFloat(document.getElementById(`edit-amount-${id}`).value);
@@ -1185,20 +1271,33 @@ function saveInlineEdit(id) {
     }
 
     const tx = transactions.find(t => t.id === id);
-    if (tx) {
-        tx.date = dateVal;
-        tx.desc = descVal;
-        tx.amount = isIncome ? Math.abs(rawAmount) : -Math.abs(rawAmount);
-        tx.category = categoryVal;
-        tx.contractor_id = contractorVal ? parseInt(contractorVal) : null;
-        
-        // Usunięcie podziałów, bo zmieniono dane główne (uproszczenie logiki dla użytkownika)
-        if (tx.splits) delete tx.splits; 
-        
-        showToast('Zmiany zostały zapisane.');
+    if (!tx) return;
+
+    const updatedTx = {
+        date: dateVal,
+        desc: descVal,
+        amount: isIncome ? Math.abs(rawAmount) : -Math.abs(rawAmount),
+        category: categoryVal,
+        contractor_id: contractorVal ? parseInt(contractorVal) : null
+    };
+
+    try {
+        const response = await fetch(`/api/transactions/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedTx)
+        });
+
+        if (response.ok) {
+            showToast('Zmiany zostały zapisane.');
+            inlineEditingTxId = null;
+            fetchInitialData();
+        } else {
+            showToast('Błąd zapisywania edycji na serwerze.', 'error');
+        }
+    } catch(e) {
+        showToast('Błąd połączenia z serwerem.', 'error');
     }
-    inlineEditingTxId = null;
-    renderTransactions();
 }
 
 function renderTransactions() {
@@ -1284,7 +1383,15 @@ function renderTransactions() {
             } else {
                 // TRYB WIDOKU
                 const isPositive = t.amount >= 0;
-                const amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
+                const catObj = categories.find(c => c.name === t.category);
+                const isTransfer = catObj && catObj.type === 'transfer';
+                
+                let amountClass = 'text-slate-800';
+                if (isTransfer) {
+                    amountClass = 'text-sky-600';
+                } else {
+                    amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
+                }
                 const amountText = `${isPositive ? '+' : ''}${Math.abs(t.amount).toFixed(2)} PLN`;
                 
                 const isVirtual = t.isVirtual;
@@ -1295,11 +1402,11 @@ function renderTransactions() {
                 row.className = `transition-colors group hover:bg-slate-50 ${isVirtual ? 'bg-indigo-50/30' : ''}`;
                 row.innerHTML = `
                     <td class="p-4 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
-                    <td class="p-4 border-b border-slate-100 font-medium text-slate-800">${iconHtml}${t.desc}</td>
-                    <td class="p-4 border-b border-slate-100 text-slate-600 text-sm">
+                    <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${iconHtml}${t.desc}</td>
+                    <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${t.contractor_name || t.contractor || '-'}
                     </td>
-                    <td class="p-4 border-b border-slate-100 text-slate-600 text-sm">
+                    <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${isSplit ? 
                             '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 font-medium text-xs border border-indigo-100" title="Transakcja rozbita na pozycje"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Sprawdź szczegóły</span>' 
                             : 
@@ -1340,10 +1447,8 @@ window.deleteTransaction = async function(id) {
         });
         
         if (response.ok) {
-            transactions = transactions.filter(t => t.id !== id);
-            renderTransactions();
-            if (!document.getElementById('tab-summary').classList.contains('tab-hidden')) renderSummary();
             showToast('Transakcja usunięta.', 'info');
+            fetchInitialData();
         } else {
             showToast('Błąd podczas usuwania transakcji na serwerze.', 'error');
         }
@@ -1473,11 +1578,9 @@ window.saveSplitModal = async function() {
         });
         
         if (response.ok) {
-            tx.splits = currentSplits.length > 0 ? currentSplits : undefined;
             showToast('Podział został zapisany.');
             closeSplitModal();
-            renderTransactions();
-            if (!document.getElementById('tab-summary').classList.contains('tab-hidden')) renderSummary();
+            fetchInitialData();
         } else {
             const err = await response.json();
             showToast(err.error || 'Błąd zapisywania podziału.', 'error');
@@ -1525,6 +1628,25 @@ function renderSummary() {
         }
     }
 
+    // --- AKTUALIZACJA KARTY SALDA ---
+    const balanceCard = document.getElementById('summary-account-balance-card');
+    if (balanceCard) {
+        const balanceTitle = balanceCard.querySelector('h3');
+        const balanceValue = document.getElementById('summary-current-balance');
+        
+        if (globalAccountFilter) {
+            const acc = accounts.find(a => a.id == globalAccountFilter);
+            if (acc) {
+                balanceTitle.innerText = `Bieżące saldo (${acc.name})`;
+                balanceValue.innerText = `${acc.balance.toFixed(2)} PLN`;
+            }
+        } else {
+            const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0);
+            balanceTitle.innerText = `Bieżące saldo (wszystkie konta)`;
+            balanceValue.innerText = `${totalBalance.toFixed(2)} PLN`;
+        }
+    }
+
     const allTx = getFullTransactionsList(monthFilter, startFilter, endFilter);
     let filteredTx = allTx;
 
@@ -1551,23 +1673,35 @@ function renderSummary() {
     let catTotals = {};
 
     filteredTx.forEach(t => {
+        const txCatObj = categories.find(c => c.name === t.category);
+        const isTxTransfer = txCatObj && txCatObj.type === 'transfer';
+
         if (t.splits && t.splits.length > 0) {
             let totalSplitAmt = 0;
             t.splits.forEach(s => {
+                const sCatObj = categories.find(c => c.name === s.category);
+                const isSplitTransfer = sCatObj && sCatObj.type === 'transfer';
+
                 let actualAmount = t.amount < 0 ? -Math.abs(s.amount) : Math.abs(s.amount);
                 totalSplitAmt += Math.abs(actualAmount);
-                if (actualAmount > 0) income += actualAmount; else expense += Math.abs(actualAmount);
+                if (!isSplitTransfer) {
+                    if (actualAmount > 0) income += actualAmount; else expense += Math.abs(actualAmount);
+                }
                 catTotals[s.category] = (catTotals[s.category] || 0) + Math.abs(actualAmount);
             });
             
             let remaining = Math.abs(t.amount) - totalSplitAmt;
             if (remaining > 0.01) {
                 let remActual = t.amount < 0 ? -remaining : remaining;
-                if (remActual > 0) income += remActual; else expense += Math.abs(remActual);
+                if (!isTxTransfer) {
+                    if (remActual > 0) income += remActual; else expense += Math.abs(remActual);
+                }
                 catTotals[t.category] = (catTotals[t.category] || 0) + remaining;
             }
         } else {
-            if (t.amount > 0) income += t.amount; else expense += Math.abs(t.amount);
+            if (!isTxTransfer) {
+                if (t.amount > 0) income += t.amount; else expense += Math.abs(t.amount);
+            }
             catTotals[t.category] = (catTotals[t.category] || 0) + Math.abs(t.amount);
         }
     });
@@ -1586,6 +1720,7 @@ function renderSummary() {
     // Grupowanie na przychody i wydatki
     const incCats = Object.keys(catTotals).filter(cat => categories.find(c => c.name === cat)?.type === 'income');
     const expCats = Object.keys(catTotals).filter(cat => categories.find(c => c.name === cat)?.type === 'expense');
+    const transCats = Object.keys(catTotals).filter(cat => categories.find(c => c.name === cat)?.type === 'transfer');
     
     // Renderuj Przychody
     if(incCats.length > 0) {
@@ -1604,20 +1739,32 @@ function renderSummary() {
             list.innerHTML += buildSummaryRow(cat, catTotals[cat], percentage, 'rose');
         });
     }
+
+    // Renderuj Transfery
+    if(transCats.length > 0) {
+        list.innerHTML += `<tr><td colspan="3" class="bg-sky-50 text-sky-700 font-bold p-3 text-xs uppercase tracking-wider mt-2">Przelewy Wewnętrzne</td></tr>`;
+        transCats.sort((a, b) => catTotals[b] - catTotals[a]).forEach(cat => {
+            list.innerHTML += buildSummaryRow(cat, catTotals[cat], null, 'sky');
+        });
+    }
 }
 
 function buildSummaryRow(catName, amount, percentage, colorPrefix) {
+    const percentageHtml = percentage !== null ? `
+        <div class="flex items-center justify-end gap-2">
+            <span class="text-xs text-slate-500 w-8 text-right">${percentage}%</span>
+            <div class="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full bg-${colorPrefix}-500 rounded-full" style="width: ${percentage}%"></div>
+            </div>
+        </div>
+    ` : `<span class="text-xs text-slate-400 italic flex justify-end">Obojętne dla bilansu</span>`;
+
     return `
         <tr class="hover:bg-slate-50">
             <td class="p-4 border-b border-slate-100 font-medium text-slate-700">${catName}</td>
             <td class="p-4 border-b border-slate-100 font-bold text-right text-${colorPrefix}-600">${amount.toFixed(2)} PLN</td>
             <td class="p-4 border-b border-slate-100">
-                <div class="flex items-center justify-end gap-2">
-                    <span class="text-xs text-slate-500 w-8 text-right">${percentage}%</span>
-                    <div class="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div class="h-full bg-${colorPrefix}-500 rounded-full" style="width: ${percentage}%"></div>
-                    </div>
-                </div>
+                ${percentageHtml}
             </td>
         </tr>
     `;

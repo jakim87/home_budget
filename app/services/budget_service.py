@@ -1,5 +1,5 @@
 from app import db
-from app.models import Transaction, Account, TransactionStaging, Contractor
+from app.models import Transaction, Account, TransactionStaging, Contractor, Category
 from datetime import date
 from typing import Optional
 from decimal import Decimal, InvalidOperation
@@ -20,28 +20,32 @@ def create_transaction(
     """
     Tworzy nową transakcję i automatycznie aktualizuje saldo powiązanego konta.
     """
-    account = db.session.get(Account, account_id)
-    if not account:
-        raise ValueError(f"Konto o ID {account_id} nie istnieje.")
+    try:
+        account = db.session.query(Account).filter_by(id=account_id, user_id=user_id).first()
+        if not account:
+            raise ValueError(f"Konto o ID {account_id} nie istnieje lub brak uprawnień.")
 
-    new_transaction = Transaction(
-        user_id=user_id,
-        account_id=account_id,
-        amount=amount,
-        title=title,
-        date=transaction_date,
-        category_id=category_id,
-        contractor=contractor,
-        contractor_id=contractor_id
-    )
+        new_transaction = Transaction(
+            user_id=user_id,
+            account_id=account_id,
+            amount=amount,
+            title=title,
+            date=transaction_date,
+            category_id=category_id,
+            contractor=contractor,
+            contractor_id=contractor_id
+        )
 
-    # Aktualizacja salda konta (obsługa Decimal dla precyzji finansowej)
-    account.balance = Decimal(str(account.balance)) + Decimal(str(amount))
-    
-    db.session.add(new_transaction)
-    db.session.commit()
-    
-    return new_transaction
+        # Aktualizacja salda konta (obsługa Decimal dla precyzji finansowej)
+        account.balance = Decimal(str(account.balance)) + Decimal(str(amount))
+        
+        db.session.add(new_transaction)
+        db.session.commit()
+        
+        return new_transaction
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(str(e))
 
 def parse_ing_csv_row(row_data: str) -> Optional[dict]:
     """Parsuje pojedynczy wiersz z pliku CSV z banku ING."""
@@ -140,28 +144,62 @@ def save_transactions_to_staging(
     account_id: Optional[int] = None
 ) -> list[TransactionStaging]:
     """Zapisuje sparsowaną listę transakcji do tabeli tymczasowej (stagingowej)."""
-    staging_records = []
-    for tx_data in parsed_transactions:
-        prop_cat_id, prop_contractor_id = None, None
-        if user_id:
-            prop_cat_id, prop_contractor_id = analyze_transaction_data(
-                title=tx_data['title'],
-                raw_contractor=tx_data.get('contractor'),
-                user_id=user_id
-            )
+    try:
+        staging_records = []
+        for tx_data in parsed_transactions:
+            prop_cat_id, prop_contractor_id = None, None
+            if user_id:
+                prop_cat_id, prop_contractor_id = analyze_transaction_data(
+                    title=tx_data['title'],
+                    raw_contractor=tx_data.get('contractor'),
+                    user_id=user_id
+                )
 
-        staging_tx = TransactionStaging(
-            date=tx_data['date'],
-            amount=tx_data['amount'],
-            title=tx_data['title'],
-            contractor=tx_data.get('contractor'),
-            user_id=user_id,
-            account_id=account_id,
-            proposed_category_id=prop_cat_id,
-            proposed_contractor_id=prop_contractor_id
-        )
-        db.session.add(staging_tx)
-        staging_records.append(staging_tx)
+            staging_tx = TransactionStaging(
+                date=tx_data['date'],
+                amount=tx_data['amount'],
+                title=tx_data['title'],
+                contractor=tx_data.get('contractor'),
+                user_id=user_id,
+                account_id=account_id,
+                proposed_category_id=prop_cat_id,
+                proposed_contractor_id=prop_contractor_id
+            )
+            db.session.add(staging_tx)
+            staging_records.append(staging_tx)
+            
+        db.session.commit()
+        return staging_records
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(str(e))
+
+def approve_staging_record(user_id, stg_id, data):
+    try:
+        stg_tx = db.session.query(TransactionStaging).filter_by(id=stg_id, user_id=user_id, status='pending').first()
+        if not stg_tx:
+            raise ValueError('Nie znaleziono oczekującej transakcji.')
+            
+        category_name = data.get('category')
+        category = db.session.query(Category).filter_by(name=category_name).first() if category_name else None
+        contractor_id = data.get('contractor_id')
         
-    db.session.commit()
-    return staging_records
+        if not category or not contractor_id:
+            raise ValueError('Wybór kategorii i kontrahenta jest wymagany do zatwierdzenia.')
+            
+        new_tx = create_transaction(
+            user_id=stg_tx.user_id,
+            account_id=stg_tx.account_id,
+            amount=float(stg_tx.amount),
+            title=stg_tx.title,
+            transaction_date=stg_tx.date,
+            category_id=category.id,
+            contractor=stg_tx.contractor,
+            contractor_id=int(contractor_id)
+        )
+        db.session.delete(stg_tx)
+        db.session.commit()
+        return new_tx
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(str(e))

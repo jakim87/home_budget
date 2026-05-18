@@ -2,14 +2,20 @@ import io
 from datetime import date
 from app import db
 from app.models import User, Account, Category, Transaction, TransactionArchive, TransactionStaging, Contractor
+from werkzeug.security import generate_password_hash
+
+def login_user_helper(client, username="testuser", password="password"):
+    return client.post('/api/login', json={'username': username, 'password': password})
 
 def test_api_init_returns_data_from_db(client, app):
     # SETUP - przygotowanie danych w wyizolowanej bazie testowej
-    user = User(username="testuser", email="test@test.com", password_hash="hash")
-    db.session.add(user)
-    db.session.commit()
+    with app.app_context():
+        user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
+        db.session.add(user)
+        db.session.commit()
+        user_id = user.id
 
-    account = Account(name="Konto Testowe", bank_name="Bank", balance=100.0, user_id=user.id)
+    account = Account(name="Konto Testowe", bank_name="Bank", balance=100.0, user_id=user_id)
     db.session.add(account)
     db.session.commit()
 
@@ -24,12 +30,13 @@ def test_api_init_returns_data_from_db(client, app):
         amount=150.50,
         account_id=account.id,
         category_id=cat_expense.id,
-        user_id=user.id
+        user_id=user_id
     )
     db.session.add(tx)
     db.session.commit()
 
     # ACTION - symulujemy zapytanie GET od przeglądarki do naszego API
+    login_user_helper(client)
     response = client.get('/api/init')
     data = response.get_json()
 
@@ -55,6 +62,11 @@ def test_api_init_returns_data_from_db(client, app):
     assert transactions[0]['date'] == "2023-10-15"
 
 def test_api_add_category(client, app):
+    with app.app_context():
+        user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
+        db.session.add(user)
+        db.session.commit()
+    login_user_helper(client)
     # ACTION - symulujemy wysłanie nowej kategorii z formularza na stronie
     response = client.post('/api/categories', json={
         'name': 'Hobby',
@@ -74,7 +86,7 @@ def test_api_add_category(client, app):
 def test_delete_transaction_archives_and_removes(client, app):
     # SETUP - wstawienie transakcji, którą będziemy usuwać
     with app.app_context():
-        user = User(username="deluser", email="del@test.com", password_hash="hash")
+        user = User(username="testuser", email="del@test.com", password_hash=generate_password_hash("password"))
         db.session.add(user)
         db.session.commit()
         account = Account(name="DelKonto", bank_name="Bank", balance=100.0, user_id=user.id)
@@ -86,6 +98,7 @@ def test_delete_transaction_archives_and_removes(client, app):
         tx_id = tx.id
 
     # ACTION - Symulujemy wciśnięcie kosza przez użytkownika
+    login_user_helper(client)
     response = client.delete(f'/api/transactions/{tx_id}')
     assert response.status_code == 200
 
@@ -98,6 +111,11 @@ def test_delete_transaction_archives_and_removes(client, app):
 
 def test_delete_category_soft_delete(client, app):
     # SETUP - dodanie testowej kategorii
+    with app.app_context():
+        user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
+        db.session.add(user)
+        db.session.commit()
+    login_user_helper(client)
     with app.app_context():
         cat = Category(name="DoUsuniecia", type="expense", is_active=True)
         db.session.add(cat)
@@ -116,7 +134,7 @@ def test_delete_category_soft_delete(client, app):
 def test_update_transaction_splits(client, app):
     # SETUP - tworzymy transakcję do podziału
     with app.app_context():
-        user = User(username="splituser", email="split@test.com", password_hash="hash")
+        user = User(username="testuser", email="split@test.com", password_hash=generate_password_hash("password"))
         db.session.add(user)
         db.session.commit()
         
@@ -140,6 +158,7 @@ def test_update_transaction_splits(client, app):
         tx_id = tx.id
 
     # ACTION - wysyłamy żądanie PUT z podziałami
+    login_user_helper(client)
     response = client.put(f'/api/transactions/{tx_id}', json={
         'splits': [
             {'amount': 150.0, 'desc': 'Spożywcze', 'category': 'Czesc1'},
@@ -159,13 +178,23 @@ def test_update_transaction_splits(client, app):
 
 def test_import_ing_csv_endpoint(client, app):
     """Testuje wgrywanie pliku CSV z ING przez endpoint API."""
+    with app.app_context():
+        user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
+        db.session.add(user)
+        db.session.commit()
+        account = Account(name="Test Konto", user_id=user.id)
+        db.session.add(account)
+        db.session.commit()
+        acc_id = account.id
+    login_user_helper(client)
     # SETUP - wirtualny plik CSV
     csv_content = """Data transakcji;Data księgowania;Dane kontrahenta;Tytuł;Konto;Bank;Szczegóły;NrTx;Kwota;Waluta
 2023-10-25;2023-10-25;Pracodawca;Wypłata;;Bank;;;12500,50;PLN
 2023-10-28;2023-10-28;;Opłata za kartę;;Bank;;;-7,00;PLN
 """
     data = {
-        'file': (io.BytesIO(csv_content.encode('utf-8')), 'test_ing.csv')
+        'file': (io.BytesIO(csv_content.encode('utf-8')), 'test_ing.csv'),
+        'account_id': acc_id
     }
 
     # ACTION - symulacja wgrania pliku w formularzu (multipart/form-data)
@@ -185,7 +214,7 @@ def test_get_pending_staging_transactions(client, app):
     """Testuje pobieranie oczekujących (pending) transakcji ze stagingu."""
     # SETUP
     with app.app_context():
-        user = User(username="stguser", email="stg@test.com", password_hash="hash")
+        user = User(username="testuser", email="stg@test.com", password_hash=generate_password_hash("password"))
         db.session.add(user)
         db.session.commit()
 
@@ -195,6 +224,7 @@ def test_get_pending_staging_transactions(client, app):
         db.session.commit()
 
     # ACTION
+    login_user_helper(client)
     response = client.get('/api/staging/pending')
     
     # ASSERT
@@ -208,7 +238,7 @@ def test_approve_staging_transaction(client, app):
     """Testuje zatwierdzanie transakcji ze stagingu i przeniesienie jej do głównej tabeli."""
     # SETUP
     with app.app_context():
-        user = User(username="appruser", email="appr@test.com", password_hash="hash")
+        user = User(username="testuser", email="appr@test.com", password_hash=generate_password_hash("password"))
         db.session.add(user)
         db.session.commit()
 
@@ -229,6 +259,7 @@ def test_approve_staging_transaction(client, app):
         account_id = account.id
 
     # ACTION - Próba zatwierdzenia bez kontrahenta
+    login_user_helper(client)
     resp_fail = client.post(f'/api/staging/{stg_id}/approve', json={'category': 'Jedzenie'})
     assert resp_fail.status_code == 400
 
@@ -249,7 +280,7 @@ def test_approve_staging_transaction(client, app):
 def test_clear_staging_transactions(client, app):
     """Testuje masowe usuwanie (odrzucanie) transakcji ze stagingu."""
     with app.app_context():
-        user = User(username="clearuser", email="clear@test.com", password_hash="hash")
+        user = User(username="testuser", email="clear@test.com", password_hash=generate_password_hash("password"))
         db.session.add(user)
         db.session.commit()
 
@@ -260,6 +291,7 @@ def test_clear_staging_transactions(client, app):
         user_id = user.id
 
     # ACTION
+    login_user_helper(client)
     response = client.delete('/api/staging/pending')
     assert response.status_code == 200
 

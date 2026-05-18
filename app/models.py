@@ -4,6 +4,7 @@ from datetime import date
 from typing import Optional
 from app import db
 from datetime import datetime, timezone
+from flask_login import UserMixin
 
 # NOWA TABELA: Shadow table dla usuwanych transakcji
 class TransactionArchive(db.Model):
@@ -22,7 +23,7 @@ class TransactionArchive(db.Model):
     # Znacznik czasu operacji usunięcia
     deleted_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), nullable=False)
 
-class User(db.Model):
+class User(db.Model, UserMixin):
     __tablename__ = 'users'
     
     id: Mapped[int] = mapped_column(primary_key=True)

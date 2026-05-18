@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from config import Config
@@ -20,6 +20,11 @@ from app import models
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(models.User, int(user_id))
+
+# Globalna obsługa braku autoryzacji dla zapytań API
+@login_manager.unauthorized_handler
+def unauthorized():
+    return jsonify({'error': 'Nieautoryzowany dostęp. Proszę się zalogować.'}), 401
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -46,5 +51,51 @@ def create_app(config_class=Config):
     app.register_blueprint(categories_bp)
     app.register_blueprint(contractors_bp)
     app.register_blueprint(import_bp)
+
+    # TYMCZASOWE: Automatyczne logowanie dla środowiska deweloperskiego
+    @app.before_request
+    def auto_login_dummy_user():
+        from flask_login import current_user, login_user
+        from datetime import date
+        
+        # Sprawdzamy nie tylko czy zalogowany, ale czy to na pewno nasz nowy użytkownik testowy
+        if not current_user.is_authenticated or getattr(current_user, 'username', '') != "dev_user_with_full_data":
+            user = db.session.query(models.User).filter_by(username="dev_user_with_full_data").first()
+            if not user:
+                user = models.User(username="dev_user_with_full_data", email="dev3@local", password_hash="dummy")
+                db.session.add(user)
+                db.session.commit()
+
+                # --- WYGENEROWANIE DANYCH TESTOWYCH ---
+                account = models.Account(name="Portfel", bank_name="Gotówka", balance=1500.0, user_id=user.id)
+                db.session.add(account)
+                db.session.commit()
+                
+                cat_income = models.Category(name="Wynagrodzenie", type="income")
+                cat_expense = models.Category(name="Spożywcze", type="expense")
+                db.session.add_all([cat_income, cat_expense])
+                db.session.commit()
+
+                # Dodajemy kontrahentów, aby słowniki nie były puste
+                cont_employer = models.Contractor(name="Pracodawca", user_id=user.id, default_category_id=cat_income.id)
+                cont_biedronka = models.Contractor(name="Biedronka", mapping_rules="biedronka, jeronimo", user_id=user.id, default_category_id=cat_expense.id)
+                db.session.add_all([cont_employer, cont_biedronka])
+                db.session.commit()
+
+                tx1 = models.Transaction(
+                    date=date.today(), title="Wypłata", amount=2000.0,
+                    account_id=account.id, category_id=cat_income.id, user_id=user.id,
+                    contractor_id=cont_employer.id # Powiązanie z kontrahentem
+                )
+                tx2 = models.Transaction(
+                    date=date.today(), title="Zakupy Biedronka", amount=-150.50,
+                    account_id=account.id, category_id=cat_expense.id, user_id=user.id,
+                    contractor_id=cont_biedronka.id # Powiązanie z kontrahentem
+                )
+                db.session.add_all([tx1, tx2])
+                db.session.commit()
+                # ----------------------------------------
+
+            login_user(user)
 
     return app

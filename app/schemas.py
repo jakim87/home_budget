@@ -13,8 +13,8 @@ class LoginSchema(ma.Schema):
 
 class AccountSchema(ma.Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))
-    bank_name = fields.String(missing="")
-    account_number = fields.String(missing="")
+    bank_name = fields.String(load_default="")
+    account_number = fields.String(load_default="")
 
 class CategorySchema(ma.Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))
@@ -22,12 +22,12 @@ class CategorySchema(ma.Schema):
 
 class ContractorSchema(ma.Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))
-    rules = fields.String(missing="")
-    category = fields.String(missing=None, allow_none=True)
+    rules = fields.String(load_default="")
+    category = fields.String(load_default=None, allow_none=True)
 
 class SplitSchema(ma.Schema):
     amount = fields.Float(required=True)
-    desc = fields.String(missing="")
+    desc = fields.String(load_default="")
     category = fields.String(required=True)
 
 class TransactionSchema(ma.Schema):
@@ -35,10 +35,10 @@ class TransactionSchema(ma.Schema):
     desc = fields.String(required=False)
     amount = fields.Float(required=False)
     date = fields.String(required=False)
-    category = fields.String(missing=None, allow_none=True)
-    contractor_id = fields.Integer(missing=None, allow_none=True)
+    category = fields.String(load_default=None, allow_none=True)
+    contractor_id = fields.Integer(load_default=None, allow_none=True)
     account_id = fields.Integer(required=False)
-    splits = fields.List(fields.Nested(SplitSchema), missing=[])
+    splits = fields.List(fields.Nested(SplitSchema), load_default=[])
 
 class StagingApproveSchema(ma.Schema):
     category = fields.String(required=True)

@@ -3,6 +3,7 @@ from sqlalchemy import String, Numeric, Date, ForeignKey
 from datetime import date
 from typing import Optional
 from app import db
+from decimal import Decimal
 from datetime import datetime, timezone
 from flask_login import UserMixin
 
@@ -13,7 +14,7 @@ class TransactionArchive(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     original_id: Mapped[int] = mapped_column(nullable=False) # ID z oryginalnej tabeli
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
     account_id: Mapped[int] = mapped_column(nullable=False)
     contractor_id: Mapped[Optional[int]] = mapped_column()
@@ -38,7 +39,7 @@ class Account(db.Model):
     name: Mapped[str] = mapped_column(String(100), nullable=False) # np. "ING Konto Direct", "Portfel"
     bank_name: Mapped[str] = mapped_column(String(50)) # np. "ING", "Manual"
     account_number: Mapped[Optional[str]] = mapped_column(String(50)) # Numer rachunku docelowego
-    balance: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0)
+    balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0.0)
     currency: Mapped[str] = mapped_column(String(3), default='PLN')
     
     # Miękkie usuwanie ze słownika
@@ -70,7 +71,7 @@ class TransactionSplit(db.Model):
     __tablename__ = 'transaction_splits'
     
     id: Mapped[int] = mapped_column(primary_key=True)
-    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     desc: Mapped[str] = mapped_column(String(255), nullable=True)
     
     transaction_id: Mapped[int] = mapped_column(ForeignKey('transactions.id', ondelete='CASCADE'), nullable=False)
@@ -83,7 +84,7 @@ class Transaction(db.Model):
     
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     contractor: Mapped[Optional[str]] = mapped_column(String(255)) # Surowy tekst nadawcy z banku
     
@@ -103,7 +104,7 @@ class Budget(db.Model):
     __tablename__ = 'budgets'
     
     id: Mapped[int] = mapped_column(primary_key=True)
-    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     month: Mapped[int] = mapped_column(nullable=False) # 1-12
     year: Mapped[int] = mapped_column(nullable=False)
     
@@ -116,7 +117,7 @@ class TransactionStaging(db.Model):
     
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     contractor: Mapped[Optional[str]] = mapped_column(String(255)) # Surowy tekst z banku
     updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), server_default=db.func.now())

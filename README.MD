@@ -72,11 +72,11 @@ home-budget-app/
 │   ├── services/
 │   │   ├── __init__.py
 │   │   └── budget_service.py     # Logika biznesowa i operacje na bazie
+│   ├── blueprints/               # Podział endpointów (Routing)
 │   ├── templates/
 │   │   └── base.html             # Frontend (Tailwind + JS)
 │   ├── __init__.py               # Inicjalizacja Flask i SQLAlchemy (App Factory)
-│   ├── models.py                 # Modele tabel bazy danych
-│   └── routes.py                 # Endpointy API i ścieżki
+│   └── models.py                 # Modele tabel bazy danych
 ├── local_data/                   # Ignored by git (keep your bank CSVs here!)
 ├── migrations/                   # Flask-Migrate (Alembic) versions
 ├── tests/

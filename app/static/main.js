@@ -118,6 +118,14 @@ function setImportLoadingState(isLoading) {
 async function fetchPendingStaging() {
     try {
         const response = await fetch('/api/staging/pending');
+        if (!response.ok) {
+            // If 401, it just means the user is not logged in yet. Don't show an error.
+            // For other errors, log it. The main fetchInitialData will show a toast.
+            if (response.status !== 401) {
+                console.error('Błąd pobierania transakcji ze stagingu:', await response.text());
+            }
+            return;
+        }
         pendingStaging = await response.json();
         renderStaging();
     } catch (error) {
@@ -1616,6 +1624,17 @@ function buildSummaryRow(catName, amount, percentage, colorPrefix) {
 async function fetchInitialData() {
     try {
         const response = await fetch('/api/init');
+        if (!response.ok) {
+            if (response.status === 401) {
+                // Not logged in, do nothing. The page should be showing the login form.
+                // Returning here prevents the rest of the function from running and trying to render empty data.
+                return;
+            }
+            // For other server errors, try to parse the error and show it.
+            const errorData = await response.json().catch(() => ({ error: 'Błąd pobierania danych z serwera.' }));
+            showToast(errorData.error || 'Nie udało się pobrać danych z serwera.', 'error');
+            return;
+        }
         const data = await response.json();
         transactions = data.transactions || [];
         categories = data.categories || [];

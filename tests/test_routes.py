@@ -1,4 +1,5 @@
 import io
+import pytest
 from datetime import date
 from app import db
 from app.models import User, Account, Category, Transaction, TransactionArchive, TransactionStaging, Contractor
@@ -7,33 +8,37 @@ from werkzeug.security import generate_password_hash
 def login_user_helper(client, username="testuser", password="password"):
     return client.post('/api/login', json={'username': username, 'password': password})
 
-def test_api_init_returns_data_from_db(client, app):
-    # SETUP - przygotowanie danych w wyizolowanej bazie testowej
+@pytest.fixture
+def test_user_id(app):
+    """Fixture przygotowujący użytkownika testowego i zwracający jego ID."""
     with app.app_context():
         user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
         db.session.add(user)
         db.session.commit()
-        user_id = user.id
+        return user.id
 
-    account = Account(name="Konto Testowe", bank_name="Bank", balance=100.0, user_id=user_id)
-    db.session.add(account)
-    db.session.commit()
+def test_api_init_returns_data_from_db(client, app, test_user_id):
+    # SETUP - przygotowanie danych w wyizolowanej bazie testowej
+    with app.app_context():
+        account = Account(name="Konto Testowe", bank_name="Bank", balance=100.0, user_id=test_user_id)
+        db.session.add(account)
+        db.session.commit()
 
-    cat_expense = Category(name="Jedzenie", type="expense")
-    cat_income = Category(name="Wypłata", type="income")
-    db.session.add_all([cat_expense, cat_income])
-    db.session.commit()
+        cat_expense = Category(name="Jedzenie", type="expense")
+        cat_income = Category(name="Wypłata", type="income")
+        db.session.add_all([cat_expense, cat_income])
+        db.session.commit()
 
-    tx = Transaction(
-        date=date(2023, 10, 15),
-        title="Zakupy w Biedronce",
-        amount=150.50,
-        account_id=account.id,
-        category_id=cat_expense.id,
-        user_id=user_id
-    )
-    db.session.add(tx)
-    db.session.commit()
+        tx = Transaction(
+            date=date(2023, 10, 15),
+            title="Zakupy w Biedronce",
+            amount=150.50,
+            account_id=account.id,
+            category_id=cat_expense.id,
+            user_id=test_user_id
+        )
+        db.session.add(tx)
+        db.session.commit()
 
     # ACTION - symulujemy zapytanie GET od przeglądarki do naszego API
     login_user_helper(client)
@@ -61,11 +66,7 @@ def test_api_init_returns_data_from_db(client, app):
     assert transactions[0]['category'] == "Jedzenie"
     assert transactions[0]['date'] == "2023-10-15"
 
-def test_api_add_category(client, app):
-    with app.app_context():
-        user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
-        db.session.add(user)
-        db.session.commit()
+def test_api_add_category(client, app, test_user_id):
     login_user_helper(client)
     # ACTION - symulujemy wysłanie nowej kategorii z formularza na stronie
     response = client.post('/api/categories', json={
@@ -131,28 +132,17 @@ def test_delete_category_soft_delete(client, app):
         assert cat_in_db is not None  # Rekord nadal fizycznie istnieje w bazie!
         assert cat_in_db.is_active is False  # Ale jest oznaczony jako nieaktywny
 
-def test_update_transaction_splits(client, app):
+def test_update_transaction_splits(client, app, test_user_id):
     # SETUP - tworzymy transakcję do podziału
     with app.app_context():
-        user = User(username="testuser", email="split@test.com", password_hash=generate_password_hash("password"))
-        db.session.add(user)
-        db.session.commit()
-        
-        account = Account(name="KontoSplit", bank_name="Bank", balance=100.0, user_id=user.id)
+        account = Account(name="KontoSplit", bank_name="Bank", balance=100.0, user_id=test_user_id)
         cat_main = Category(name="Glowna", type="expense")
         cat_split1 = Category(name="Czesc1", type="expense")
         cat_split2 = Category(name="Czesc2", type="expense")
         db.session.add_all([account, cat_main, cat_split1, cat_split2])
         db.session.commit()
         
-        tx = Transaction(
-            date=date(2023, 11, 1),
-            title="Wielkie Zakupy",
-            amount=200.00,
-            account_id=account.id,
-            category_id=cat_main.id,
-            user_id=user.id
-        )
+        tx = Transaction(date=date(2023, 11, 1), title="Wielkie Zakupy", amount=200.00, account_id=account.id, category_id=cat_main.id, user_id=test_user_id)
         db.session.add(tx)
         db.session.commit()
         tx_id = tx.id
@@ -176,13 +166,10 @@ def test_update_transaction_splits(client, app):
         assert tx_in_db.splits[0].desc == 'Spożywcze'
         assert tx_in_db.splits[0].category.name == 'Czesc1'
 
-def test_import_ing_csv_endpoint(client, app):
+def test_import_ing_csv_endpoint(client, app, test_user_id):
     """Testuje wgrywanie pliku CSV z ING przez endpoint API."""
     with app.app_context():
-        user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
-        db.session.add(user)
-        db.session.commit()
-        account = Account(name="Test Konto", user_id=user.id)
+        account = Account(name="Test Konto", bank_name="Bank", user_id=test_user_id)
         db.session.add(account)
         db.session.commit()
         acc_id = account.id
@@ -210,16 +197,12 @@ def test_import_ing_csv_endpoint(client, app):
         assert len(staged) == 2
         assert staged[0].title == "Wypłata"
 
-def test_get_pending_staging_transactions(client, app):
+def test_get_pending_staging_transactions(client, app, test_user_id):
     """Testuje pobieranie oczekujących (pending) transakcji ze stagingu."""
     # SETUP
     with app.app_context():
-        user = User(username="testuser", email="stg@test.com", password_hash=generate_password_hash("password"))
-        db.session.add(user)
-        db.session.commit()
-
-        stg1 = TransactionStaging(date=date(2023, 11, 1), amount=100.0, title="Pending TX", status="pending", user_id=user.id)
-        stg2 = TransactionStaging(date=date(2023, 11, 2), amount=200.0, title="Approved TX", status="approved", user_id=user.id)
+        stg1 = TransactionStaging(date=date(2023, 11, 1), amount=100.0, title="Pending TX", status="pending", user_id=test_user_id)
+        stg2 = TransactionStaging(date=date(2023, 11, 2), amount=200.0, title="Approved TX", status="approved", user_id=test_user_id)
         db.session.add_all([stg1, stg2])
         db.session.commit()
 

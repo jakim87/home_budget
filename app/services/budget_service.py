@@ -1,6 +1,6 @@
 from app import db
 from app.models import Transaction, Account, TransactionStaging, Contractor, Category, TransactionSplit
-from datetime import date, datetime
+from datetime import date
 from typing import Optional
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
@@ -107,6 +107,46 @@ def create_transaction(
         db.session.commit()
         
         return new_transaction
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(str(e))
+
+def reconcile_account_balance(user_id: int, account_id: int, new_balance: Decimal) -> Transaction:
+    """
+    Uzgadnia saldo konta. Tworzy transakcję korygującą, jeśli istnieje różnica
+    między nowym saldem a bieżącym saldem w systemie.
+    """
+    try:
+        account = db.session.query(Account).filter_by(id=account_id, user_id=user_id).first()
+        if not account:
+            raise ValueError(f"Konto o ID {account_id} nie istnieje lub brak uprawnień.")
+
+        current_balance = Decimal(account.balance)
+        difference = new_balance - current_balance
+
+        if difference == Decimal('0.00'):
+            # Jeśli salda są takie same, nie ma potrzeby tworzenia transakcji
+            return None
+
+        # Znajdź lub utwórz systemową kategorię "Uzgadnianie salda"
+        reconciliation_category = db.session.query(Category).filter_by(name="Uzgadnianie salda", is_system_category=True).first()
+        if not reconciliation_category:
+            reconciliation_category = Category(name="Uzgadnianie salda", type="system_reconciliation", is_system_category=True)
+            db.session.add(reconciliation_category)
+            db.session.flush() # Aby uzyskać ID
+
+        # Utwórz transakcję korygującą
+        reconciliation_tx = create_transaction(
+            user_id=user_id,
+            account_id=account_id,
+            amount=difference,
+            title="Uzgadnianie salda",
+            transaction_date=date.today(),
+            category_id=reconciliation_category.id,
+            contractor="-" # Kontrahent pusty lub placeholder
+        )
+        db.session.commit()
+        return reconciliation_tx
     except Exception as e:
         db.session.rollback()
         raise ValueError(str(e))

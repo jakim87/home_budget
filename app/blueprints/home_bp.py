@@ -1,28 +1,23 @@
 from flask import Blueprint, render_template, jsonify
+from flask_login import login_required, current_user
 from app import db
 from app.models import Category, Contractor, Account, Transaction, User, TransactionSplit
 from sqlalchemy.orm import joinedload, selectinload
 
 home_bp = Blueprint('home', __name__)
 
-def _get_default_user():
-    """Pomocnicza funkcja do pobierania domyślnego użytkownika."""
-    return db.session.query(User).filter_by(username="default_user").first()
-
 @home_bp.route('/')
 def index():
     return render_template('base.html')
 
 @home_bp.route('/api/init', methods=['GET'])
+@login_required
 def init_data():
-    default_user = _get_default_user()
-    if not default_user:
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-    user_id = default_user.id
+    user_id = current_user.id
 
     # Pobieranie kategorii z bazy
     categories = db.session.query(Category).filter_by(is_active=True).order_by(Category.name).all()
-    categories_data = [{'name': c.name, 'type': c.type} for c in categories]
+    categories_data = [{'name': c.name, 'type': c.type, 'is_system_category': c.is_system_category} for c in categories]
     
     # Pobieranie kontrahentów
     contractors = db.session.query(Contractor).filter_by(user_id=user_id, is_active=True).order_by(Contractor.name).all()

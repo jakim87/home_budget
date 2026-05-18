@@ -52,51 +52,51 @@ def create_app(config_class=Config):
     app.register_blueprint(contractors_bp)
     app.register_blueprint(import_bp)
 
-    # TYMCZASOWE: Automatyczne logowanie dla środowiska deweloperskiego
-    @app.before_request
-    def auto_login_dummy_user():
-        from flask_login import current_user, login_user
+    @app.cli.command("seed")
+    def seed_db():
+        """Seeds the database with initial dummy data for development."""
+        from app.models import User, Account, Category, Contractor, Transaction
+        from werkzeug.security import generate_password_hash
         from datetime import date
-        
-        # Wymuszamy autologowanie i utworzenie jednego "domyślnego" użytkownika
-        if not current_user.is_authenticated or getattr(current_user, 'username', '') != "default_user":
-            user = db.session.query(models.User).filter_by(username="default_user").first()
-            if not user:
-                user = models.User(username="default_user", email="default@local", password_hash="dummy")
-                db.session.add(user)
-                db.session.commit()
 
-                # --- WYGENEROWANIE DANYCH TESTOWYCH ---
-                account = models.Account(name="Portfel", bank_name="Gotówka", balance=1500.0, user_id=user.id, is_default=True)
-                db.session.add(account)
-                db.session.commit()
-                
-                cat_income = models.Category(name="Wynagrodzenie", type="income")
-                cat_expense = models.Category(name="Spożywcze", type="expense")
-                db.session.add_all([cat_income, cat_expense])
-                db.session.commit()
+        print("Seeding database...")
+        user = db.session.query(User).filter_by(username="default_user").first()
+        if not user:
+            user = User(username="default_user", email="default@local", password_hash=generate_password_hash("password"))
+            db.session.add(user)
+            db.session.commit()
+            print("Created default_user with password 'password'.")
 
-                # Dodajemy kontrahentów, aby słowniki nie były puste
-                cont_employer = models.Contractor(name="Pracodawca", user_id=user.id, default_category_id=cat_income.id)
-                cont_biedronka = models.Contractor(name="Biedronka", mapping_rules="biedronka, jeronimo", user_id=user.id, default_category_id=cat_expense.id)
-                db.session.add_all([cont_employer, cont_biedronka])
-                db.session.commit()
+            # --- Generowanie danych deweloperskich ---
+            account = Account(name="Portfel", bank_name="Gotówka", balance=1500.0, user_id=user.id, is_default=True)
+            db.session.add(account)
+            
+            cat_income = Category(name="Wynagrodzenie", type="income")
+            cat_expense = Category(name="Spożywcze", type="expense")
+            reconciliation_cat = Category(name="Uzgadnianie salda", type="system_reconciliation", is_system_category=True)
+            db.session.add_all([cat_income, cat_expense, reconciliation_cat])
+            db.session.commit()
 
-                tx1 = models.Transaction(
-                    date=date.today(), title="Wypłata", amount=2000.0,
-                    account_id=account.id, category_id=cat_income.id, user_id=user.id,
-                    contractor_id=cont_employer.id # Powiązanie z kontrahentem
-                )
-                tx2 = models.Transaction(
-                    date=date.today(), title="Zakupy Biedronka", amount=-150.50,
-                    account_id=account.id, category_id=cat_expense.id, user_id=user.id,
-                    contractor_id=cont_biedronka.id # Powiązanie z kontrahentem
-                )
-                db.session.add_all([tx1, tx2])
-                db.session.commit()
-                # ----------------------------------------
+            cont_employer = Contractor(name="Pracodawca", user_id=user.id, default_category_id=cat_income.id)
+            cont_biedronka = Contractor(name="Biedronka", mapping_rules="biedronka, jeronimo", user_id=user.id, default_category_id=cat_expense.id)
+            db.session.add_all([cont_employer, cont_biedronka])
+            db.session.commit()
 
-            login_user(user)
+            tx1 = Transaction(
+                date=date.today(), title="Wypłata", amount=2000.0,
+                account_id=account.id, category_id=cat_income.id, user_id=user.id,
+                contractor_id=cont_employer.id
+            )
+            tx2 = Transaction(
+                date=date.today(), title="Zakupy Biedronka", amount=-150.50,
+                account_id=account.id, category_id=cat_expense.id, user_id=user.id,
+                contractor_id=cont_biedronka.id
+            )
+            db.session.add_all([tx1, tx2])
+            db.session.commit()
+            print("Database seeded successfully.")
+        else:
+            print("Default user already exists. Skipping seed.")
 
     @app.cli.command("cleanup-archive")
     def cleanup_archive():

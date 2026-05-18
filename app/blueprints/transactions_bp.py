@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask_login import login_required, current_user
 from marshmallow import ValidationError
 from app import db
 from app.models import Category, Contractor, User
@@ -9,16 +10,10 @@ from app.services.budget_service import create_transaction
 
 transactions_bp = Blueprint('transactions', __name__)
 
-def _get_default_user():
-    """Pomocnicza funkcja do pobierania domyślnego użytkownika."""
-    return db.session.query(User).filter_by(username="default_user").first()
-
 @transactions_bp.route('/api/transactions', methods=['POST'])
+@login_required
 def add_transaction():
-    default_user = _get_default_user()
-    if not default_user:
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-    user_id = default_user.id
+    user_id = current_user.id
 
     try:
         data = TransactionSchema().load(request.get_json() or {})
@@ -58,11 +53,9 @@ def add_transaction():
         return jsonify({'error': str(err)}), 400
 
 @transactions_bp.route('/api/transactions/<int:tx_id>', methods=['PUT'])
+@login_required
 def edit_transaction(tx_id):
-    default_user = _get_default_user()
-    if not default_user:
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-    user_id = default_user.id
+    user_id = current_user.id
 
     try:
         update_transaction(user_id, tx_id, request.get_json() or {})
@@ -71,11 +64,9 @@ def edit_transaction(tx_id):
         return jsonify({'error': str(err)}), 400
 
 @transactions_bp.route('/api/transactions/<int:tx_id>', methods=['DELETE'])
+@login_required
 def remove_transaction(tx_id):
-    default_user = _get_default_user()
-    if not default_user:
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-    user_id = default_user.id
+    user_id = current_user.id
 
     try:
         archive_and_delete_transaction(user_id, tx_id)

@@ -175,9 +175,9 @@ def test_import_ing_csv_endpoint(client, app, test_user_id):
         acc_id = account.id
     login_user_helper(client)
     # SETUP - wirtualny plik CSV
-    csv_content = """Data transakcji;Data księgowania;Dane kontrahenta;Tytuł;Konto;Bank;Szczegóły;NrTx;Kwota;Waluta
-2023-10-25;2023-10-25;Pracodawca;Wypłata;;Bank;;;12500,50;PLN
-2023-10-28;2023-10-28;;Opłata za kartę;;Bank;;;-7,00;PLN
+    csv_content = """Data transakcji;Data księgowania;Dane kontrahenta;Tytuł;Nr rachunku;Konto;Bank;Szczegóły;NrTx;Kwota transakcji;Waluta
+2023-10-25;2023-10-25;Pracodawca;Wypłata;;;Bank;;;12500,50;PLN
+2023-10-28;2023-10-28;;Opłata za kartę;;;Bank;;;-7,00;PLN
 """
     data = {
         'file': (io.BytesIO(csv_content.encode('utf-8')), 'test_ing.csv'),

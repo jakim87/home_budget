@@ -32,6 +32,9 @@ class User(db.Model, UserMixin):
     email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
 
+    # Relacja zwrotna do kont
+    accounts: Mapped[list['Account']] = relationship(back_populates="user")
+
 class Account(db.Model):
     __tablename__ = 'accounts'
     
@@ -47,6 +50,9 @@ class Account(db.Model):
     is_default: Mapped[bool] = mapped_column(default=False, server_default='false', nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
 
+    # Relacja do użytkownika
+    user: Mapped['User'] = relationship(back_populates="accounts")
+
 class Category(db.Model):
     __tablename__ = 'categories'
     
@@ -55,6 +61,7 @@ class Category(db.Model):
     type: Mapped[str] = mapped_column(String(20)) # np. "expense" (wydatek) lub "income" (przychód)
     # NOWE POLE: Miękkie usuwanie
     is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
+    is_system_category: Mapped[bool] = mapped_column(default=False, server_default='false', nullable=False)
 
 class Contractor(db.Model):
     __tablename__ = 'contractors'

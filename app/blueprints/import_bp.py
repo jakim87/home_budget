@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask_login import login_required, current_user
 from marshmallow import ValidationError
 from app import db
 from app.models import TransactionStaging, Category, Contractor, User
@@ -7,16 +8,10 @@ from app.services.budget_service import parse_ing_csv, save_transactions_to_stag
 
 import_bp = Blueprint('import', __name__)
 
-def _get_default_user():
-    """Pomocnicza funkcja do pobierania domyślnego użytkownika."""
-    return db.session.query(User).filter_by(username="default_user").first()
-
 @import_bp.route('/api/import/ing', methods=['POST'])
+@login_required
 def import_ing_csv():
-    default_user = _get_default_user()
-    if not default_user:
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-    user_id = default_user.id
+    user_id = current_user.id
 
     if 'file' not in request.files:
         return jsonify({'error': 'Brak pliku w żądaniu.'}), 400
@@ -45,22 +40,18 @@ def import_ing_csv():
         return jsonify({'error': str(e)}), 400
 
 @import_bp.route('/api/staging/pending', methods=['GET'])
+@login_required
 def get_pending_staging_transactions():
-    default_user = _get_default_user()
-    if not default_user:
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-    user_id = default_user.id
+    user_id = current_user.id
 
     pending_txs = db.session.query(TransactionStaging, Category, Contractor).outerjoin(Category, TransactionStaging.proposed_category_id == Category.id).outerjoin(Contractor, TransactionStaging.proposed_contractor_id == Contractor.id).filter(TransactionStaging.user_id == user_id, TransactionStaging.status == 'pending').order_by(TransactionStaging.date.desc()).all()
     data = [{'id': tx.id, 'date': tx.date.strftime('%Y-%m-%d'), 'amount': float(tx.amount), 'title': tx.title, 'contractor': tx.contractor or '', 'status': tx.status, 'proposed_category': cat.name if cat else '', 'proposed_contractor_id': tx.proposed_contractor_id, 'proposed_contractor_name': cont.name if cont else ''} for tx, cat, cont in pending_txs]
     return jsonify(data), 200
 
 @import_bp.route('/api/staging/pending', methods=['DELETE'])
+@login_required
 def clear_pending_staging_transactions():
-    default_user = _get_default_user()
-    if not default_user:
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-    user_id = default_user.id
+    user_id = current_user.id
 
     try:
         deleted_count = db.session.query(TransactionStaging).filter_by(user_id=user_id, status='pending').delete()
@@ -71,11 +62,9 @@ def clear_pending_staging_transactions():
         return jsonify({'error': 'Wystąpił błąd podczas odrzucania transakcji.'}), 500
 
 @import_bp.route('/api/staging/<int:stg_id>/approve', methods=['POST'])
+@login_required
 def approve_staging_transaction(stg_id):
-    default_user = _get_default_user()
-    if not default_user:
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-    user_id = default_user.id
+    user_id = current_user.id
 
     try:
         data = StagingApproveSchema().load(request.get_json() or {})

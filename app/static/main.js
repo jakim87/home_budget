@@ -160,7 +160,7 @@ function renderStaging() {
         pendingStaging.forEach(t => {
             const isPositive = t.amount >= 0;
             const amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
-            const amountText = `${isPositive ? '+' : '-'}${Math.abs(t.amount).toFixed(2)} PLN`;
+            const amountText = `${isPositive ? '+' : ''}${t.amount.toFixed(2)} PLN`; // Używamy t.amount bezpośrednio, bo backend już ustawił znak
             
             // Sprawdzenie statusu zmapowania przez system
             const isFullyMapped = t.proposed_category && t.proposed_contractor_id;
@@ -610,16 +610,15 @@ function getCategoryOptionsHtml(selectedValue = null) {
     const transferCategories = categories.filter(c => c.type === 'transfer');
     
     let html = `<optgroup label="Wydatki">`;
-    expCategories.forEach(c => {
+    expCategories.filter(c => !c.is_system_category).forEach(c => { // Filtrujemy kategorie systemowe
         const sel = c.name === selectedValue ? 'selected' : '';
         html += `<option value="${c.name}" ${sel}>${c.name}</option>`;
     });
     html += `</optgroup><optgroup label="Przychody">`;
-    incCategories.forEach(c => {
+    incCategories.filter(c => !c.is_system_category).forEach(c => {
         const sel = c.name === selectedValue ? 'selected' : '';
         html += `<option value="${c.name}" ${sel}>${c.name}</option>`;
     });
-    html += `</optgroup>`;
     if (transferCategories.length > 0) {
         html += `<optgroup label="Transfery">`;
         transferCategories.forEach(c => {
@@ -826,6 +825,9 @@ function renderAccounts() {
                 <button onclick="deleteAccount(${a.id})" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100" title="Usuń konto">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                 </button>
+                <button onclick="openReconcileModal(${a.id}, '${a.name}', ${a.balance})" class="text-slate-400 hover:text-green-600 p-1.5 rounded-md hover:bg-green-50 transition-colors opacity-0 group-hover:opacity-100" title="Uzgadniaj saldo">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </button>
             </div>
         `;
         list.appendChild(li);
@@ -905,6 +907,64 @@ window.deleteAccount = async function(id) {
         updateAccountSelects();
     }
 }
+
+// --- UZGADNIANIE SALDA ---
+const reconcileModal = document.getElementById('reconcile-modal');
+const reconcileAccountName = document.getElementById('reconcile-account-name');
+const reconcileCurrentBalance = document.getElementById('reconcile-current-balance');
+const reconcileNewBalanceInput = document.getElementById('reconcile-new-balance');
+const reconcileForm = document.getElementById('reconcile-form');
+let currentReconcileAccountId = null;
+
+window.openReconcileModal = function(accountId, accountName, currentBalance) {
+    currentReconcileAccountId = accountId;
+    reconcileAccountName.innerText = accountName;
+    reconcileCurrentBalance.innerText = `${currentBalance.toFixed(2)} PLN`;
+    reconcileNewBalanceInput.value = currentBalance.toFixed(2); // Domyślnie proponujemy bieżące saldo
+    reconcileModal.classList.remove('hidden');
+    reconcileModal.classList.add('flex');
+};
+
+window.closeReconcileModal = function() {
+    reconcileModal.classList.add('hidden');
+    reconcileModal.classList.remove('flex');
+    currentReconcileAccountId = null;
+    reconcileForm.reset();
+};
+
+reconcileModal.addEventListener('click', (e) => {
+    if (e.target === reconcileModal) closeReconcileModal();
+});
+
+reconcileForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    if (!currentReconcileAccountId) return;
+
+    const newBalance = parseFloat(reconcileNewBalanceInput.value);
+    if (isNaN(newBalance)) {
+        showToast('Wprowadź prawidłową kwotę salda.', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/accounts/${currentReconcileAccountId}/reconcile`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ new_balance: newBalance })
+        });
+
+        if (response.ok) {
+            showToast('Saldo uzgodnione pomyślnie!');
+            closeReconcileModal();
+            fetchInitialData(); // Odśwież dane, aby zobaczyć nową transakcję i zaktualizowane saldo
+        } else {
+            const err = await response.json();
+            showToast(err.error || 'Błąd podczas uzgadniania salda.', 'error');
+        }
+    } catch (error) {
+        showToast('Błąd połączenia z API.', 'error');
+    }
+});
 
 // --- SZYBKIE DODAWANIE W LOCIE ---
 let currentQuickAddSelect = null;
@@ -1392,7 +1452,7 @@ function renderTransactions() {
                 } else {
                     amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
                 }
-                const amountText = `${isPositive ? '+' : '-'}${Math.abs(t.amount).toFixed(2)} PLN`;
+                const amountText = `${isPositive ? '+' : ''}${t.amount.toFixed(2)} PLN`;
                 
                 const isVirtual = t.isVirtual;
                 const iconHtml = isVirtual 
@@ -1776,8 +1836,7 @@ async function fetchInitialData() {
         const response = await fetch('/api/init');
         if (!response.ok) {
             if (response.status === 401) {
-                // Not logged in, do nothing. The page should be showing the login form.
-                // Returning here prevents the rest of the function from running and trying to render empty data.
+                showLoginModal(); // Zamiast cichego błędu, pokaż modal logowania
                 return;
             }
             // For other server errors, try to parse the error and show it.
@@ -1808,3 +1867,44 @@ async function fetchInitialData() {
 document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
 fetchInitialData();
 fetchPendingStaging(); // Inicjalne pobranie transakcji do weryfikacji dla licznika (badge)
+
+// --- LOGIKA LOGOWANIA ---
+function showLoginModal() {
+    document.getElementById('login-modal').classList.remove('hidden');
+    document.getElementById('login-modal').classList.add('flex');
+}
+
+function hideLoginModal() {
+    document.getElementById('login-modal').classList.add('hidden');
+    document.getElementById('login-modal').classList.remove('flex');
+}
+
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+    const errorEl = document.getElementById('login-error');
+    errorEl.classList.add('hidden');
+
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const result = await response.json();
+
+        if (response.ok) {
+            hideLoginModal();
+            // Po udanym logowaniu, pobierz dane aplikacji
+            await fetchInitialData();
+            await fetchPendingStaging();
+        } else {
+            errorEl.textContent = result.error || 'Wystąpił nieznany błąd.';
+            errorEl.classList.remove('hidden');
+        }
+    } catch (error) {
+        errorEl.textContent = 'Błąd połączenia z serwerem.';
+        errorEl.classList.remove('hidden');
+    }
+});

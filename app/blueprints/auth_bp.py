@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_user, logout_user
+from flask_login import login_user, logout_user, login_required, current_user
 from marshmallow import ValidationError
 from app.schemas import RegisterSchema, LoginSchema
 from app.services.auth_service import register_user, authenticate_user
@@ -38,11 +38,8 @@ def logout():
     return jsonify({'message': 'Wylogowano pomyślnie'}), 200
 
 @auth_bp.route('/api/me', methods=['GET'])
+@login_required
 def me():
-    # Zgodnie z nowym podejściem, zawsze zwracamy dane "default_user"
-    default_user = db.session.query(User).filter_by(username="default_user").first()
-    if not default_user:
-        # Chociaż `before_request` powinien go stworzyć, to jest to zabezpieczenie
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-        
-    return jsonify({'id': default_user.id, 'username': default_user.username, 'email': default_user.email})
+    if not current_user.is_authenticated:
+        return jsonify({'error': 'Użytkownik niezalogowany'}), 401
+    return jsonify({'id': current_user.id, 'username': current_user.username, 'email': current_user.email})

@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask_login import login_required, current_user
 from marshmallow import ValidationError
 from app import db
 from app.models import User
@@ -8,11 +9,9 @@ from app.services.contractor_service import create_contractor, update_contractor
 contractors_bp = Blueprint('contractors', __name__)
 
 @contractors_bp.route('/api/contractors', methods=['POST'])
+@login_required
 def add_contractor():
-    default_user = db.session.query(User).filter_by(username="default_user").first()
-    if not default_user:
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-    user_id = default_user.id
+    user_id = current_user.id
 
     try:
         data = ContractorSchema().load(request.get_json() or {})
@@ -24,11 +23,9 @@ def add_contractor():
         return jsonify({'error': str(err)}), 400
 
 @contractors_bp.route('/api/contractors/<int:c_id>', methods=['PUT'])
+@login_required
 def edit_contractor(c_id):
-    default_user = db.session.query(User).filter_by(username="default_user").first()
-    if not default_user:
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-    user_id = default_user.id
+    user_id = current_user.id
 
     try:
         data = ContractorSchema(partial=True).load(request.get_json() or {})
@@ -40,11 +37,9 @@ def edit_contractor(c_id):
         return jsonify({'error': str(err)}), 404
 
 @contractors_bp.route('/api/contractors/<int:c_id>', methods=['DELETE'])
+@login_required
 def delete_contractor(c_id):
-    default_user = db.session.query(User).filter_by(username="default_user").first()
-    if not default_user:
-        return jsonify({'error': 'Brak domyślnego użytkownika w bazie.'}), 404
-    user_id = default_user.id
+    user_id = current_user.id
 
     try:
         soft_delete_contractor(user_id, c_id)

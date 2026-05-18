@@ -12,8 +12,8 @@ def parser_user(app):
     """Przygotowuje użytkownika i konto testowe dla parsera."""
     with app.app_context():
         user = User(username="parser_user", email="parser@user.com", password_hash="a")
-        acc1 = Account(user_id=1, name="KONTO Z LWEM Direct (PLN)", account_number="PL10105000997603123456789123")
-        acc2 = Account(user_id=1, name="Smart Saver", account_number="PL24105010251000009180015928")
+        acc1 = Account(user=user, name="KONTO Z LWEM Direct (PLN)", bank_name="ING", account_number="PL10105000997603123456789123")
+        acc2 = Account(user=user, name="Smart Saver", bank_name="ING", account_number="PL24105010251000009180015928")
         db.session.add_all([user, acc1, acc2])
         db.session.commit()
         return user.id, {'acc1_id': acc1.id, 'acc2_id': acc2.id}

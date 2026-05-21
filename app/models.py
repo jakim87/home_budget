@@ -1,11 +1,72 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Numeric, Date, ForeignKey
+from sqlalchemy import String, Numeric, Date, ForeignKey, Enum as SQLAlchemyEnum
 from datetime import date
-from typing import Optional
+from typing import Optional, List
 from app import db
 from decimal import Decimal
 from datetime import datetime, timezone
 from flask_login import UserMixin
+import enum
+# ... inne importy
+
+class Frequency(enum.Enum):
+    DAILY = 'daily'
+    WEEKLY = 'weekly'
+    MONTHLY = 'monthly'
+    YEARLY = 'yearly'
+
+class RecurringTransaction(db.Model):
+    __tablename__ = 'recurring_transactions'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False, index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey('accounts.id'), nullable=False)
+    category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=True)
+    contractor_id: Mapped[int] = mapped_column(ForeignKey('contractors.id'), nullable=True)
+    
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    
+    frequency: Mapped[Frequency] = mapped_column(SQLAlchemyEnum(Frequency), nullable=False)
+    interval: Mapped[int] = mapped_column(default=1, nullable=False) # Np. co 2 tygodnie (interval=2, frequency=WEEKLY)
+    day_of_week: Mapped[int] = mapped_column(nullable=True) # 0=Poniedziałek, 6=Niedziela (dla WEEKLY)
+    day_of_month: Mapped[int] = mapped_column(nullable=True) # 1-31 (dla MONTHLY)
+
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=True)
+    next_run_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user: Mapped["User"] = relationship(back_populates="recurring_transactions")
+    account: Mapped["Account"] = relationship()
+    category: Mapped["Category"] = relationship()
+    contractor: Mapped["Contractor"] = relationship()
+
+class PlannedTransaction(db.Model):
+    __tablename__ = 'planned_transactions'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False, index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey('accounts.id'), nullable=False)
+    category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=True)
+    contractor_id: Mapped[int] = mapped_column(ForeignKey('contractors.id'), nullable=True)
+    
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    
+    execution_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), default='pending', nullable=False) # pending, processed
+    
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user: Mapped["User"] = relationship(back_populates="planned_transactions")
+    account: Mapped["Account"] = relationship()
+    category: Mapped["Category"] = relationship()
+    contractor: Mapped["Contractor"] = relationship()
 
 # NOWA TABELA: Shadow table dla usuwanych transakcji
 class TransactionArchive(db.Model):
@@ -34,6 +95,10 @@ class User(db.Model, UserMixin):
 
     # Relacja zwrotna do kont
     accounts: Mapped[list['Account']] = relationship(back_populates="user")
+    # Relacja do transakcji cyklicznych
+    recurring_transactions: Mapped[List["RecurringTransaction"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    # Relacja do transakcji zaplanowanych
+    planned_transactions: Mapped[List["PlannedTransaction"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 class Account(db.Model):
     __tablename__ = 'accounts'

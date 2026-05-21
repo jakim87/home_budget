@@ -35,6 +35,9 @@ def create_app(config_class=Config):
     ma.init_app(app)
     login_manager.init_app(app)
 
+    # Rejestracja komend CLI
+    from app import cli
+    cli.register_commands(app)
     # Rejestracja Blueprintów
     from app.blueprints.auth_bp import auth_bp
     from app.blueprints.home_bp import home_bp
@@ -42,6 +45,8 @@ def create_app(config_class=Config):
     from app.blueprints.accounts_bp import accounts_bp
     from app.blueprints.categories_bp import categories_bp
     from app.blueprints.contractors_bp import contractors_bp
+    from app.blueprints.recurring_bp import recurring_bp # NEW
+    from app.blueprints.planned_transactions_bp import planned_bp # NEW
     from app.blueprints.import_bp import import_bp
 
     app.register_blueprint(auth_bp)
@@ -50,6 +55,8 @@ def create_app(config_class=Config):
     app.register_blueprint(accounts_bp)
     app.register_blueprint(categories_bp)
     app.register_blueprint(contractors_bp)
+    app.register_blueprint(recurring_bp) # NEW
+    app.register_blueprint(planned_bp) # NEW
     app.register_blueprint(import_bp)
 
     @app.cli.command("seed")

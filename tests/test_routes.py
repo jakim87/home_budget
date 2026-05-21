@@ -8,15 +8,6 @@ from werkzeug.security import generate_password_hash
 def login_user_helper(client, username="testuser", password="password"):
     return client.post('/api/login', json={'username': username, 'password': password})
 
-@pytest.fixture
-def test_user_id(app):
-    """Fixture przygotowujący użytkownika testowego i zwracający jego ID."""
-    with app.app_context():
-        user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
-        db.session.add(user)
-        db.session.commit()
-        return user.id
-
 def test_api_init_returns_data_from_db(client, app, test_user_id):
     # SETUP - przygotowanie danych w wyizolowanej bazie testowej
     with app.app_context():

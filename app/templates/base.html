@@ -385,49 +385,94 @@
             
             <div class="p-6 flex-1 overflow-y-auto space-y-6">
                 <!-- Formularz dodawania cyklicznej -->
-                <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100">
-                    <h4 class="font-semibold text-indigo-800 mb-4">Zaplanuj płatność / wpływ</h4>
-                    <form id="recurring-form" class="flex flex-col gap-4">
+                <div class="bg-blue-50 p-5 rounded-xl border border-blue-100">
+                    <h4 class="font-semibold text-blue-800 mb-4">Zaplanuj jednorazową transakcję</h4>
+                    <form id="planned-form" class="flex flex-col gap-4">
                         <div class="flex flex-wrap gap-4">
                             <div class="flex bg-white rounded-lg border border-slate-300 p-1 w-full sm:w-auto shrink-0">
-                                <button type="button" id="rec-type-expense" onclick="setRecType('expense')" class="flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm">Wydatek</button>
-                                <button type="button" id="rec-type-income" onclick="setRecType('income')" class="flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors">Przychód</button>
+                                <button type="button" id="planned-type-expense" onclick="setPlannedType('expense')" class="flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm">Wydatek</button>
+                                <button type="button" id="planned-type-income" onclick="setPlannedType('income')" class="flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors">Przychód</button>
                             </div>
+                            <input type="text" id="planned-desc" placeholder="Opis (np. Czynsz)" required class="flex-1 min-w-[200px] p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white">
+                            <input type="number" id="planned-amount" placeholder="Kwota" step="0.01" min="0.01" required class="w-full sm:flex-1 md:w-32 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white">
+                            <select id="planned-category" required class="w-full sm:flex-1 md:w-40 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"></select>
+                            <select id="planned-account" required class="w-full sm:flex-1 md:w-40 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"></select>
+                            <select id="planned-contractor" class="w-full sm:flex-1 md:w-48 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"><option value="">Brak kontrahenta</option></select>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-blue-100 pt-4 mt-2">
+                            <div>
+                                <label class="block text-xs font-medium text-blue-700 mb-1">Data wykonania</label>
+                                <input type="date" id="planned-exec-date" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white">
+                            </div>
+                            <div class="flex items-end">
+                                <button type="submit" class="w-full px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Zaplanuj transakcję</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Lista zaplanowanych -->
+                <div>
+                    <h4 class="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        Twoje zaplanowane transakcje
+                    </h4>
+                    <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                        <table class="w-full text-left text-sm">
+                            <tbody id="planned-list" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                        <div id="planned-empty" class="hidden p-6 text-center text-slate-500 bg-white">
+                            Brak zaplanowanych transakcji.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formularz dodawania cyklicznej -->
+                <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100">
+                    <h4 class="font-semibold text-indigo-800 mb-4">Dodaj transakcję cykliczną</h4>
+                    <form id="recurring-form" class="flex flex-col gap-4">
+                        <div class="flex bg-white rounded-lg border border-slate-300 p-1 w-full sm:w-auto shrink-0">
+                            <button type="button" id="rec-rec-type-expense" onclick="setRecurringType('expense')" class="flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm">Wydatek</button>
+                            <button type="button" id="rec-rec-type-income" onclick="setRecurringType('income')" class="flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors">Przychód</button>
+                        </div>
+                        <div class="flex flex-wrap gap-4">
                             <input type="text" id="rec-desc" placeholder="Opis (np. Czynsz)" required class="flex-1 min-w-[200px] p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white">
                             <input type="number" id="rec-amount" placeholder="Kwota" step="0.01" min="0.01" required class="w-full sm:flex-1 md:w-32 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white">
                             <select id="rec-category" required class="w-full sm:flex-1 md:w-40 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"></select>
                             <select id="rec-account" required class="w-full sm:flex-1 md:w-40 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"></select>
+                            <select id="rec-contractor" class="w-full sm:flex-1 md:w-48 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"><option value="">Brak kontrahenta</option></select>
                         </div>
-                        
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-indigo-100 pt-4 mt-2">
                             <div>
                                 <label class="block text-xs font-medium text-indigo-700 mb-1">Częstotliwość cyklu</label>
                                 <select id="rec-freq-type" onchange="toggleRecFreqInputs()" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer">
-                                    <option value="months">Co X miesięcy</option>
-                                    <option value="days">Co X dni</option>
-                                    <option value="specific_days">Wybrane dni w miesiącu</option>
+                                    <option value="monthly" selected>Miesięcznie</option>
+                                    <option value="weekly">Tygodniowo</option>
+                                    <option value="daily">Codziennie</option>
+                                    <option value="yearly">Rocznie</option>
                                 </select>
                             </div>
                             
-                            <div id="rec-opts-months" class="flex gap-2">
+                            <div id="rec-opts-monthly" class="flex gap-2">
                                 <div class="flex-1">
-                                    <label class="block text-xs font-medium text-indigo-700 mb-1">Co ile miesięcy?</label>
-                                    <input type="number" id="rec-freq-months-val" value="1" min="1" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                                    <label class="block text-xs font-medium text-indigo-700 mb-1">Interwał (miesiące)</label>
+                                    <input type="number" id="rec-interval-monthly" value="1" min="1" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
                                 </div>
                                 <div class="flex-1">
                                     <label class="block text-xs font-medium text-indigo-700 mb-1">W którym dniu?</label>
-                                    <input type="number" id="rec-freq-months-day" value="10" min="1" max="31" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                                    <input type="number" id="rec-day-of-month" value="10" min="1" max="31" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
                                 </div>
                             </div>
                             
-                            <div id="rec-opts-days" class="hidden flex-col justify-end">
-                                <label class="block text-xs font-medium text-indigo-700 mb-1">Co ile dni się powtarza?</label>
-                                <input type="number" id="rec-freq-days-val" value="14" min="1" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                            <div id="rec-opts-daily" class="hidden flex-col justify-end">
+                                <label class="block text-xs font-medium text-indigo-700 mb-1">Interwał (dni)</label>
+                                <input type="number" id="rec-interval-daily" value="1" min="1" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
                             </div>
                             
-                            <div id="rec-opts-specific" class="hidden flex-col justify-end">
-                                <label class="block text-xs font-medium text-indigo-700 mb-1">Dni miesiąca (np. 1, 15)</label>
-                                <input type="text" id="rec-freq-specific-val" placeholder="1, 15" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                            <div id="rec-opts-weekly" class="hidden flex-col justify-end">
+                                <label class="block text-xs font-medium text-indigo-700 mb-1">Dzień tygodnia</label>
+                                <select id="rec-day-of-week" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"><option value="0">Poniedziałek</option><option value="1">Wtorek</option><option value="2">Środa</option><option value="3">Czwartek</option><option value="4">Piątek</option><option value="5">Sobota</option><option value="6">Niedziela</option></select>
                             </div>
                         </div>
 

@@ -17,7 +17,7 @@ def init_data():
 
     # Pobieranie kategorii z bazy
     categories = db.session.query(Category).filter_by(is_active=True).order_by(Category.name).all()
-    categories_data = [{'name': c.name, 'type': c.type, 'is_system_category': c.is_system_category} for c in categories]
+    categories_data = [{'id': c.id, 'name': c.name, 'type': c.type, 'is_system_category': c.is_system_category} for c in categories]
     
     # Pobieranie kontrahentów
     contractors = db.session.query(Contractor).filter_by(user_id=user_id, is_active=True).order_by(Contractor.name).all()

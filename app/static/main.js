@@ -13,7 +13,9 @@ let inlineEditingTxId = null;
 
 // Stan transakcji cyklicznych
 let recurringTransactions = [];
-let currentRecType = 'expense';
+let plannedTransactions = []; // New variable for planned transactions
+let currentRecurringType = 'expense';
+let currentPlannedType = 'expense';
 
 // Stan okna rozbijania
 let splitTxId = null;
@@ -348,7 +350,36 @@ function changeMonth(offset) {
 }
 
 // --- LOGIKA TRANSAKCJI CYKLICZNYCH (GENEROWANIE WIRTUALNYCH) ---
-function generateVirtualTransactions(targetYear, targetMonth, startLimit, endLimit) {
+async function fetchRecurringTransactions() {
+    try {
+        const response = await fetch('/api/recurring-transactions/');
+        if (response.ok) {
+            recurringTransactions = await response.json();
+            renderRecurringList();
+        } else {
+            console.error("Błąd pobierania transakcji cyklicznych");
+        }
+    } catch (e) {
+        console.error("Błąd połączenia przy pobieraniu transakcji cyklicznych", e);
+    }
+}
+
+async function fetchPlannedTransactions() {
+    try {
+        const response = await fetch('/api/planned-transactions/');
+        if (response.ok) {
+            plannedTransactions = await response.json();
+            renderPlannedList();
+        } else {
+            console.error("Błąd pobierania transakcji zaplanowanych");
+        }
+    } catch (e) {
+        console.error("Błąd połączenia przy pobieraniu transakcji zaplanowanych", e);
+    }
+}
+
+
+function generateVirtualTransactions(targetYear, targetMonth, startLimit, endLimit) { // Ta funkcja pozostaje, ale teraz operuje na danych z backendu
     let virtualTx = [];
     
     let periodStart, periodEnd;
@@ -359,37 +390,32 @@ function generateVirtualTransactions(targetYear, targetMonth, startLimit, endLim
         periodStart = new Date(targetYear, targetMonth, 1);
         periodEnd = new Date(targetYear, targetMonth + 1, 0);
     }
-
+    
     recurringTransactions.forEach(rt => {
-        const rtStart = new Date(rt.startDate);
-        const rtEnd = rt.endDate ? new Date(rt.endDate) : new Date(2100, 11, 31);
+        const rtStart = new Date(rt.start_date);
+        const rtEnd = rt.end_date ? new Date(rt.end_date) : new Date(2100, 11, 31);
         
         if (rtEnd < periodStart || rtStart > periodEnd) return;
 
-        if (rt.freqType === 'months') {
-            let curr = new Date(rtStart.getFullYear(), rtStart.getMonth(), rt.freqDay);
-            while (curr <= periodEnd && curr <= rtEnd) {
-                if (curr >= rtStart && curr >= periodStart) virtualTx.push(createVirtualTxObject(rt, curr));
-                curr.setMonth(curr.getMonth() + parseInt(rt.freqMonthsVal));
+        // Używamy next_run_date z backendu jako punktu startowego do generowania
+        let curr = new Date(rt.next_run_date);
+
+        // Generujemy wirtualne transakcje do przodu, aż do końca okresu
+        while (curr <= periodEnd && curr <= rtEnd) {
+            if (curr >= periodStart) {
+                virtualTx.push(createVirtualTxObject(rt, curr));
             }
-        } else if (rt.freqType === 'days') {
-            let curr = new Date(rtStart);
-            while (curr <= periodEnd && curr <= rtEnd) {
-                if (curr >= periodStart) virtualTx.push(createVirtualTxObject(rt, curr));
-                curr.setDate(curr.getDate() + parseInt(rt.freqDaysVal));
-            }
-        } else if (rt.freqType === 'specific_days') {
-            let currMonthStart = new Date(Math.max(rtStart, periodStart));
-            currMonthStart.setDate(1);
-            
-            while (currMonthStart <= periodEnd && currMonthStart <= rtEnd) {
-                rt.freqSpecificDays.forEach(day => {
-                    let curr = new Date(currMonthStart.getFullYear(), currMonthStart.getMonth(), day);
-                    if (curr >= rtStart && curr >= periodStart && curr <= periodEnd && curr <= rtEnd && curr.getMonth() === currMonthStart.getMonth()) {
-                        virtualTx.push(createVirtualTxObject(rt, curr));
-                    }
-                });
-                currMonthStart.setMonth(currMonthStart.getMonth() + 1);
+            // Obliczanie następnej daty na podstawie częstotliwości
+            if (rt.frequency === 'monthly') {
+                curr.setMonth(curr.getMonth() + rt.interval);
+            } else if (rt.frequency === 'daily') {
+                curr.setDate(curr.getDate() + rt.interval);
+            } else if (rt.frequency === 'weekly') {
+                curr.setDate(curr.getDate() + (7 * rt.interval));
+            } else if (rt.frequency === 'yearly') {
+                curr.setFullYear(curr.getFullYear() + rt.interval);
+            } else {
+                break; // Nieznana częstotliwość, przerwij pętlę
             }
         }
     });
@@ -403,10 +429,12 @@ function createVirtualTxObject(rt, dateObj) {
     return {
         id: `virt-${rt.id}-${y}${m}${d}`,
         date: `${y}-${m}-${d}`,
-        desc: `${rt.desc}`,
+        desc: `${rt.title}`,
         amount: rt.amount,
-        category: rt.category,
-            account_id: rt.account_id,
+        category: categories.find(c => c.id === rt.category_id)?.name || 'Brak',
+        contractor_id: rt.contractor_id,
+        contractor_name: contractors.find(c => c.id === rt.contractor_id)?.name || 'Brak',
+        account_id: rt.account_id,
         isVirtual: true,
         virtualSourceId: rt.id
     };
@@ -433,9 +461,10 @@ function getFullTransactionsList(monthFilter, startFilter, endFilter) {
 
 // --- OKNO TRANSAKCJI CYKLICZNYCH ---
 window.openRecurringModal = function() {
+    fetchRecurringTransactions(); // Pobierz najnowsze dane z backendu
+    fetchPlannedTransactions();
     updateCategorySelects();
     document.getElementById('rec-start-date').value = new Date().toISOString().split('T')[0];
-    renderRecurringList();
     document.getElementById('recurring-modal').classList.remove('hidden');
     document.getElementById('recurring-modal').classList.add('flex');
 };
@@ -443,22 +472,24 @@ window.openRecurringModal = function() {
 window.closeRecurringModal = function() {
     document.getElementById('recurring-modal').classList.add('hidden');
     document.getElementById('recurring-modal').classList.remove('flex');
-    document.getElementById('recurring-form').reset();
-    document.getElementById('rec-start-date').value = new Date().toISOString().split('T')[0];
-    toggleRecEndDate();
-    toggleRecFreqInputs();
+    document.getElementById('planned-form').reset(); // Reset planned form
+    document.getElementById('recurring-form').reset(); // Reset recurring form
+    document.getElementById('rec-start-date').value = new Date().toISOString().split('T')[0]; // Reset recurring start date
+    toggleRecEndDate(); // Reset recurring end date toggle
+    toggleRecFreqInputs(); // Reset recurring frequency inputs
 };
 
-window.setRecType = function(type) {
-    currentRecType = type;
-    const btnExp = document.getElementById('rec-type-expense');
-    const btnInc = document.getElementById('rec-type-income');
+// New function for planned transaction type
+window.setPlannedType = function(type) {
+    currentPlannedType = type;
+    const btnExp = document.getElementById('planned-type-expense');
+    const btnInc = document.getElementById('planned-type-income');
     if (type === 'expense') {
         btnExp.className = 'flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm';
-        btnInc.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
+        btnInc.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors'; // Deactivate income
     } else {
         btnInc.className = 'flex-1 px-4 py-2 rounded-md bg-emerald-100 text-emerald-700 font-medium text-sm transition-colors shadow-sm';
-        btnExp.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
+        btnExp.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors'; // Deactivate expense
     }
 };
 
@@ -469,21 +500,74 @@ window.toggleRecEndDate = function() {
 };
 
 window.toggleRecFreqInputs = function() {
+    // Ensure the correct type is set for the recurring form when modal opens
+    const recTypeButtons = document.getElementById('recurring-form').querySelector('.flex.bg-white.rounded-lg.border.border-slate-300.p-1');
+    if (recTypeButtons) {
+        const btnExp = recTypeButtons.querySelector('#rec-rec-type-expense');
+        const btnInc = recTypeButtons.querySelector('#rec-rec-type-income');
+        if (currentRecurringType === 'expense') {
+            btnExp.className = 'flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm';
+            btnInc.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
+        } else {
+            btnInc.className = 'flex-1 px-4 py-2 rounded-md bg-emerald-100 text-emerald-700 font-medium text-sm transition-colors shadow-sm';
+            btnExp.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
+        }
+    }
+
     const type = document.getElementById('rec-freq-type').value;
-    document.getElementById('rec-opts-months').classList.toggle('hidden', type !== 'months');
-    document.getElementById('rec-opts-months').classList.toggle('flex', type === 'months');
-    document.getElementById('rec-opts-days').classList.toggle('hidden', type !== 'days');
-    document.getElementById('rec-opts-days').classList.toggle('flex', type === 'days');
-    document.getElementById('rec-opts-specific').classList.toggle('hidden', type !== 'specific_days');
-    document.getElementById('rec-opts-specific').classList.toggle('flex', type === 'specific_days');
+    document.getElementById('rec-opts-monthly').classList.toggle('hidden', type !== 'monthly');
+    document.getElementById('rec-opts-monthly').classList.toggle('flex', type === 'monthly');
+    document.getElementById('rec-opts-daily').classList.toggle('hidden', type !== 'daily');
+    document.getElementById('rec-opts-daily').classList.toggle('flex', type === 'daily');
+    document.getElementById('rec-opts-weekly').classList.toggle('hidden', type !== 'weekly');
+    document.getElementById('rec-opts-weekly').classList.toggle('flex', type === 'weekly');
 };
 
-window.deleteRecurring = function(id) {
-    recurringTransactions = recurringTransactions.filter(t => t.id !== id);
-    renderRecurringList();
-    renderTransactions(); 
-    if (!document.getElementById('tab-summary').classList.contains('tab-hidden')) renderSummary();
-    showToast('Cykl usunięty.', 'info');
+window.setRecurringType = function(type) {
+    currentRecurringType = type;
+    const btnExp = document.getElementById('rec-rec-type-expense');
+    const btnInc = document.getElementById('rec-rec-type-income');
+    if (type === 'expense') {
+        btnExp.className = 'flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm';
+        btnInc.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
+    } else {
+        btnInc.className = 'flex-1 px-4 py-2 rounded-md bg-emerald-100 text-emerald-700 font-medium text-sm transition-colors shadow-sm';
+        btnExp.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
+    }
+};
+
+
+window.deleteRecurring = async function(id) {
+    if (!confirm('Czy na pewno chcesz usunąć tę definicję transakcji cyklicznej?')) return;
+
+    try {
+        const response = await fetch(`/api/recurring-transactions/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            showToast('Definicja transakcji cyklicznej usunięta.', 'info');
+            await fetchRecurringTransactions(); // Odśwież listę
+            renderTransactions();
+            if (!document.getElementById('tab-summary').classList.contains('tab-hidden')) renderSummary();
+        } else {
+            const err = await response.json();
+            showToast(err.error || 'Błąd usuwania.', 'error');
+        }
+    } catch (e) { showToast('Błąd połączenia z API.', 'error'); }
+};
+
+window.deletePlanned = async function(id) {
+    if (!confirm('Czy na pewno chcesz usunąć tę zaplanowaną transakcję?')) return;
+
+    try {
+        const response = await fetch(`/api/planned-transactions/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            showToast('Zaplanowana transakcja usunięta.', 'info');
+            await fetchPlannedTransactions();
+            renderTransactions();
+        } else {
+            const err = await response.json();
+            showToast(err.error || 'Błąd usuwania.', 'error');
+        }
+    } catch (e) { showToast('Błąd połączenia z API.', 'error'); }
 };
 
 function renderRecurringList() {
@@ -500,25 +584,28 @@ function renderRecurringList() {
 
         recurringTransactions.forEach(rt => {
             const isExp = rt.amount < 0;
+            const cat = categories.find(c => c.id === rt.category_id);
             let freqText = '';
-            if (rt.freqType === 'months') freqText = `Co ${rt.freqMonthsVal} mies. (dz: ${rt.freqDay})`;
-            else if (rt.freqType === 'days') freqText = `Co ${rt.freqDaysVal} dni`;
-            else if (rt.freqType === 'specific_days') freqText = `Dni: ${rt.freqSpecificDays.join(', ')}`;
-            const endText = rt.endDate ? `Do ${rt.endDate}` : 'Bezterminowo';
+            if (rt.frequency === 'once') freqText = `Jednorazowo`;
+            else if (rt.frequency === 'monthly') freqText = `Co ${rt.interval} mies. (dzień: ${rt.day_of_month})`;
+            else if (rt.frequency === 'daily') freqText = `Co ${rt.interval} dni`;
+            else if (rt.frequency === 'weekly') freqText = `Co ${rt.interval} tyg. (dzień tyg: ${rt.day_of_week})`;
+            else if (rt.frequency === 'yearly') freqText = `Co ${rt.interval} lat`;
+            const endText = rt.end_date ? `Do ${rt.end_date}` : 'Bezterminowo';
 
             const row = document.createElement('tr');
             row.className = 'hover:bg-slate-50 transition-colors group';
             row.innerHTML = `
                 <td class="p-3 border-b border-slate-100">
-                    <div class="font-medium text-slate-800">${rt.desc}</div>
-                    <div class="text-xs text-slate-500">${rt.category}</div>
+                    <div class="font-medium text-slate-800">${rt.title}</div>
+                    <div class="text-xs text-slate-500">${cat ? cat.name : 'Brak kategorii'}</div>
                 </td>
                 <td class="p-3 border-b border-slate-100 text-sm">
                     <div class="text-indigo-600 font-medium">${freqText}</div>
-                    <div class="text-xs text-slate-500">Od ${rt.startDate} | ${endText}</div>
+                    <div class="text-xs text-slate-500">Od ${rt.start_date} | ${endText}</div>
                 </td>
                 <td class="p-3 border-b border-slate-100 font-bold text-right ${isExp ? 'text-rose-600' : 'text-emerald-600'}">
-                    ${isExp ? '-' : '+'}${Math.abs(rt.amount).toFixed(2)} PLN
+                    ${isExp ? '' : '+'}${parseFloat(rt.amount).toFixed(2)} PLN
                 </td>
                 <td class="p-3 border-b border-slate-100 text-center">
                     <button onclick="deleteRecurring(${rt.id})" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100" title="Usuń cykl">
@@ -531,17 +618,57 @@ function renderRecurringList() {
     }
 }
 
-document.getElementById('recurring-form').addEventListener('submit', function(e) {
+function renderPlannedList() {
+    const list = document.getElementById('planned-list');
+    const empty = document.getElementById('planned-empty');
+    list.innerHTML = '';
+
+    if (plannedTransactions.length === 0) {
+        empty.classList.remove('hidden');
+        list.parentElement.classList.add('hidden');
+    } else {
+        empty.classList.add('hidden');
+        list.parentElement.classList.remove('hidden');
+
+        plannedTransactions.forEach(pt => {
+            const isExp = pt.amount < 0;
+            const cat = categories.find(c => c.id === pt.category_id);
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-slate-50 transition-colors group';
+            row.innerHTML = `
+                <td class="p-3 border-b border-slate-100">
+                    <div class="font-medium text-slate-800">${pt.title}</div>
+                    <div class="text-xs text-slate-500">${cat ? cat.name : 'Brak kategorii'}</div>
+                </td>
+                <td class="p-3 border-b border-slate-100 text-sm">
+                    <div class="text-blue-600 font-medium">Dnia: ${pt.execution_date}</div>
+                </td>
+                <td class="p-3 border-b border-slate-100 font-bold text-right ${isExp ? 'text-rose-600' : 'text-emerald-600'}">
+                    ${isExp ? '' : '+'}${parseFloat(pt.amount).toFixed(2)} PLN
+                </td>
+                <td class="p-3 border-b border-slate-100 text-center">
+                    <button onclick="deletePlanned(${pt.id})" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100" title="Usuń plan">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                </td>
+            `;
+            list.appendChild(row);
+        });
+    }
+}
+
+document.getElementById('recurring-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const desc = document.getElementById('rec-desc').value.trim();
     const rawAmount = parseFloat(document.getElementById('rec-amount').value);
-    const category = document.getElementById('rec-category').value;
+    const categoryId = document.getElementById('rec-category').value;
+    const contractorId = document.getElementById('rec-contractor').value;
     const startDate = document.getElementById('rec-start-date').value;
     const isIndefinite = document.getElementById('rec-indefinite').checked;
     const endDate = isIndefinite ? null : document.getElementById('rec-end-date').value;
     const accountInput = document.getElementById('rec-account').value;
 
-    if (!desc || isNaN(rawAmount) || rawAmount <= 0 || !startDate || !accountInput) {
+    if (!desc || isNaN(rawAmount) || rawAmount <= 0 || !startDate || !accountInput || !categoryId) {
         showToast('Wypełnij poprawnie wszystkie pola (w tym konto).', 'error'); return;
     }
     if (!isIndefinite && !endDate) {
@@ -551,37 +678,98 @@ document.getElementById('recurring-form').addEventListener('submit', function(e)
         showToast('Data zakończenia nie może być wcześniejsza niż rozpoczęcia.', 'error'); return;
     }
 
-    const freqType = document.getElementById('rec-freq-type').value;
-    let freqMonthsVal, freqDay, freqDaysVal, freqSpecificDays;
+    const finalAmount = currentRecurringType === 'expense' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
 
-    if (freqType === 'months') {
-        freqMonthsVal = parseInt(document.getElementById('rec-freq-months-val').value);
-        freqDay = parseInt(document.getElementById('rec-freq-months-day').value);
-    } else if (freqType === 'days') {
-        freqDaysVal = parseInt(document.getElementById('rec-freq-days-val').value);
-    } else if (freqType === 'specific_days') {
-        const rawDays = document.getElementById('rec-freq-specific-val').value;
-        freqSpecificDays = rawDays.split(',').map(d => parseInt(d.trim())).filter(d => !isNaN(d) && d >= 1 && d <= 31);
-        if (freqSpecificDays.length === 0) {
-            showToast('Podaj poprawne dni miesiąca (np. 1, 15).', 'error'); return;
-        }
+    const payload = {
+        title: desc,
+        amount: finalAmount.toFixed(2),
+        account_id: parseInt(accountInput),
+        category_id: categoryId ? parseInt(categoryId) : null,
+        contractor_id: contractorId ? parseInt(contractorId) : null,
+        start_date: startDate,
+        end_date: endDate,
+        frequency: document.getElementById('rec-freq-type').value,
+        interval: 1, // Domyślnie, można rozbudować UI
+        day_of_month: null,
+        day_of_week: null
+    };
+
+    if (payload.frequency === 'monthly' || payload.frequency === 'yearly') {
+        payload.day_of_month = parseInt(document.getElementById('rec-day-of-month').value);
+        payload.interval = parseInt(document.getElementById('rec-interval-monthly').value);
+    } else if (payload.frequency === 'daily') {
+        payload.interval = parseInt(document.getElementById('rec-interval-daily').value);
+    } else if (payload.frequency === 'weekly') {
+        payload.day_of_week = parseInt(document.getElementById('rec-day-of-week').value);
+        // Można dodać pole interwału dla tygodni, jeśli potrzebne
+    } else if (payload.frequency === 'once') {
+        // Dla 'once', data startu jest jedyną potrzebną datą
+        payload.end_date = startDate; // Ustawiamy datę końca na tę samą co startu
     }
 
-    const finalAmount = currentRecType === 'expense' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+    try {
+        const response = await fetch('/api/recurring-transactions/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-    recurringTransactions.push({
-        id: Date.now(), desc, amount: finalAmount, category, startDate, endDate,
-        freqType, freqMonthsVal, freqDay, freqDaysVal, freqSpecificDays,
-        account_id: parseInt(accountInput)
-    });
-    
-    showToast('Transakcja cykliczna została dodana.', 'success');
-    document.getElementById('recurring-form').reset();
-    document.getElementById('rec-start-date').value = startDate;
-    toggleRecEndDate(); toggleRecFreqInputs();
-    renderRecurringList();
-    renderTransactions(); 
-    if (!document.getElementById('tab-summary').classList.contains('tab-hidden')) renderSummary();
+        if (response.ok) {
+            showToast('Transakcja cykliczna została dodana.', 'success');
+            document.getElementById('recurring-form').reset();
+            document.getElementById('rec-start-date').value = startDate;
+            toggleRecEndDate(); toggleRecFreqInputs();
+            await fetchRecurringTransactions();
+            renderTransactions();
+            if (!document.getElementById('tab-summary').classList.contains('tab-hidden')) renderSummary();
+        } else {
+            const err = await response.json();
+            showToast(err.error?.body?.[0] || err.error || 'Błąd zapisu.', 'error');
+        }
+    } catch (e) {
+        showToast('Błąd połączenia z API.', 'error');
+    }
+});
+
+document.getElementById('planned-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const desc = document.getElementById('planned-desc').value.trim();
+    const rawAmount = parseFloat(document.getElementById('planned-amount').value);
+    const categoryId = document.getElementById('planned-category').value;
+    const contractorId = document.getElementById('planned-contractor').value; // New
+    const executionDate = document.getElementById('planned-exec-date').value;
+    const accountInput = document.getElementById('planned-account').value;
+
+    if (!desc || isNaN(rawAmount) || rawAmount <= 0 || !executionDate || !accountInput || !categoryId) {
+        showToast('Wypełnij poprawnie wszystkie pola dla zaplanowanej transakcji.', 'error'); return;
+    }
+
+    const finalAmount = currentPlannedType === 'expense' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+
+    const payload = {
+        title: desc,
+        amount: finalAmount.toFixed(2),
+        account_id: parseInt(accountInput),
+        category_id: parseInt(categoryId),
+        contractor_id: contractorId ? parseInt(contractorId) : null, // New
+        execution_date: executionDate,
+    };
+
+    try {
+        const response = await fetch('/api/planned-transactions/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+            showToast('Zaplanowano transakcję.', 'success');
+            await fetchPlannedTransactions();
+            renderTransactions();
+        } else {
+            const err = await response.json();
+            showToast(err.error?.body?.[0] || err.error || 'Błąd zapisu.', 'error');
+        }
+    } catch (e) { showToast('Błąd połączenia z API.', 'error'); }
 });
 
 // --- ZAKŁADKI ---
@@ -604,30 +792,33 @@ function switchTab(tabName) {
 }
 
 // --- KATEGORIE ---
-function getCategoryOptionsHtml(selectedValue = null) {
+function getCategoryOptionsHtml(selectedValue = null, byId = false) {
     const expCategories = categories.filter(c => c.type === 'expense');
     const incCategories = categories.filter(c => c.type === 'income');
     const transferCategories = categories.filter(c => c.type === 'transfer');
+    const valueAttr = byId ? 'id' : 'name';
     
     let html = `<optgroup label="Wydatki">`;
     expCategories.filter(c => !c.is_system_category).forEach(c => { // Filtrujemy kategorie systemowe
-        const sel = c.name === selectedValue ? 'selected' : '';
-        html += `<option value="${c.name}" ${sel}>${c.name}</option>`;
+        const sel = (byId ? c.id == selectedValue : c.name === selectedValue) ? 'selected' : '';
+        html += `<option value="${c[valueAttr]}" ${sel}>${c.name}</option>`;
     });
     html += `</optgroup><optgroup label="Przychody">`;
     incCategories.filter(c => !c.is_system_category).forEach(c => {
-        const sel = c.name === selectedValue ? 'selected' : '';
-        html += `<option value="${c.name}" ${sel}>${c.name}</option>`;
+        const sel = (byId ? c.id == selectedValue : c.name === selectedValue) ? 'selected' : '';
+        html += `<option value="${c[valueAttr]}" ${sel}>${c.name}</option>`;
     });
     if (transferCategories.length > 0) {
         html += `<optgroup label="Transfery">`;
         transferCategories.forEach(c => {
-            const sel = c.name === selectedValue ? 'selected' : '';
-            html += `<option value="${c.name}" ${sel}>${c.name}</option>`;
+            const sel = (byId ? c.id == selectedValue : c.name === selectedValue) ? 'selected' : '';
+            html += `<option value="${c[valueAttr]}" ${sel}>${c.name}</option>`;
         });
         html += `</optgroup>`;
     }
-    html += `<option value="__NEW_CATEGORY__" class="font-bold text-blue-600">➕ Dodaj nową kategorię...</option>`;
+    if (!byId) {
+        html += `<option value="__NEW_CATEGORY__" class="font-bold text-blue-600">➕ Dodaj nową kategorię...</option>`;
+    }
     return html;
 }
 
@@ -644,18 +835,27 @@ function getContractorOptionsHtml(selectedId = null) {
 function updateCategorySelects() {
     const formSelect = document.getElementById('tx-category');
     const recSelect = document.getElementById('rec-category');
+    const plannedSelect = document.getElementById('planned-category');
     const contCatSelect = document.getElementById('cont-cat');
     
     const currentFormVal = formSelect.value;
-    formSelect.innerHTML = getCategoryOptionsHtml(currentFormVal);
+    formSelect.innerHTML = getCategoryOptionsHtml(currentFormVal, false);
 
-    if(recSelect) recSelect.innerHTML = getCategoryOptionsHtml();
+    if(recSelect) {
+        const currentRecVal = recSelect.value;
+        recSelect.innerHTML = `<option value="">Wybierz kategorię...</option>` + getCategoryOptionsHtml(currentRecVal, true);
+    }
+
+    if(plannedSelect) {
+        const currentPlannedVal = plannedSelect.value;
+        plannedSelect.innerHTML = `<option value="">Wybierz kategorię...</option>` + getCategoryOptionsHtml(currentPlannedVal, true);
+    }
     if(contCatSelect) {
-        const currentContCat = contCatSelect.value;
-        contCatSelect.innerHTML = `<option value="">Brak domyślnej kategorii</option>` + getCategoryOptionsHtml(currentContCat);
+        const currentContCat = contCatSelect.value; // This is a category ID, so use byId=true
+        contCatSelect.innerHTML = `<option value="">Brak domyślnej kategorii</option>` + getCategoryOptionsHtml(currentContCat, true);
     }
     
-    renderTransactions(); // Refresh inline selects
+    // renderTransactions(); // Refresh inline selects - This is redundant and called later in fetchInitialData
 }
 
 function updateContractorSelects() {
@@ -664,7 +864,18 @@ function updateContractorSelects() {
         const curr = txCont.value;
         txCont.innerHTML = `<option value="">Brak kontrahenta</option>` + getContractorOptionsHtml(curr);
     }
-    renderTransactions();
+    const recCont = document.getElementById('rec-contractor');
+    if(recCont) {
+        const curr = recCont.value;
+        recCont.innerHTML = `<option value="">Brak kontrahenta</option>` + getContractorOptionsHtml(curr);
+    }
+    
+    const plannedCont = document.getElementById('planned-contractor'); // New
+    if(plannedCont) {
+        const curr = plannedCont.value;
+        plannedCont.innerHTML = `<option value="">Brak kontrahenta</option>` + getContractorOptionsHtml(curr);
+    }
+    // renderTransactions(); // This is redundant and called later in fetchInitialData
 }
 
 function updateAccountSelects() {
@@ -696,6 +907,15 @@ function updateAccountSelects() {
         if (defaultAcc && !recAcc.dataset.initialized) {
             recAcc.value = defaultAcc.id;
             recAcc.dataset.initialized = 'true';
+        }
+    }
+
+    const plannedAcc = document.getElementById('planned-account');
+    if (plannedAcc) {
+        plannedAcc.innerHTML = html;
+        if (defaultAcc && !plannedAcc.dataset.initialized) {
+            plannedAcc.value = defaultAcc.id;
+            plannedAcc.dataset.initialized = 'true';
         }
     }
 
@@ -1217,8 +1437,8 @@ window.handleAutoFill = function(textValue, contSelectEl, catSelectEl) {
             if (contSelectEl && contSelectEl.value != c.id) {
                 contSelectEl.value = c.id;
             }
-            if (catSelectEl && c.default_category_name && catSelectEl.value !== c.default_category_name) {
-                catSelectEl.value = c.default_category_name;
+            if (catSelectEl && c.default_category_id && catSelectEl.value != c.default_category_id) {
+                catSelectEl.value = c.default_category_id;
             }
             return; // Zatrzymujemy szukanie na pierwszym dopasowaniu
         }
@@ -1248,7 +1468,7 @@ document.getElementById('tx-desc').addEventListener('input', function(e) {
 const recDesc = document.getElementById('rec-desc');
 if (recDesc) {
     recDesc.addEventListener('input', function(e) {
-        handleAutoFill(e.target.value, null, document.getElementById('rec-category'));
+        handleAutoFill(e.target.value, document.getElementById('rec-contractor'), document.getElementById('rec-category'));
     });
 }
 
@@ -1416,7 +1636,7 @@ function renderTransactions() {
                              <input type="hidden" id="edit-cat-${t.id}" value="${t.category}">` 
                             : 
                             `<select id="edit-cat-${t.id}" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                ${getCategoryOptionsHtml(t.category)}
+                                ${getCategoryOptionsHtml(t.category, false)}
                             </select>`
                         }
                     </td>
@@ -1583,7 +1803,7 @@ function renderSplitRows() {
             </div>
             <div class="w-40">
                 <select onchange="updateSplit(${s.id}, 'category', this.value)" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
-                    ${getCategoryOptionsHtml(s.category)}
+                    ${getCategoryOptionsHtml(s.category, false)}
                 </select>
             </div>
             <button onclick="removeSplitRow(${s.id})" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors">
@@ -1857,6 +2077,8 @@ async function fetchInitialData() {
         renderContractors();
         renderAccounts();
         renderTransactions();
+        await fetchPlannedTransactions();
+        await fetchRecurringTransactions(); // Pobierz transakcje cykliczne
     } catch (error) {
         console.error('Błąd pobierania danych z API:', error);
         showToast('Nie udało się pobrać danych z serwera.', 'error');

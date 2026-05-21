@@ -9,6 +9,8 @@ if BASE_DIR not in sys.path:
 
 from app import create_app, db
 from config import Config
+from app.models import User
+from werkzeug.security import generate_password_hash
 
 class TestConfig(Config):
     TESTING = True
@@ -27,3 +29,12 @@ def app():
 @pytest.fixture
 def client(app):
     return app.test_client()
+
+@pytest.fixture
+def test_user_id(app):
+    """Fixture przygotowujący użytkownika testowego i zwracający jego ID."""
+    with app.app_context():
+        user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
+        db.session.add(user)
+        db.session.commit()
+        return user.id

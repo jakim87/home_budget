@@ -141,7 +141,7 @@ def update_recurring_transaction(user_id, rec_tx_id, data):
         rec_tx.day_of_month = data['day_of_month']
 
     if recalculate_date:
-        rec_tx.next_run_date = _calculate_initial_next_run_date(
+        rec_tx.next_run_date = _calculate_first_occurrence_date(
             start_date=rec_tx.start_date,
             frequency=rec_tx.frequency,
             interval=rec_tx.interval
@@ -187,10 +187,7 @@ def process_recurring_transactions():
             )
             created_count += 1
 
-            if rec_tx.frequency == Frequency.ONCE:
-                rec_tx.is_active = False
-            else:
-                rec_tx.next_run_date = _calculate_next_run_date_for_recurring(rec_tx, rec_tx.next_run_date)
+            rec_tx.next_run_date = _calculate_next_run_date_for_recurring(rec_tx, rec_tx.next_run_date)
 
             rec_tx.updated_at = datetime.now(timezone.utc)
             db.session.commit()

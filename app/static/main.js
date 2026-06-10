@@ -430,7 +430,7 @@ function createVirtualTxObject(rt, dateObj) {
         id: `virt-${rt.id}-${y}${m}${d}`,
         date: `${y}-${m}-${d}`,
         desc: `${rt.title}`,
-        amount: rt.amount,
+        amount: parseFloat(rt.amount),
         category: categories.find(c => c.id === rt.category_id)?.name || 'Brak',
         contractor_id: rt.contractor_id,
         contractor_name: contractors.find(c => c.id === rt.contractor_id)?.name || 'Brak',

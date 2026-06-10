@@ -26,6 +26,7 @@ class ContractorSchema(ma.Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))
     rules = fields.String(load_default="")
     default_category_id = fields.Integer(load_default=None, allow_none=True)
+    category = fields.String(load_default=None, allow_none=True)
 
 class SplitSchema(ma.Schema):
     amount = fields.Float(required=True)

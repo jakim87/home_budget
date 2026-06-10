@@ -43,6 +43,11 @@ flask seed
 
 Default dev credentials after `flask seed`: **default_user / password**
 
+> **Uwaga**: Jeśli `flask seed` nie uruchomiono ponownie, hasło w bazie może być zapisane jako niezahaszowany plaintext `"secret"`. W takim przypadku należy zaktualizować hash ręcznie:
+> ```bash
+> python -c "from app import create_app, db; from app.models import User; from werkzeug.security import generate_password_hash; app = create_app(); ctx = app.app_context(); ctx.push(); u = db.session.query(User).filter_by(username='default_user').first(); u.password_hash = generate_password_hash('password'); db.session.commit()"
+> ```
+
 ## Tech Stack
 
 - **Backend**: Python 3.12+, Flask 3.1.3, SQLAlchemy 2.0 (`Mapped` type hints), Flask-Migrate

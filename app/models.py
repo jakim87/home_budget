@@ -208,3 +208,4 @@ class TransactionStaging(db.Model):
     status: Mapped[str] = mapped_column(String(20), default='pending') # np. 'pending', 'approved', 'rejected'
     account_id: Mapped[Optional[int]] = mapped_column(ForeignKey('accounts.id'))
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey('users.id'))
+    suggested_contractor_name: Mapped[Optional[str]] = mapped_column(String(255))

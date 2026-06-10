@@ -45,7 +45,7 @@ def get_pending_staging_transactions():
     user_id = current_user.id
 
     pending_txs = db.session.query(TransactionStaging, Category, Contractor).outerjoin(Category, TransactionStaging.proposed_category_id == Category.id).outerjoin(Contractor, TransactionStaging.proposed_contractor_id == Contractor.id).filter(TransactionStaging.user_id == user_id, TransactionStaging.status == 'pending').order_by(TransactionStaging.date.desc()).all()
-    data = [{'id': tx.id, 'date': tx.date.strftime('%Y-%m-%d'), 'amount': float(tx.amount), 'title': tx.title, 'contractor': tx.contractor or '', 'status': tx.status, 'proposed_category': cat.name if cat else '', 'proposed_contractor_id': tx.proposed_contractor_id, 'proposed_contractor_name': cont.name if cont else ''} for tx, cat, cont in pending_txs]
+    data = [{'id': tx.id, 'date': tx.date.strftime('%Y-%m-%d'), 'amount': float(tx.amount), 'title': tx.title, 'contractor': tx.contractor or '', 'status': tx.status, 'proposed_category': cat.name if cat else '', 'proposed_contractor_id': tx.proposed_contractor_id, 'proposed_contractor_name': cont.name if cont else '', 'suggested_contractor_name': tx.suggested_contractor_name or ''} for tx, cat, cont in pending_txs]
     return jsonify(data), 200
 
 @import_bp.route('/api/staging/pending', methods=['DELETE'])
@@ -60,6 +60,45 @@ def clear_pending_staging_transactions():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Wystąpił błąd podczas odrzucania transakcji.'}), 500
+
+@import_bp.route('/api/staging/<int:stg_id>/accept-contractor', methods=['POST'])
+@login_required
+def accept_suggested_contractor(stg_id):
+    user_id = current_user.id
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+
+    if not name:
+        return jsonify({'error': 'Nazwa kontrahenta nie może być pusta.'}), 400
+
+    try:
+        stg_tx = db.session.query(TransactionStaging).filter_by(id=stg_id, user_id=user_id, status='pending').first()
+        if not stg_tx:
+            return jsonify({'error': 'Nie znaleziono transakcji.'}), 404
+
+        # Sprawdź czy kontrahent o tej nazwie już istnieje
+        existing = db.session.query(Contractor).filter_by(user_id=user_id, name=name, is_active=True).first()
+        if existing:
+            stg_tx.proposed_contractor_id = existing.id
+            stg_tx.suggested_contractor_name = None
+            db.session.commit()
+            return jsonify({'contractor_id': existing.id, 'contractor_name': existing.name, 'mapping_rules': existing.mapping_rules or '', 'default_category_id': existing.default_category_id, 'default_category_name': ''}), 200
+
+        # Utwórz nowego kontrahenta; reguła mapowania = znormalizowana nazwa (małe litery)
+        mapping_rules = name.lower()
+        new_cont = Contractor(name=name, mapping_rules=mapping_rules, user_id=user_id)
+        db.session.add(new_cont)
+        db.session.flush()
+
+        stg_tx.proposed_contractor_id = new_cont.id
+        stg_tx.suggested_contractor_name = None
+        db.session.commit()
+
+        return jsonify({'contractor_id': new_cont.id, 'contractor_name': new_cont.name, 'mapping_rules': new_cont.mapping_rules, 'default_category_id': None, 'default_category_name': ''}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 
 @import_bp.route('/api/staging/<int:stg_id>/approve', methods=['POST'])
 @login_required

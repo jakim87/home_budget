@@ -4,8 +4,73 @@ from datetime import date
 from typing import Optional
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
+from difflib import SequenceMatcher
 import csv
 import io
+import re
+
+_LEGAL_SUFFIXES = re.compile(
+    r'\bSP(?:ÓŁKA)?\s+Z\s+O\.?O\.?\b'
+    r'|\bSP(?:ÓŁKA)?\s+ZOO\b'
+    r'|\bSPÓŁKA\s+Z\s+OGRANICZONĄ\s+ODPOWIEDZIALNOŚCIĄ\b'
+    r'|\bS\.A\.\B|\bSA\b'
+    r'|\bSP\.?\s*J\.?\b'
+    r'|\bSP\.?\s*K\.?\b'
+    r'|\bS\.C\.\b'
+    r'|\bLTD\.?\b|\bLIMITED\b|\bGMBH\b|\bINC\.?\b'
+    r'|\bPPH\b|\bFHU\b|\bPHU\b',
+    re.IGNORECASE | re.UNICODE
+)
+_PAYMENT_ARTIFACTS = re.compile(
+    r'PŁATNOŚć\s+KARTĄ.*|PLATNOSC\s+KARTA.*|NR\s+KARTY\s*[\dXx*]+.*'
+    r'|PRZELEW\s+BANKOWY.*|ZLECENIE\s+STAŁE.*',
+    re.IGNORECASE | re.UNICODE
+)
+_TRAILING_CODES = re.compile(r'[\s\d\-/\\.#]+$', re.UNICODE)
+_TRAILING_WORDS = re.compile(r'(\s+[A-ZĄĆĘŁŃÓŚŹŻ]{2,})+$', re.UNICODE)
+_MULTI_SPACE = re.compile(r'\s+')
+
+
+def normalize_contractor_name(text: str) -> str:
+    """Normalizuje surową nazwę kontrahenta z banku do czytelnej formy.
+    Np. 'BIEDRONKA SP Z OO WARSZAWA 3' -> 'Biedronka'
+    """
+    if not text or not text.strip():
+        return ''
+    t = text.strip()
+    t = _PAYMENT_ARTIFACTS.sub('', t).strip()
+    if not t:
+        return ''  # cały tekst to artefakt płatności — nie ma nazwy
+    t = _LEGAL_SUFFIXES.sub('', t).strip()
+    t = _TRAILING_CODES.sub('', t).strip()
+    # Usuń nadmiarowe słowa na końcu (np. nazwy miast: "WARSZAWA", "KRAKÓW")
+    # jeśli po pierwszym słowie zostają 2+ dodatkowych słów w CAPS
+    words = t.split()
+    if len(words) > 2:
+        t = ' '.join(words[:2])
+    t = _MULTI_SPACE.sub(' ', t).strip()
+    t = t.title()
+    return t if len(t) >= 2 else ''
+
+
+def _fuzzy_match_contractor(normalized_name: str, contractors: list) -> Optional[Contractor]:
+    """Szuka najlepszego przybliżonego dopasowania powyżej progu 0.72."""
+    if not normalized_name or len(normalized_name) < 3:
+        return None
+    name_l = normalized_name.lower()
+    best_ratio = 0.72
+    best_match = None
+    for c in contractors:
+        ratio = SequenceMatcher(None, name_l, c.name.lower()).ratio()
+        if c.mapping_rules:
+            for rule in c.mapping_rules.split(','):
+                r = rule.strip().lower()
+                if len(r) >= 3:
+                    ratio = max(ratio, SequenceMatcher(None, name_l, r).ratio())
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_match = c
+    return best_match
 
 def create_transaction(
     user_id: int,
@@ -253,10 +318,16 @@ def parse_ing_csv(file_content: str, user_id: int, main_account_id: int) -> list
             
     return transactions
 
-def analyze_transaction_data(title: str, raw_contractor: Optional[str], user_id: int, counterparty_account: Optional[str] = None) -> tuple[Optional[int], Optional[int]]:
+def analyze_transaction_data(
+    title: str,
+    raw_contractor: Optional[str],
+    user_id: int,
+    counterparty_account: Optional[str] = None
+) -> tuple[Optional[int], Optional[int], Optional[str]]:
     """
-    Analizuje dane transakcji (tytuł, surowy kontrahent) i próbuje dopasować
-    znormalizowanego kontrahenta ze słownika oraz jego domyślną kategorię.
+    Analizuje dane transakcji i próbuje dopasować kontrahenta ze słownika.
+    Zwraca (category_id, contractor_id, suggested_name).
+    suggested_name jest ustawiony tylko gdy nie znaleziono dopasowania.
     """
     # 1. Sprawdzenie przelewu wewnętrznego (po numerze konta)
     if counterparty_account:
@@ -265,41 +336,42 @@ def analyze_transaction_data(title: str, raw_contractor: Optional[str], user_id:
             accounts = db.session.query(Account).filter_by(user_id=user_id, is_active=True).all()
             for acc in accounts:
                 if acc.account_number and _normalize_acc_num(acc.account_number) == norm_csv_acc:
-                    # Mamy przelew wewnętrzny!
                     transfer_cat = db.session.query(Category).filter_by(name="Przelew wewnętrzny").first()
                     if not transfer_cat:
                         transfer_cat = Category(name="Przelew wewnętrzny", type="transfer")
                         db.session.add(transfer_cat)
                         db.session.commit()
-                        
                     cont_name = f"Moje konto: {acc.name}"
                     transfer_cont = db.session.query(Contractor).filter_by(user_id=user_id, name=cont_name).first()
                     if not transfer_cont:
                         transfer_cont = Contractor(name=cont_name, user_id=user_id, default_category_id=transfer_cat.id)
                         db.session.add(transfer_cont)
                         db.session.commit()
-                        
-                    return transfer_cat.id, transfer_cont.id
+                    return transfer_cat.id, transfer_cont.id, None
 
-    # 2. Standardowe dopasowywanie na bazie słów kluczowych
+    # 2. Dopasowanie po nazwie i regułach mapowania
     contractors = db.session.query(Contractor).filter_by(user_id=user_id, is_active=True).all()
-    
-    # Łączymy cały tekst z banku w jeden mały ciąg znaków (do wygodnego szukania substringów)
     search_text = f"{title} {raw_contractor or ''}".lower()
-    
+
     for contractor in contractors:
-        # 1. Sprawdzenie po dokładnej nazwie kontrahenta (minimum 3 znaki dla bezpieczeństwa)
         if contractor.name and len(contractor.name) >= 3 and contractor.name.lower() in search_text:
-            return contractor.default_category_id, contractor.id
-            
+            return contractor.default_category_id, contractor.id, None
         if contractor.mapping_rules:
-            # Rozdzielamy reguły po przecinku (np. "biedronka, jeronimo martins")
-            rules = [rule.strip().lower() for rule in contractor.mapping_rules.split(',')]
+            rules = [r.strip().lower() for r in contractor.mapping_rules.split(',')]
             for rule in rules:
                 if rule and rule in search_text:
-                    return contractor.default_category_id, contractor.id
-                    
-    return None, None
+                    return contractor.default_category_id, contractor.id, None
+
+    # 3. Fuzzy match na znormalizowanej nazwie
+    normalized = normalize_contractor_name(raw_contractor or title or '')
+    if normalized:
+        fuzzy = _fuzzy_match_contractor(normalized, contractors)
+        if fuzzy:
+            return fuzzy.default_category_id, fuzzy.id, None
+
+    # 4. Brak dopasowania — zwróć sugestię znormalizowanej nazwy
+    suggested = normalize_contractor_name(raw_contractor or '') or normalize_contractor_name(title or '')
+    return None, None, suggested or None
 
 def save_transactions_to_staging(
     parsed_transactions: list[dict], 
@@ -309,9 +381,9 @@ def save_transactions_to_staging(
     try:
         staging_records = []
         for tx_data in parsed_transactions:
-            prop_cat_id, prop_contractor_id = None, None
+            prop_cat_id, prop_contractor_id, suggested_name = None, None, None
             if user_id:
-                prop_cat_id, prop_contractor_id = analyze_transaction_data(
+                prop_cat_id, prop_contractor_id, suggested_name = analyze_transaction_data(
                     title=tx_data['title'],
                     raw_contractor=tx_data.get('contractor'),
                     user_id=user_id,
@@ -326,7 +398,8 @@ def save_transactions_to_staging(
                 user_id=user_id,
                 account_id=tx_data.get('account_id'),
                 proposed_category_id=prop_cat_id,
-                proposed_contractor_id=prop_contractor_id
+                proposed_contractor_id=prop_contractor_id,
+                suggested_contractor_name=suggested_name
             )
             db.session.add(staging_tx)
             staging_records.append(staging_tx)

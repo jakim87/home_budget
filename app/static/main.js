@@ -165,16 +165,17 @@ function renderStaging() {
             const amountText = `${isPositive ? '+' : ''}${t.amount.toFixed(2)} PLN`; // Używamy t.amount bezpośrednio, bo backend już ustawił znak
             
             // Sprawdzenie statusu zmapowania przez system
+            const hasSuggestion = t.suggested_contractor_name && !t.proposed_contractor_id;
             const isFullyMapped = t.proposed_category && t.proposed_contractor_id;
-            const isPartiallyMapped = t.proposed_category || t.proposed_contractor_id;
-            
+            const isPartiallyMapped = !hasSuggestion && (t.proposed_category || t.proposed_contractor_id);
+
             const catObj = categories.find(c => c.name === t.proposed_category);
             const isTransfer = catObj && catObj.type === 'transfer';
-            
+
             let rowBg = 'hover:bg-slate-50';
             let badgeHtml = '';
             let btnClass = 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500';
-            
+
             if (isFullyMapped) {
                 if (isTransfer) {
                     rowBg = 'bg-sky-50/40 hover:bg-sky-100/50';
@@ -185,6 +186,9 @@ function renderStaging() {
                     badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wider" title="Transakcja w pełni zmapowana">Zmapowano</span>`;
                     btnClass = 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500';
                 }
+            } else if (hasSuggestion) {
+                rowBg = 'bg-amber-50/40 hover:bg-amber-100/50';
+                badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider" title="Automatyczna sugestia kontrahenta — wymaga akceptacji">Auto-sugestia</span>`;
             } else if (isPartiallyMapped) {
                 rowBg = 'bg-blue-50/30 hover:bg-blue-100/50';
                 badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 uppercase tracking-wider" title="Znaleziono częściowe dopasowanie">Częściowo</span>`;
@@ -193,27 +197,33 @@ function renderStaging() {
             const row = document.createElement('tr');
             row.className = `${rowBg} transition-colors`;
             row.innerHTML = `
-                <td class="p-4 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
-                <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">
-                    <div class="flex items-center gap-2 mb-0.5">
+                <td class="p-3 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
+                <td class="p-3 border-b border-slate-100 font-medium text-slate-800 break-words">
+                    <div class="flex flex-wrap items-center gap-1.5 mb-0.5">
                         <span>${t.title}</span>
                         ${badgeHtml}
                     </div>
-                    ${t.contractor ? `<div class="text-xs text-slate-500 font-normal mt-0.5">${t.contractor}</div>` : ''}
+                    ${t.contractor ? `<div class="text-xs text-slate-500 font-normal mt-0.5 break-all">${t.contractor}</div>` : ''}
                 </td>
-                <td class="p-4 border-b border-slate-100">
-                    <select id="staging-cont-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_contractor_id', this.value)" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-2">
+                <td class="p-3 border-b border-slate-100">
+                    ${hasSuggestion ? `
+                    <div class="flex items-center gap-1 mb-2 p-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+                        <span class="text-xs text-amber-700 font-medium shrink-0">Sugestia:</span>
+                        <input type="text" id="suggested-name-${t.id}" value="${t.suggested_contractor_name}" class="flex-1 text-xs p-1 border border-amber-300 rounded focus:ring-1 focus:ring-amber-400 outline-none min-w-0">
+                        <button onclick="acceptSuggestedContractor(${t.id})" class="shrink-0 text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded font-medium transition-colors whitespace-nowrap">Akceptuj</button>
+                    </div>` : ''}
+                    <select id="staging-cont-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_contractor_id', this.value)" class="w-full p-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-1.5">
                         <option value="">Wybierz kontrahenta...</option>
                         ${getContractorOptionsHtml(t.proposed_contractor_id)}
                     </select>
-                    <select id="staging-cat-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_category', this.value)" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
+                    <select id="staging-cat-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_category', this.value)" class="w-full p-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
                         <option value="">Wybierz kategorię...</option>
                         ${getCategoryOptionsHtml(t.proposed_category)}
                     </select>
                 </td>
-                <td class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
-                <td class="p-4 border-b border-slate-100 text-center">
-                    <button onclick="approveStaging(${t.id})" class="px-4 py-2 ${btnClass} text-white text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 whitespace-nowrap">
+                <td class="p-3 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
+                <td class="p-3 border-b border-slate-100 text-center">
+                    <button onclick="approveStaging(${t.id})" class="px-3 py-2 ${btnClass} text-white text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 whitespace-nowrap w-full">
                         Zatwierdź
                     </button>
                 </td>
@@ -231,6 +241,45 @@ window.updateStagingLocalState = function(id, field, value) {
     const item = pendingStaging.find(t => t.id === id);
     if (item && value !== '__NEW_CATEGORY__' && value !== '__NEW_CONTRACTOR__') {
         item[field] = value;
+        renderStaging();
+    }
+}
+
+window.acceptSuggestedContractor = async function(stg_id) {
+    const input = document.getElementById(`suggested-name-${stg_id}`);
+    const name = input ? input.value.trim() : '';
+    if (!name) {
+        showToast('Podaj nazwę kontrahenta.', 'error');
+        return;
+    }
+    try {
+        const response = await fetch(`/api/staging/${stg_id}/accept-contractor`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        if (response.ok) {
+            const saved = await response.json();
+            // Dodaj do globalnej listy kontrahentów (jeśli jeszcze nie ma)
+            if (!contractors.find(c => c.id === saved.contractor_id)) {
+                contractors.push({ id: saved.contractor_id, name: saved.contractor_name, rules: saved.mapping_rules, default_category_id: saved.default_category_id, default_category_name: saved.default_category_name || '' });
+            }
+            // Zaktualizuj lokalny stan staging
+            const item = pendingStaging.find(t => t.id === stg_id);
+            if (item) {
+                item.proposed_contractor_id = saved.contractor_id;
+                item.proposed_contractor_name = saved.contractor_name;
+                item.suggested_contractor_name = '';
+            }
+            updateContractorSelects();
+            renderStaging();
+            showToast(`Dodano kontrahenta: ${saved.contractor_name}`);
+        } else {
+            const err = await response.json();
+            showToast(err.error || 'Błąd akceptacji kontrahenta.', 'error');
+        }
+    } catch (e) {
+        showToast('Błąd połączenia z API.', 'error');
     }
 }
 

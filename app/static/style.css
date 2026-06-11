@@ -4,6 +4,10 @@ body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
 .tab-inactive:hover { color: #334155; }
 .tab-hidden { display: none; }
 
+.dict-nav-btn { color: #475569; font-weight: 500; transition: background-color 0.15s, color 0.15s; }
+.dict-nav-btn:hover { background-color: #f1f5f9; color: #1e293b; }
+.dict-nav-active { background-color: #eff6ff !important; color: #1d4ed8 !important; font-weight: 600; }
+
 #toast-container {
     position: fixed;
     bottom: 20px;

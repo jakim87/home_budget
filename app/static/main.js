@@ -841,6 +841,15 @@ function switchTab(tabName) {
     if (tabName === 'staging') renderStaging();
 }
 
+function switchDict(name) {
+    ['categories', 'contractors', 'accounts'].forEach(d => {
+        document.getElementById(`dict-panel-${d}`).classList.add('hidden');
+        document.getElementById(`dict-btn-${d}`).classList.remove('dict-nav-active');
+    });
+    document.getElementById(`dict-panel-${name}`).classList.remove('hidden');
+    document.getElementById(`dict-btn-${name}`).classList.add('dict-nav-active');
+}
+
 // --- KATEGORIE ---
 function getCategoryOptionsHtml(selectedValue = null, byId = false) {
     const expCategories = categories.filter(c => c.type === 'expense');

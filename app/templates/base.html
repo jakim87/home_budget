@@ -266,76 +266,120 @@
             </div>
 
             <!-- ZAKŁADKA 3: KATEGORIE -->
-            <div id="tab-categories" class="tab-hidden space-y-6">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Lewa kolumna: Kategorie -->
-                    <div class="space-y-6">
-                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                            <h2 class="font-bold text-slate-800 mb-4">Dodaj nową kategorię</h2>
-                            <form id="category-form" class="flex flex-col gap-3">
-                                <div class="flex flex-col sm:flex-row gap-3">
-                                    <input type="text" id="cat-name" placeholder="Nazwa kategorii (np. Siłownia)" required class="flex-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                    <select id="cat-type" class="w-full sm:w-32 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
-                                        <option value="expense">Wydatek</option>
-                                        <option value="income">Przychód</option>
-                                        <option value="transfer">Przelew</option>
-                                    </select>
-                                </div>
-                                <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm w-full">Dodaj kategorię</button>
-                            </form>
-                        </div>
-                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
-                            <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje kategorie</h3>
-                            <ul id="category-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
-                        </div>
-                    </div>
-                    
-                    <!-- Prawa kolumna: Kontrahenci -->
-                    <div class="space-y-6">
-                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                            <h2 class="font-bold text-slate-800 mb-4">Słownik kontrahentów</h2>
-                            <form id="contractor-form" class="flex flex-col gap-3">
-                                <input type="hidden" id="cont-id">
-                                <input type="text" id="cont-name" placeholder="Znormalizowana nazwa (np. Biedronka)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                <input type="text" id="cont-rules" placeholder="Słowa kluczowe do analizy (np. biedronka, jeronimo)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                <select id="cont-cat" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"><option value="">Brak domyślnej kategorii</option></select>
-                                <div class="flex gap-2">
-                                    <button type="button" id="cont-cancel-btn" onclick="cancelEditContractor()" class="hidden px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-all shadow-sm w-1/3 text-sm">Anuluj</button>
-                                    <button type="submit" id="cont-submit-btn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-all shadow-sm flex-1 text-sm">Zapisz do słownika</button>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
-                            <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Zapisani kontrahenci</h3>
-                            <ul id="contractor-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+            <div id="tab-categories" class="tab-hidden">
+                <div class="flex gap-6">
+
+                    <!-- Sidebar: nawigacja słowników -->
+                    <div class="w-44 shrink-0">
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden sticky top-4">
+                            <div class="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Słowniki</p>
+                            </div>
+                            <nav class="p-2 space-y-0.5">
+                                <button onclick="switchDict('categories')" id="dict-btn-categories" class="dict-nav-btn dict-nav-active w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-2.5">
+                                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                                    Kategorie
+                                </button>
+                                <button onclick="switchDict('contractors')" id="dict-btn-contractors" class="dict-nav-btn w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-2.5">
+                                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                    Kontrahenci
+                                </button>
+                                <button onclick="switchDict('accounts')" id="dict-btn-accounts" class="dict-nav-btn w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-2.5">
+                                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                                    Konta
+                                </button>
+                            </nav>
                         </div>
                     </div>
 
-                    <!-- Prawa kolumna: Konta (Słownik kont) -->
-                    <div class="space-y-6">
-                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                            <h2 class="font-bold text-slate-800 mb-4">Słownik kont</h2>
-                            <form id="account-form" class="flex flex-col gap-3">
-                                <input type="hidden" id="acc-id">
-                                <input type="text" id="acc-name" placeholder="Nazwa konta (np. Oszczędnościowe)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                <input type="text" id="acc-bank" placeholder="Bank (np. mBank)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                <input type="text" id="acc-number" placeholder="Nr rachunku (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-mono">
-                                <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer mb-2">
-                                    <input type="checkbox" id="acc-default" class="rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 w-4 h-4 cursor-pointer">
-                                    <span>Główne konto domyślne</span>
-                                </label>
-                                <div class="flex gap-2">
-                                    <button type="button" id="acc-cancel-btn" onclick="cancelEditAccount()" class="hidden px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-all shadow-sm w-1/3 text-sm">Anuluj</button>
-                                    <button type="submit" id="acc-submit-btn" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all shadow-sm flex-1 text-sm">Zapisz do słownika</button>
+                    <!-- Panele słowników -->
+                    <div class="flex-1 min-w-0">
+
+                        <!-- Panel: Kategorie -->
+                        <div id="dict-panel-categories">
+                            <div class="flex flex-col lg:flex-row gap-6">
+                                <div class="lg:w-80 shrink-0">
+                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                        <h2 class="font-bold text-slate-800 mb-4">Dodaj nową kategorię</h2>
+                                        <form id="category-form" class="flex flex-col gap-3">
+                                            <input type="text" id="cat-name" placeholder="Nazwa kategorii (np. Siłownia)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            <select id="cat-type" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
+                                                <option value="expense">Wydatek</option>
+                                                <option value="income">Przychód</option>
+                                                <option value="transfer">Przelew</option>
+                                            </select>
+                                            <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm w-full">Dodaj kategorię</button>
+                                        </form>
+                                    </div>
                                 </div>
-                            </form>
+                                <div class="flex-1 min-w-0">
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+                                        <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje kategorie</h3>
+                                        <ul id="category-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
-                            <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje konta</h3>
-                            <ul id="account-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+
+                        <!-- Panel: Kontrahenci -->
+                        <div id="dict-panel-contractors" class="hidden">
+                            <div class="flex flex-col lg:flex-row gap-6">
+                                <div class="lg:w-80 shrink-0">
+                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                        <h2 class="font-bold text-slate-800 mb-4">Słownik kontrahentów</h2>
+                                        <form id="contractor-form" class="flex flex-col gap-3">
+                                            <input type="hidden" id="cont-id">
+                                            <input type="text" id="cont-name" placeholder="Znormalizowana nazwa (np. Biedronka)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            <input type="text" id="cont-rules" placeholder="Słowa kluczowe (np. biedronka, jeronimo)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            <select id="cont-cat" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"><option value="">Brak domyślnej kategorii</option></select>
+                                            <div class="flex gap-2">
+                                                <button type="button" id="cont-cancel-btn" onclick="cancelEditContractor()" class="hidden px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-all shadow-sm w-1/3 text-sm">Anuluj</button>
+                                                <button type="submit" id="cont-submit-btn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-all shadow-sm flex-1 text-sm">Zapisz do słownika</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+                                        <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Zapisani kontrahenci</h3>
+                                        <ul id="contractor-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+
+                        <!-- Panel: Konta -->
+                        <div id="dict-panel-accounts" class="hidden">
+                            <div class="flex flex-col lg:flex-row gap-6">
+                                <div class="lg:w-80 shrink-0">
+                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                        <h2 class="font-bold text-slate-800 mb-4">Słownik kont</h2>
+                                        <form id="account-form" class="flex flex-col gap-3">
+                                            <input type="hidden" id="acc-id">
+                                            <input type="text" id="acc-name" placeholder="Nazwa konta (np. Oszczędnościowe)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            <input type="text" id="acc-bank" placeholder="Bank (np. mBank)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            <input type="text" id="acc-number" placeholder="Nr rachunku (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-mono">
+                                            <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                                                <input type="checkbox" id="acc-default" class="rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 w-4 h-4 cursor-pointer">
+                                                <span>Główne konto domyślne</span>
+                                            </label>
+                                            <div class="flex gap-2">
+                                                <button type="button" id="acc-cancel-btn" onclick="cancelEditAccount()" class="hidden px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-all shadow-sm w-1/3 text-sm">Anuluj</button>
+                                                <button type="submit" id="acc-submit-btn" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all shadow-sm flex-1 text-sm">Zapisz do słownika</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+                                        <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje konta</h3>
+                                        <ul id="account-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
-                </div>
                 </div>
             </div>
         </main>

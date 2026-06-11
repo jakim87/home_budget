@@ -32,6 +32,7 @@
 
 - [ ] Dashboard - Główny panel pokazujący całkowitą wartość netto (Net Worth) połączoną ze wszystkich kont.
 - [ ] Wizualizacja Danych: Zastąpienie prostych tekstowych podsumowań interaktywnymi wykresami (Chart.js).
+- [ ] Tryb edycji zbiorczej transakcji: checkbox przy każdej transakcji + "zaznacz wszystkie", akcje na zaznaczonych: usuń, zmień kategorię.
 
 ## 🚀 Funkcjonalności Biznesowe (zgodnie z README.md)
 

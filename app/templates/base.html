@@ -21,11 +21,16 @@
                 </h1>
                 <p class="text-slate-500 mt-1">Kontroluj swoje wydatki i przychody w jednym miejscu.</p>
             </div>
-            <div class="bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2">
-                <label for="global-account-filter" class="text-sm font-medium text-slate-500 whitespace-nowrap pl-2">Widok konta:</label>
-                <select id="global-account-filter" onchange="changeGlobalAccount(this.value)" class="p-2 border border-slate-100 bg-slate-50 hover:bg-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-slate-700 cursor-pointer min-w-[200px] transition-colors">
-                    <option value="">Wszystkie konta</option>
-                </select>
+            <div class="flex items-center gap-3">
+                <div class="bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2">
+                    <label for="global-account-filter" class="text-sm font-medium text-slate-500 whitespace-nowrap pl-2">Widok konta:</label>
+                    <select id="global-account-filter" onchange="changeGlobalAccount(this.value)" class="p-2 border border-slate-100 bg-slate-50 hover:bg-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-slate-700 cursor-pointer min-w-[200px] transition-colors">
+                        <option value="">Wszystkie konta</option>
+                    </select>
+                </div>
+                <button onclick="resetDevData()" title="Wyczyść wszystkie dane testowe" class="p-2.5 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 hover:border-rose-400 rounded-xl shadow-sm transition-colors" >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
             </div>
         </header>
 

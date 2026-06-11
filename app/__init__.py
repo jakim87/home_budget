@@ -48,6 +48,7 @@ def create_app(config_class=Config):
     from app.blueprints.recurring_bp import recurring_bp # NEW
     from app.blueprints.planned_transactions_bp import planned_bp # NEW
     from app.blueprints.import_bp import import_bp
+    from app.blueprints.dev_bp import dev_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(home_bp)
@@ -58,6 +59,7 @@ def create_app(config_class=Config):
     app.register_blueprint(recurring_bp) # NEW
     app.register_blueprint(planned_bp) # NEW
     app.register_blueprint(import_bp)
+    app.register_blueprint(dev_bp)
 
     @app.cli.command("seed")
     def seed_db():

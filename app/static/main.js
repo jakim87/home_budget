@@ -2403,3 +2403,20 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         errorEl.classList.remove('hidden');
     }
 });
+
+// --- RESET DANYCH TESTOWYCH ---
+window.resetDevData = async function() {
+    if (!confirm('Uwaga! Ta operacja nieodwracalnie usunie wszystkie transakcje, kategorie, kontrahentów i transakcje cykliczne. Salda kont zostaną wyzerowane.\n\nCzy na pewno chcesz kontynuować?')) return;
+    try {
+        const response = await fetch('/api/dev/reset', { method: 'POST' });
+        if (response.ok) {
+            showToast('Dane zostały wyczyszczone. Odświeżam stronę...', 'info');
+            setTimeout(() => window.location.reload(), 1200);
+        } else {
+            const err = await response.json();
+            showToast(err.error || 'Błąd podczas czyszczenia danych.', 'error');
+        }
+    } catch (e) {
+        showToast('Błąd połączenia z serwerem.', 'error');
+    }
+};

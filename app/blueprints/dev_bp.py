@@ -12,16 +12,13 @@ def reset_user_data():
     """Czyści wszystkie dane użytkownika — tylko do testów."""
     uid = current_user.id
     try:
-        # 1. Wyzeruj FK do kategorii we wszystkich tabelach (zanim usuniemy kategorie)
-        db.session.execute(text("UPDATE transactions SET category_id = NULL WHERE user_id = :uid"), {'uid': uid})
-        db.session.execute(text(
-            "UPDATE transaction_splits SET category_id = NULL "
-            "WHERE transaction_id IN (SELECT id FROM transactions WHERE user_id = :uid)"
-        ), {'uid': uid})
-        db.session.execute(text("UPDATE transaction_staging SET proposed_category_id = NULL WHERE user_id = :uid"), {'uid': uid})
-        db.session.execute(text("UPDATE recurring_transactions SET category_id = NULL WHERE user_id = :uid"), {'uid': uid})
-        db.session.execute(text("UPDATE planned_transactions SET category_id = NULL WHERE user_id = :uid"), {'uid': uid})
-        db.session.execute(text("UPDATE contractors SET default_category_id = NULL WHERE user_id = :uid"), {'uid': uid})
+        # 1. Wyzeruj FK do kategorii we WSZYSTKICH wierszach (kategorie są globalne, bez user_id)
+        db.session.execute(text("UPDATE transactions SET category_id = NULL"))
+        db.session.execute(text("UPDATE transaction_splits SET category_id = NULL"))
+        db.session.execute(text("UPDATE transaction_staging SET proposed_category_id = NULL"))
+        db.session.execute(text("UPDATE recurring_transactions SET category_id = NULL"))
+        db.session.execute(text("UPDATE planned_transactions SET category_id = NULL"))
+        db.session.execute(text("UPDATE contractors SET default_category_id = NULL"))
         db.session.flush()
 
         # 2. Usuń rekordy w odpowiedniej kolejności

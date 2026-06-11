@@ -909,11 +909,6 @@ function updateCategorySelects() {
 }
 
 function updateContractorSelects() {
-    const txCont = document.getElementById('tx-contractor');
-    if(txCont) {
-        const curr = txCont.value;
-        txCont.innerHTML = `<option value="">Brak kontrahenta</option>` + getContractorOptionsHtml(curr);
-    }
     const recCont = document.getElementById('rec-contractor');
     if(recCont) {
         const curr = recCont.value;
@@ -1357,8 +1352,10 @@ document.getElementById('quick-contractor-form').addEventListener('submit', asyn
             if (selectId) {
                 const el = document.getElementById(selectId);
                 if (el) el.value = saved.id;
+                const displayEl = document.getElementById(selectId + '-input');
+                if (displayEl) displayEl.value = saved.name;
             }
-            
+
             closeQuickContractorModal();
             showToast(`Dodano kontrahenta: ${name}`);
         } else {
@@ -1486,6 +1483,8 @@ window.handleAutoFill = function(textValue, contSelectEl, catSelectEl) {
         if (matchFound) {
             if (contSelectEl && contSelectEl.value != c.id) {
                 contSelectEl.value = c.id;
+                const displayEl = document.getElementById(contSelectEl.id + '-input');
+                if (displayEl) displayEl.value = c.name;
             }
             if (catSelectEl && c.default_category_id && catSelectEl.value != c.default_category_id) {
                 catSelectEl.value = c.default_category_id;
@@ -1562,6 +1561,7 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
             document.getElementById('tx-desc').value = '';
             document.getElementById('tx-amount').value = '';
             document.getElementById('tx-contractor').value = '';
+            document.getElementById('tx-contractor-input').value = '';
             
             const defaultAcc = accounts.find(a => a.is_default);
             if (defaultAcc) document.getElementById('tx-account').value = defaultAcc.id;
@@ -2262,6 +2262,56 @@ function renderDashboardChart() {
     });
 }
 
+// --- COMBOBOX KONTRAHENTA (FORMULARZ TRANSAKCJI) ---
+function initContractorCombobox() {
+    const input = document.getElementById('tx-contractor-input');
+    const hidden = document.getElementById('tx-contractor');
+    const dropdown = document.getElementById('tx-contractor-dropdown');
+    if (!input || !hidden || !dropdown) return;
+
+    function buildDropdown(filter) {
+        const q = (filter || '').toLowerCase();
+        const matched = q
+            ? contractors.filter(c => c.name.toLowerCase().includes(q))
+            : contractors;
+
+        let html = '';
+        if (!q) {
+            html += `<li data-id="" data-name="" class="px-3 py-2 hover:bg-slate-100 cursor-pointer text-slate-400 italic">Brak kontrahenta</li>`;
+        }
+        matched.forEach(c => {
+            const escaped = c.name.replace(/"/g, '&quot;');
+            html += `<li data-id="${c.id}" data-name="${escaped}" class="px-3 py-2 hover:bg-blue-50 cursor-pointer text-slate-700">${c.name}</li>`;
+        });
+        if (matched.length === 0 && q) {
+            html += `<li class="px-3 py-2 text-slate-400 italic select-none">Brak wyników</li>`;
+        }
+        html += `<li data-id="__NEW__" class="px-3 py-2 hover:bg-emerald-50 cursor-pointer text-emerald-700 font-medium border-t border-slate-100 mt-1">➕ Dodaj nowego kontrahenta</li>`;
+        dropdown.innerHTML = html;
+        dropdown.classList.remove('hidden');
+    }
+
+    input.addEventListener('focus', () => buildDropdown(input.value));
+    input.addEventListener('input', () => buildDropdown(input.value));
+    input.addEventListener('blur', () => setTimeout(() => dropdown.classList.add('hidden'), 150));
+
+    dropdown.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        const li = e.target.closest('li[data-id]');
+        if (!li) return;
+        const id = li.dataset.id;
+        if (id === '__NEW__') {
+            currentQuickAddSelect = { id: 'tx-contractor' };
+            openQuickContractorModal();
+            dropdown.classList.add('hidden');
+        } else {
+            hidden.value = id;
+            input.value = li.dataset.name || '';
+            dropdown.classList.add('hidden');
+        }
+    });
+}
+
 // --- POŁĄCZENIE Z BACKENDEM (FLASK) ---
 async function fetchInitialData() {
     try {
@@ -2300,6 +2350,7 @@ async function fetchInitialData() {
 
 // --- INICJALIZACJA APLIKACJI ---
 document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
+initContractorCombobox();
 fetchInitialData();
 fetchPendingStaging(); // Inicjalne pobranie transakcji do weryfikacji dla licznika (badge)
 

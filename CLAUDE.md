@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Home Budget App** — Flask + PostgreSQL web app for personal finance management. Features: bank account tracking, CSV import from ING Bank Śląski, transaction categorization, recurring/planned transactions, internal transfers. Codebase and UI are in **Polish**.
+**Home Budget App** — Flask + PostgreSQL web app for personal finance management. Features: bank account tracking, CSV import from ING Bank Śląski, transaction categorization, recurring/planned transactions, internal transfers, dashboard z Net Worth i wykresami Chart.js. Codebase and UI are in **Polish**.
 
 ## Commands
 
@@ -54,7 +54,7 @@ Default dev credentials after `flask seed`: **default_user / password**
 - **Database**: PostgreSQL (prod), in-memory SQLite (tests via `tests/conftest.py`)
 - **Auth**: Flask-Login
 - **Serialization**: Marshmallow + flask-marshmallow
-- **Frontend**: Jinja2 + Tailwind CSS + HTMX + Chart.js
+- **Frontend**: Jinja2 + Tailwind CSS + HTMX + Chart.js (CDN, dashboard only)
 
 ## Architecture
 
@@ -102,6 +102,10 @@ app/
 **Financial Precision**: Always use `Decimal(str(value))` — never float — for monetary amounts.
 
 **Recurring/Planned**: `RecurringTransaction` (schedule-based) and `PlannedTransaction` (one-off with `execution_date`) are processed by `flask process-scheduled`.
+
+**Dashboard**: Zakładka otwierana domyślnie. Dane obliczane po stronie klienta z już załadowanego `transactions` + `accounts` (brak dodatkowego endpointa). Funkcje: `renderDashboard()`, `renderDashboardChart()`, `setDashboardView('monthly'|'yearly')` w `main.js`. Wykresy Chart.js ładowane z CDN.
+
+**Contractor Combobox**: Pole kontrahenta w formularzu transakcji to combobox (nie `<select>`): `#tx-contractor-input` (text, widoczny) + `#tx-contractor` (hidden, przechowuje ID). Inicjalizacja: `initContractorCombobox()`. Pozostałe miejsca (inline edit w tabeli, staging, formularze cykliczne) nadal używają `<select>`.
 
 ### Testing
 

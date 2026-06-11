@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zarządzanie Transakcjami</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -12,17 +13,31 @@
     <div id="toast-container"></div>
 
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
-                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Zarządzanie Transakcjami
-            </h1>
-            <p class="text-slate-500 mt-1">Kontroluj swoje wydatki i przychody w jednym miejscu.</p>
+        <header class="mb-8 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Zarządzanie Transakcjami
+                </h1>
+                <p class="text-slate-500 mt-1">Kontroluj swoje wydatki i przychody w jednym miejscu.</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2">
+                    <label for="global-account-filter" class="text-sm font-medium text-slate-500 whitespace-nowrap pl-2">Widok konta:</label>
+                    <select id="global-account-filter" onchange="changeGlobalAccount(this.value)" class="p-2 border border-slate-100 bg-slate-50 hover:bg-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-slate-700 cursor-pointer min-w-[200px] transition-colors">
+                        <option value="">Wszystkie konta</option>
+                    </select>
+                </div>
+                <button onclick="resetDevData()" title="Wyczyść wszystkie dane testowe" class="p-2.5 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 hover:border-rose-400 rounded-xl shadow-sm transition-colors" >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+            </div>
         </header>
 
         <!-- Nawigacja Zakładek -->
         <nav class="flex gap-6 border-b border-slate-200 mb-6">
-            <button onclick="switchTab('transactions')" id="btn-tab-transactions" class="tab-active pb-3 px-1 text-sm transition-colors focus:outline-none">Transakcje</button>
+            <button onclick="switchTab('dashboard')" id="btn-tab-dashboard" class="tab-active pb-3 px-1 text-sm transition-colors focus:outline-none">Dashboard</button>
+            <button onclick="switchTab('transactions')" id="btn-tab-transactions" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Transakcje</button>
             <button onclick="switchTab('staging')" id="btn-tab-staging" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none flex items-center gap-2">
                 Do weryfikacji <span id="staging-badge" class="hidden bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
             </button>
@@ -31,8 +46,41 @@
         </nav>
 
         <main>
+            <!-- ZAKŁADKA 0: DASHBOARD -->
+            <div id="tab-dashboard" class="space-y-6">
+                <!-- Net Worth -->
+                <div class="bg-gradient-to-br from-blue-600 to-blue-700 p-6 rounded-2xl shadow-md text-white">
+                    <p class="text-sm font-medium text-blue-100 mb-1">Majątek netto (Net Worth)</p>
+                    <p id="dashboard-net-worth" class="text-4xl font-bold">0.00 PLN</p>
+                </div>
+
+                <!-- Karty kont -->
+                <div id="dashboard-accounts" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+
+                <!-- Wykres -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex justify-between items-center mb-5">
+                        <h2 class="font-bold text-slate-800">Przychody vs Wydatki</h2>
+                        <div class="flex gap-2">
+                            <button id="dashboard-toggle-monthly" onclick="setDashboardView('monthly')" class="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white font-medium transition-colors">Miesięcznie</button>
+                            <button id="dashboard-toggle-yearly" onclick="setDashboardView('yearly')" class="px-3 py-1.5 text-sm rounded-lg bg-slate-100 text-slate-600 font-medium hover:bg-slate-200 transition-colors">Rocznie</button>
+                        </div>
+                    </div>
+                    <canvas id="dashboard-chart"></canvas>
+                </div>
+
+                <!-- Ostatnie transakcje -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                        <h2 class="font-semibold text-slate-800">Ostatnie transakcje</h2>
+                        <button onclick="switchTab('transactions')" class="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">Zobacz wszystkie →</button>
+                    </div>
+                    <div id="dashboard-recent-tx" class="divide-y divide-slate-100"></div>
+                </div>
+            </div>
+
             <!-- ZAKŁADKA 1: TRANSAKCJE -->
-            <div id="tab-transactions" class="space-y-8">
+            <div id="tab-transactions" class="tab-hidden space-y-8">
                 <!-- Formularz dodawania/edycji -->
                 <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
                     <div class="flex justify-between items-center mb-4">
@@ -51,7 +99,7 @@
                         </button>
                     </div>
                     </div>
-                    <form id="transaction-form" class="flex flex-col md:flex-row gap-4">
+                <form id="transaction-form" class="flex flex-col md:flex-row flex-wrap gap-4">
                         <div class="flex bg-white rounded-lg border border-slate-300 p-1 w-full md:w-auto">
                             <button type="button" id="type-expense" onclick="toggleTxType('expense')" class="flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm">Wydatek</button>
                             <button type="button" id="type-income" onclick="toggleTxType('income')" class="flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors">Przychód</button>
@@ -60,7 +108,12 @@
                         <input type="text" id="tx-desc" placeholder="Opis (np. Zakupy, Czynsz)" required class="flex-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                         <input type="number" id="tx-amount" placeholder="Kwota" step="0.01" min="0.01" required class="w-full md:w-32 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                         <select id="tx-account" required class="w-full md:w-40 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"><option value="">Wybierz konto...</option></select>
-                        <select id="tx-contractor" class="w-full md:w-48 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"><option value="">Brak kontrahenta</option></select>
+                        <div class="relative w-full md:w-48" id="tx-contractor-wrapper">
+                            <input type="text" id="tx-contractor-input" placeholder="Kontrahent..." autocomplete="off"
+                                class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                            <input type="hidden" id="tx-contractor">
+                            <ul id="tx-contractor-dropdown" class="absolute z-30 w-full bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto hidden text-sm"></ul>
+                        </div>
                         <select id="tx-category" required class="w-full md:w-48 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"></select>
                         <button type="submit" id="submit-btn" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 w-full md:w-auto">Zapisz</button>
                     </form>
@@ -77,15 +130,15 @@
                         </div>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
+                    <table class="w-full text-left border-collapse min-w-[850px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-                                    <th class="p-4 font-semibold w-32">Data</th>
+                                <th class="p-4 font-semibold w-28">Data</th>
                                     <th class="p-4 font-semibold">Opis</th>
                                     <th class="p-4 font-semibold w-40">Kontrahent</th>
                                     <th class="p-4 font-semibold w-48">Kategoria</th>
                                     <th class="p-4 font-semibold w-32 text-right">Kwota</th>
-                                    <th class="p-4 font-semibold w-24 text-center">Akcje</th>
+                                <th class="p-4 font-semibold w-32 text-center">Akcje</th>
                                 </tr>
                             </thead>
                             <tbody id="transaction-list" class="divide-y divide-slate-100">
@@ -112,14 +165,14 @@
                         </div>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
+                    <table class="w-full text-left border-collapse table-fixed min-w-[860px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-                                    <th class="p-4 font-semibold w-32">Data</th>
-                                    <th class="p-4 font-semibold">Tytuł z banku</th>
-                                    <th class="p-4 font-semibold w-56">Kontrahent i Kategoria</th>
-                                    <th class="p-4 font-semibold w-32 text-right">Kwota</th>
-                                    <th class="p-4 font-semibold w-24 text-center">Akcja</th>
+                                    <th class="p-3 font-semibold w-[9%]">Data</th>
+                                    <th class="p-3 font-semibold">Tytuł z banku</th>
+                                    <th class="p-3 font-semibold w-[34%]">Kontrahent i Kategoria</th>
+                                    <th class="p-3 font-semibold w-[12%] text-right">Kwota</th>
+                                    <th class="p-3 font-semibold w-[11%] text-center">Akcja</th>
                                 </tr>
                             </thead>
                             <tbody id="staging-list" class="divide-y divide-slate-100">
@@ -145,6 +198,17 @@
                             <span id="summary-month-display" class="font-medium text-slate-700 min-w-[100px] text-center text-sm"></span>
                             <button onclick="changeMonth(1)" class="p-1 text-slate-400 hover:text-blue-600 rounded focus:outline-none"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- KARTA SALDA -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6 flex justify-between items-center" id="summary-account-balance-card">
+                    <div>
+                        <h3 class="text-sm font-medium text-slate-500">Bieżące saldo</h3>
+                        <p id="summary-current-balance" class="text-2xl font-bold text-slate-800">0.00 PLN</p>
+                    </div>
+                    <div class="p-3 bg-blue-50 rounded-lg">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
                     </div>
                 </div>
 
@@ -190,7 +254,7 @@
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100 bg-slate-50">Zestawienie kategorii</h3>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm">
+                    <table class="w-full text-left text-sm min-w-[500px]">
                             <thead class="bg-slate-100/50">
                                 <tr>
                                     <th class="p-4 font-semibold text-slate-600 w-1/2">Kategoria</th>
@@ -207,71 +271,120 @@
             </div>
 
             <!-- ZAKŁADKA 3: KATEGORIE -->
-            <div id="tab-categories" class="tab-hidden space-y-6">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Lewa kolumna: Kategorie -->
-                    <div class="space-y-6">
-                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                            <h2 class="font-bold text-slate-800 mb-4">Dodaj nową kategorię</h2>
-                            <form id="category-form" class="flex flex-col gap-3">
-                                <div class="flex flex-col sm:flex-row gap-3">
-                                    <input type="text" id="cat-name" placeholder="Nazwa kategorii (np. Siłownia)" required class="flex-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                    <select id="cat-type" class="w-full sm:w-32 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
-                                        <option value="expense">Wydatek</option>
-                                        <option value="income">Przychód</option>
-                                    </select>
-                                </div>
-                                <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm w-full">Dodaj kategorię</button>
-                            </form>
-                        </div>
-                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
-                            <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje kategorie</h3>
-                            <ul id="category-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
-                        </div>
-                    </div>
-                    
-                    <!-- Prawa kolumna: Kontrahenci -->
-                    <div class="space-y-6">
-                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                            <h2 class="font-bold text-slate-800 mb-4">Słownik kontrahentów</h2>
-                            <form id="contractor-form" class="flex flex-col gap-3">
-                                <input type="hidden" id="cont-id">
-                                <input type="text" id="cont-name" placeholder="Znormalizowana nazwa (np. Biedronka)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                <input type="text" id="cont-rules" placeholder="Słowa kluczowe do analizy (np. biedronka, jeronimo)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                <select id="cont-cat" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"><option value="">Brak domyślnej kategorii</option></select>
-                                <div class="flex gap-2">
-                                    <button type="button" id="cont-cancel-btn" onclick="cancelEditContractor()" class="hidden px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-all shadow-sm w-1/3 text-sm">Anuluj</button>
-                                    <button type="submit" id="cont-submit-btn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-all shadow-sm flex-1 text-sm">Zapisz do słownika</button>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
-                            <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Zapisani kontrahenci</h3>
-                            <ul id="contractor-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+            <div id="tab-categories" class="tab-hidden">
+                <div class="flex gap-6">
+
+                    <!-- Sidebar: nawigacja słowników -->
+                    <div class="w-44 shrink-0">
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden sticky top-4">
+                            <div class="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Słowniki</p>
+                            </div>
+                            <nav class="p-2 space-y-0.5">
+                                <button onclick="switchDict('categories')" id="dict-btn-categories" class="dict-nav-btn dict-nav-active w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-2.5">
+                                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                                    Kategorie
+                                </button>
+                                <button onclick="switchDict('contractors')" id="dict-btn-contractors" class="dict-nav-btn w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-2.5">
+                                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                    Kontrahenci
+                                </button>
+                                <button onclick="switchDict('accounts')" id="dict-btn-accounts" class="dict-nav-btn w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-2.5">
+                                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                                    Konta
+                                </button>
+                            </nav>
                         </div>
                     </div>
 
-                    <!-- Prawa kolumna: Konta (Słownik kont) -->
-                    <div class="space-y-6">
-                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                            <h2 class="font-bold text-slate-800 mb-4">Słownik kont</h2>
-                            <form id="account-form" class="flex flex-col gap-3">
-                                <input type="hidden" id="acc-id">
-                                <input type="text" id="acc-name" placeholder="Nazwa konta (np. Oszczędnościowe)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                <input type="text" id="acc-bank" placeholder="Bank (np. mBank)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                <input type="text" id="acc-number" placeholder="Nr rachunku (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-mono">
-                                <div class="flex gap-2">
-                                    <button type="button" id="acc-cancel-btn" onclick="cancelEditAccount()" class="hidden px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-all shadow-sm w-1/3 text-sm">Anuluj</button>
-                                    <button type="submit" id="acc-submit-btn" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all shadow-sm flex-1 text-sm">Zapisz do słownika</button>
+                    <!-- Panele słowników -->
+                    <div class="flex-1 min-w-0">
+
+                        <!-- Panel: Kategorie -->
+                        <div id="dict-panel-categories">
+                            <div class="flex flex-col lg:flex-row gap-6">
+                                <div class="lg:w-80 shrink-0">
+                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                        <h2 class="font-bold text-slate-800 mb-4">Dodaj nową kategorię</h2>
+                                        <form id="category-form" class="flex flex-col gap-3">
+                                            <input type="text" id="cat-name" placeholder="Nazwa kategorii (np. Siłownia)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            <select id="cat-type" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
+                                                <option value="expense">Wydatek</option>
+                                                <option value="income">Przychód</option>
+                                                <option value="transfer">Przelew</option>
+                                            </select>
+                                            <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm w-full">Dodaj kategorię</button>
+                                        </form>
+                                    </div>
                                 </div>
-                            </form>
+                                <div class="flex-1 min-w-0">
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+                                        <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje kategorie</h3>
+                                        <ul id="category-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
-                            <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje konta</h3>
-                            <ul id="account-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+
+                        <!-- Panel: Kontrahenci -->
+                        <div id="dict-panel-contractors" class="hidden">
+                            <div class="flex flex-col lg:flex-row gap-6">
+                                <div class="lg:w-80 shrink-0">
+                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                        <h2 class="font-bold text-slate-800 mb-4">Słownik kontrahentów</h2>
+                                        <form id="contractor-form" class="flex flex-col gap-3">
+                                            <input type="hidden" id="cont-id">
+                                            <input type="text" id="cont-name" placeholder="Znormalizowana nazwa (np. Biedronka)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            <input type="text" id="cont-rules" placeholder="Słowa kluczowe (np. biedronka, jeronimo)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            <select id="cont-cat" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"><option value="">Brak domyślnej kategorii</option></select>
+                                            <div class="flex gap-2">
+                                                <button type="button" id="cont-cancel-btn" onclick="cancelEditContractor()" class="hidden px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-all shadow-sm w-1/3 text-sm">Anuluj</button>
+                                                <button type="submit" id="cont-submit-btn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-all shadow-sm flex-1 text-sm">Zapisz do słownika</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+                                        <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Zapisani kontrahenci</h3>
+                                        <ul id="contractor-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+
+                        <!-- Panel: Konta -->
+                        <div id="dict-panel-accounts" class="hidden">
+                            <div class="flex flex-col lg:flex-row gap-6">
+                                <div class="lg:w-80 shrink-0">
+                                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                        <h2 class="font-bold text-slate-800 mb-4">Słownik kont</h2>
+                                        <form id="account-form" class="flex flex-col gap-3">
+                                            <input type="hidden" id="acc-id">
+                                            <input type="text" id="acc-name" placeholder="Nazwa konta (np. Oszczędnościowe)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            <input type="text" id="acc-bank" placeholder="Bank (np. mBank)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            <input type="text" id="acc-number" placeholder="Nr rachunku (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-mono">
+                                            <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                                                <input type="checkbox" id="acc-default" class="rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 w-4 h-4 cursor-pointer">
+                                                <span>Główne konto domyślne</span>
+                                            </label>
+                                            <div class="flex gap-2">
+                                                <button type="button" id="acc-cancel-btn" onclick="cancelEditAccount()" class="hidden px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-all shadow-sm w-1/3 text-sm">Anuluj</button>
+                                                <button type="submit" id="acc-submit-btn" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all shadow-sm flex-1 text-sm">Zapisz do słownika</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+                                        <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje konta</h3>
+                                        <ul id="account-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
-                </div>
                 </div>
             </div>
         </main>
@@ -290,10 +403,10 @@
                 <form id="importForm">
                     <div class="mb-5">
                         <label class="block text-sm font-medium text-slate-700 mb-2">
-                            Konto docelowe (Do jakiego konta wgrać plik?)
+                            Konto, którego dotyczy wyciąg
                         </label>
                         <select id="import-account-select" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-4"></select>
-                        <label for="csvFileInput" class="block text-sm font-medium text-slate-700 mb-2">
+                        <label for="csvFileInput" class="block text-sm font-medium text-slate-700 mb-2 mt-4">
                             Wybierz plik z historią (.csv)
                         </label>
                         <input type="file" id="csvFileInput" accept=".csv" required class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
@@ -361,48 +474,94 @@
             
             <div class="p-6 flex-1 overflow-y-auto space-y-6">
                 <!-- Formularz dodawania cyklicznej -->
-                <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100">
-                    <h4 class="font-semibold text-indigo-800 mb-4">Zaplanuj płatność / wpływ</h4>
-                    <form id="recurring-form" class="flex flex-col gap-4">
+                <div class="bg-blue-50 p-5 rounded-xl border border-blue-100">
+                    <h4 class="font-semibold text-blue-800 mb-4">Zaplanuj jednorazową transakcję</h4>
+                    <form id="planned-form" class="flex flex-col gap-4">
                         <div class="flex flex-wrap gap-4">
                             <div class="flex bg-white rounded-lg border border-slate-300 p-1 w-full sm:w-auto shrink-0">
-                                <button type="button" id="rec-type-expense" onclick="setRecType('expense')" class="flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm">Wydatek</button>
-                                <button type="button" id="rec-type-income" onclick="setRecType('income')" class="flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors">Przychód</button>
+                                <button type="button" id="planned-type-expense" onclick="setPlannedType('expense')" class="flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm">Wydatek</button>
+                                <button type="button" id="planned-type-income" onclick="setPlannedType('income')" class="flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors">Przychód</button>
                             </div>
+                            <input type="text" id="planned-desc" placeholder="Opis (np. Czynsz)" required class="flex-1 min-w-[200px] p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white">
+                            <input type="number" id="planned-amount" placeholder="Kwota" step="0.01" min="0.01" required class="w-full sm:flex-1 md:w-32 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white">
+                            <select id="planned-category" required class="w-full sm:flex-1 md:w-40 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"></select>
+                            <select id="planned-account" required class="w-full sm:flex-1 md:w-40 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"></select>
+                            <select id="planned-contractor" class="w-full sm:flex-1 md:w-48 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"><option value="">Brak kontrahenta</option></select>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-blue-100 pt-4 mt-2">
+                            <div>
+                                <label class="block text-xs font-medium text-blue-700 mb-1">Data wykonania</label>
+                                <input type="date" id="planned-exec-date" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white">
+                            </div>
+                            <div class="flex items-end">
+                                <button type="submit" class="w-full px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Zaplanuj transakcję</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Lista zaplanowanych -->
+                <div>
+                    <h4 class="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        Twoje zaplanowane transakcje
+                    </h4>
+                    <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                        <table class="w-full text-left text-sm">
+                            <tbody id="planned-list" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                        <div id="planned-empty" class="hidden p-6 text-center text-slate-500 bg-white">
+                            Brak zaplanowanych transakcji.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formularz dodawania cyklicznej -->
+                <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100">
+                    <h4 class="font-semibold text-indigo-800 mb-4">Dodaj transakcję cykliczną</h4>
+                    <form id="recurring-form" class="flex flex-col gap-4">
+                        <div class="flex bg-white rounded-lg border border-slate-300 p-1 w-full sm:w-auto shrink-0">
+                            <button type="button" id="rec-rec-type-expense" onclick="setRecurringType('expense')" class="flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm">Wydatek</button>
+                            <button type="button" id="rec-rec-type-income" onclick="setRecurringType('income')" class="flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors">Przychód</button>
+                        </div>
+                        <div class="flex flex-wrap gap-4">
                             <input type="text" id="rec-desc" placeholder="Opis (np. Czynsz)" required class="flex-1 min-w-[200px] p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white">
                             <input type="number" id="rec-amount" placeholder="Kwota" step="0.01" min="0.01" required class="w-full sm:flex-1 md:w-32 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white">
                             <select id="rec-category" required class="w-full sm:flex-1 md:w-40 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"></select>
+                            <select id="rec-account" required class="w-full sm:flex-1 md:w-40 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"></select>
+                            <select id="rec-contractor" class="w-full sm:flex-1 md:w-48 md:flex-none p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer"><option value="">Brak kontrahenta</option></select>
                         </div>
-                        
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-indigo-100 pt-4 mt-2">
                             <div>
                                 <label class="block text-xs font-medium text-indigo-700 mb-1">Częstotliwość cyklu</label>
                                 <select id="rec-freq-type" onchange="toggleRecFreqInputs()" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white cursor-pointer">
-                                    <option value="months">Co X miesięcy</option>
-                                    <option value="days">Co X dni</option>
-                                    <option value="specific_days">Wybrane dni w miesiącu</option>
+                                    <option value="monthly" selected>Miesięcznie</option>
+                                    <option value="weekly">Tygodniowo</option>
+                                    <option value="daily">Codziennie</option>
+                                    <option value="yearly">Rocznie</option>
                                 </select>
                             </div>
                             
-                            <div id="rec-opts-months" class="flex gap-2">
+                            <div id="rec-opts-monthly" class="flex gap-2">
                                 <div class="flex-1">
-                                    <label class="block text-xs font-medium text-indigo-700 mb-1">Co ile miesięcy?</label>
-                                    <input type="number" id="rec-freq-months-val" value="1" min="1" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                                    <label class="block text-xs font-medium text-indigo-700 mb-1">Interwał (miesiące)</label>
+                                    <input type="number" id="rec-interval-monthly" value="1" min="1" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
                                 </div>
                                 <div class="flex-1">
                                     <label class="block text-xs font-medium text-indigo-700 mb-1">W którym dniu?</label>
-                                    <input type="number" id="rec-freq-months-day" value="10" min="1" max="31" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                                    <input type="number" id="rec-day-of-month" value="10" min="1" max="31" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
                                 </div>
                             </div>
                             
-                            <div id="rec-opts-days" class="hidden flex-col justify-end">
-                                <label class="block text-xs font-medium text-indigo-700 mb-1">Co ile dni się powtarza?</label>
-                                <input type="number" id="rec-freq-days-val" value="14" min="1" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                            <div id="rec-opts-daily" class="hidden flex-col justify-end">
+                                <label class="block text-xs font-medium text-indigo-700 mb-1">Interwał (dni)</label>
+                                <input type="number" id="rec-interval-daily" value="1" min="1" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
                             </div>
                             
-                            <div id="rec-opts-specific" class="hidden flex-col justify-end">
-                                <label class="block text-xs font-medium text-indigo-700 mb-1">Dni miesiąca (np. 1, 15)</label>
-                                <input type="text" id="rec-freq-specific-val" placeholder="1, 15" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                            <div id="rec-opts-weekly" class="hidden flex-col justify-end">
+                                <label class="block text-xs font-medium text-indigo-700 mb-1">Dzień tygodnia</label>
+                                <select id="rec-day-of-week" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"><option value="0">Poniedziałek</option><option value="1">Wtorek</option><option value="2">Środa</option><option value="3">Czwartek</option><option value="4">Piątek</option><option value="5">Sobota</option><option value="6">Niedziela</option></select>
                             </div>
                         </div>
 
@@ -478,6 +637,7 @@
                         <select id="quick-cat-type" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
                             <option value="expense">Wydatek</option>
                             <option value="income">Przychód</option>
+                            <option value="transfer">Przelew</option>
                         </select>
                     </div>
                     <div class="flex justify-end gap-3 mt-4">
@@ -520,6 +680,64 @@
                     </div>
                 </form>
             </div>
+        </div>
+    </div>
+
+    <!-- Reconcile Modal -->
+    <div id="reconcile-modal" class="hidden fixed inset-0 bg-slate-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-slate-800">Uzgadnianie Salda Konta</h3>
+                <button onclick="closeReconcileModal()" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <form id="reconcile-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">Konto:</label>
+                    <p id="reconcile-account-name" class="mt-1 text-lg font-bold text-slate-900"></p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">Bieżące saldo w systemie:</label>
+                    <p id="reconcile-current-balance" class="mt-1 text-lg font-bold text-slate-900"></p>
+                </div>
+                <div>
+                    <label for="reconcile-new-balance" class="block text-sm font-medium text-slate-700">Nowe saldo (rzeczywiste):</label>
+                    <input type="number" id="reconcile-new-balance" step="0.01" class="mt-1 block w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                </div>
+                <div class="bg-blue-50 border-l-4 border-blue-400 text-blue-700 p-3" role="alert">
+                    <p class="font-bold">Ważne!</p>
+                    <p class="text-sm">Jeśli wprowadzone saldo będzie się różnić od bieżącego, zostanie utworzona transakcja korygująca o nazwie "Uzgadnianie salda".</p>
+                </div>
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeReconcileModal()" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500">
+                        Anuluj
+                    </button>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        Uzgadniaj Saldo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="hidden fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[100] backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm">
+            <h2 class="text-2xl font-bold text-slate-800 text-center mb-2">Witaj w aplikacji!</h2>
+            <p class="text-slate-500 text-center mb-6">Zaloguj się, aby kontynuować.</p>
+            <form id="login-form">
+                <div class="mb-4">
+                    <label for="login-username" class="block text-sm font-medium text-slate-700 mb-1">Nazwa użytkownika lub e-mail</label>
+                    <input type="text" id="login-username" value="default_user" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                </div>
+                <div class="mb-6">
+                    <label for="login-password" class="block text-sm font-medium text-slate-700 mb-1">Hasło</label>
+                    <input type="password" id="login-password" value="password" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                    <p id="login-error" class="text-rose-500 text-sm mt-2 hidden"></p>
+                </div>
+                <button type="submit" class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow-lg focus:ring-4 focus:ring-blue-300">Zaloguj się</button>
+            </form>
         </div>
     </div>
 

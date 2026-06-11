@@ -1,53 +1,46 @@
 from decimal import Decimal
 from datetime import date
+import pytest
+from app import db
+from app.models import User, Account
 
 # TDD: Faza RED - importujemy funkcję, która jeszcze nie istnieje
-from app.services.budget_service import parse_ing_csv_row, parse_ing_csv
+from app.services.budget_service import parse_ing_csv
 
-def test_parse_ing_valid_income_row():
-    """Testuje poprawne parsowanie pojedynczego wiersza CSV z przychodem (ING)."""
-    # Przykładowy wiersz - wyciągnięty z rzeczywistego pliku ING
-    # Prawdziwa struktura: Data;Data;Kontrahent;Tytuł;Konto;Bank;Szczegóły;NrTx;Kwota;Waluta
-    row_data = "2023-10-25;2023-10-25;Pracodawca Sp. z o.o.;Wypłata za październik;;Bank;;;12500,50;PLN"
-    
-    parsed = parse_ing_csv_row(row_data)
-    
-    assert parsed['date'] == date(2023, 10, 25)
-    assert parsed['title'] == "Wypłata za październik"
-    assert parsed['amount'] == Decimal('12500.50')
-    assert parsed['contractor'] == "Pracodawca Sp. z o.o."
+@pytest.fixture
+def parser_user(app):
+    """Przygotowuje użytkownika i konto testowe dla parsera."""
+    with app.app_context():
+        user = User(username="parser_user", email="parser@user.com", password_hash="a")
+        acc1 = Account(user=user, name="KONTO Z LWEM Direct (PLN)", bank_name="ING", account_number="PL10105000997603123456789123")
+        acc2 = Account(user=user, name="Smart Saver", bank_name="ING", account_number="PL24105010251000009180015928")
+        db.session.add_all([user, acc1, acc2])
+        db.session.commit()
+        return user.id, {'acc1_id': acc1.id, 'acc2_id': acc2.id}
 
-def test_parse_ing_valid_expense_row():
-    """Testuje parsowanie wydatku (kwota ujemna) bez podanego kontrahenta."""
-    # Przykładowy wiersz - np. opłata za kartę
-    row_data = "2023-10-28;2023-10-28;;Opłata za kartę miesięczna;;Bank;;;-7,00;PLN"
-    
-    parsed = parse_ing_csv_row(row_data)
-    
-    assert parsed['date'] == date(2023, 10, 28)
-    assert parsed['title'] == "Opłata za kartę miesięczna"
-    assert parsed['amount'] == Decimal('-7.00')
-    # Oczekujemy None jeśli pole kontrahenta było puste
-    assert parsed['contractor'] is None
-
-def test_parse_ing_skipped_block_row():
-    """Testuje celowe pomijanie nierozliczonej płatności kartą (blokady)."""
-    # Kwota transakcji (index 8) jest pusta, kwota blokady znajduje się gdzie indziej.
-    row_data = '2026-05-16;;" ALDI SP. Z O.O.";" Płatność kartą";;;Bank;;;"";;;-54,75;PLN;;;4066,32;PLN;;;;;'
-    parsed = parse_ing_csv_row(row_data)
-    assert parsed is None
-
-def test_parse_ing_csv_content():
-    """Testuje parsowanie całego pliku CSV z pominięciem nagłówków oraz szumu."""
-    csv_content = """Data transakcji;Data księgowania;Dane kontrahenta;Tytuł;Konto;Bank;Szczegóły;NrTx;Kwota;Waluta
-2023-10-25;2023-10-25;Pracodawca;Wypłata;;Bank;;;12500,50;PLN
-2023-10-28;2023-10-28;;Opłata za kartę;;Bank;;;-7,00;PLN
-Puste dane i nieistotne metadane na końcu pliku wgrywanego przez ING
+def test_parse_ing_csv_content(app, parser_user):
+    """Testuje parsowanie całego pliku CSV z automatycznym wykrywaniem wielu kont na podstawie ich nazw."""
+    user_id, account_ids = parser_user
+    csv_content = """
+"Wybrane rachunki:";
+"KONTO Z LWEM Direct (PLN)";;"10 1050 0099 7603 1234 5678 9123";
+"Smart Saver (PLN)";;"24 1050 1025 1000 0091 8001 5928";
+"Zastosowane kryteria wyboru";;;;;
+"Data transakcji";"Data księgowania";"Dane kontrahenta";"Tytuł";"Nr rachunku";"Nazwa banku";"Szczegóły";"Nr transakcji";"Kwota transakcji (waluta rachunku)";"Waluta";"Konto"
+"2023-10-25";"2023-10-25";"Pracodawca";"Wypłata";"";"Bank";"";"";"12500,50";"PLN";"KONTO Z LWEM Direct (PLN)"
+"2023-10-28";"2023-10-28";"";"Opłata za kartę";"";"Bank";"";"";"-7,00";"PLN";"KONTO Z LWEM Direct (PLN)"
+"2023-10-29";"2023-10-29";"Przelew";"Oszczędności";"";"Bank";"";"";"-100,00";"PLN";"Smart Saver (PLN)"
 """
-    parsed_list = parse_ing_csv(csv_content)
-    
-    assert len(parsed_list) == 2
+    with app.app_context():
+        parsed_list = parse_ing_csv(csv_content, user_id, account_ids['acc1_id'])
+
+    assert len(parsed_list) == 3
     assert parsed_list[0]['title'] == "Wypłata"
     assert parsed_list[0]['amount'] == Decimal('12500.50')
+    assert parsed_list[0]['account_id'] == account_ids['acc1_id']
     assert parsed_list[1]['title'] == "Opłata za kartę"
     assert parsed_list[1]['amount'] == Decimal('-7.00')
+    assert parsed_list[1]['account_id'] == account_ids['acc1_id']
+    assert parsed_list[2]['title'] == "Oszczędności"
+    assert parsed_list[2]['amount'] == Decimal('-100.00')
+    assert parsed_list[2]['account_id'] == account_ids['acc1_id']

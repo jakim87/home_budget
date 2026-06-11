@@ -1,9 +1,7 @@
 from flask import Blueprint, jsonify
 from flask_login import login_required, current_user
+from sqlalchemy import text
 from app import db
-from app.models import (Transaction, TransactionSplit, TransactionStaging,
-                         TransactionArchive, RecurringTransaction, PlannedTransaction,
-                         Category, Contractor, Budget, Account)
 
 dev_bp = Blueprint('dev', __name__)
 
@@ -11,32 +9,40 @@ dev_bp = Blueprint('dev', __name__)
 @dev_bp.route('/api/dev/reset', methods=['POST'])
 @login_required
 def reset_user_data():
-    """Czyści wszystkie dane użytkownika (transakcje, kategorie, kontrahentów) — tylko do testów."""
-    user_id = current_user.id
+    """Czyści wszystkie dane użytkownika — tylko do testów."""
+    uid = current_user.id
     try:
-        user_tx_ids = [row[0] for row in db.session.query(Transaction.id).filter_by(user_id=user_id).all()]
-        if user_tx_ids:
-            db.session.query(TransactionSplit).filter(
-                TransactionSplit.transaction_id.in_(user_tx_ids)
-            ).delete(synchronize_session='fetch')
-
-        db.session.query(TransactionStaging).filter_by(user_id=user_id).delete()
-        db.session.query(TransactionArchive).filter_by(user_id=user_id).delete()
-        db.session.query(Transaction).filter_by(user_id=user_id).delete()
-        db.session.query(RecurringTransaction).filter_by(user_id=user_id).delete()
-        db.session.query(PlannedTransaction).filter_by(user_id=user_id).delete()
-        db.session.query(Budget).filter_by(user_id=user_id).delete()
+        # 1. Wyzeruj FK do kategorii we wszystkich tabelach (zanim usuniemy kategorie)
+        db.session.execute(text("UPDATE transactions SET category_id = NULL WHERE user_id = :uid"), {'uid': uid})
+        db.session.execute(text(
+            "UPDATE transaction_splits SET category_id = NULL "
+            "WHERE transaction_id IN (SELECT id FROM transactions WHERE user_id = :uid)"
+        ), {'uid': uid})
+        db.session.execute(text("UPDATE transaction_staging SET proposed_category_id = NULL WHERE user_id = :uid"), {'uid': uid})
+        db.session.execute(text("UPDATE recurring_transactions SET category_id = NULL WHERE user_id = :uid"), {'uid': uid})
+        db.session.execute(text("UPDATE planned_transactions SET category_id = NULL WHERE user_id = :uid"), {'uid': uid})
+        db.session.execute(text("UPDATE contractors SET default_category_id = NULL WHERE user_id = :uid"), {'uid': uid})
         db.session.flush()
 
-        db.session.query(Contractor).filter_by(user_id=user_id).update(
-            {'default_category_id': None}, synchronize_session='fetch'
-        )
+        # 2. Usuń rekordy w odpowiedniej kolejności
+        db.session.execute(text(
+            "DELETE FROM transaction_splits "
+            "WHERE transaction_id IN (SELECT id FROM transactions WHERE user_id = :uid)"
+        ), {'uid': uid})
+        db.session.execute(text("DELETE FROM transaction_staging WHERE user_id = :uid"), {'uid': uid})
+        db.session.execute(text("DELETE FROM transaction_archive WHERE user_id = :uid"), {'uid': uid})
+        db.session.execute(text("DELETE FROM transactions WHERE user_id = :uid"), {'uid': uid})
+        db.session.execute(text("DELETE FROM recurring_transactions WHERE user_id = :uid"), {'uid': uid})
+        db.session.execute(text("DELETE FROM planned_transactions WHERE user_id = :uid"), {'uid': uid})
+        db.session.execute(text("DELETE FROM budgets WHERE user_id = :uid"), {'uid': uid})
+        db.session.execute(text("DELETE FROM contractors WHERE user_id = :uid"), {'uid': uid})
         db.session.flush()
-        db.session.query(Contractor).filter_by(user_id=user_id).delete()
-        db.session.query(Category).filter_by(is_system_category=False).delete()
-        db.session.query(Account).filter_by(user_id=user_id).update(
-            {'balance': 0}, synchronize_session='fetch'
-        )
+
+        # 3. Teraz bezpiecznie usuń kategorie (bez systemowych)
+        db.session.execute(text("DELETE FROM categories WHERE is_system_category = false"))
+
+        # 4. Wyzeruj salda kont
+        db.session.execute(text("UPDATE accounts SET balance = 0 WHERE user_id = :uid"), {'uid': uid})
 
         db.session.commit()
         return jsonify({'message': 'Dane zostały wyczyszczone.'}), 200

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zarządzanie Transakcjami</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -30,7 +31,8 @@
 
         <!-- Nawigacja Zakładek -->
         <nav class="flex gap-6 border-b border-slate-200 mb-6">
-            <button onclick="switchTab('transactions')" id="btn-tab-transactions" class="tab-active pb-3 px-1 text-sm transition-colors focus:outline-none">Transakcje</button>
+            <button onclick="switchTab('dashboard')" id="btn-tab-dashboard" class="tab-active pb-3 px-1 text-sm transition-colors focus:outline-none">Dashboard</button>
+            <button onclick="switchTab('transactions')" id="btn-tab-transactions" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Transakcje</button>
             <button onclick="switchTab('staging')" id="btn-tab-staging" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none flex items-center gap-2">
                 Do weryfikacji <span id="staging-badge" class="hidden bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
             </button>
@@ -39,8 +41,41 @@
         </nav>
 
         <main>
+            <!-- ZAKŁADKA 0: DASHBOARD -->
+            <div id="tab-dashboard" class="space-y-6">
+                <!-- Net Worth -->
+                <div class="bg-gradient-to-br from-blue-600 to-blue-700 p-6 rounded-2xl shadow-md text-white">
+                    <p class="text-sm font-medium text-blue-100 mb-1">Majątek netto (Net Worth)</p>
+                    <p id="dashboard-net-worth" class="text-4xl font-bold">0.00 PLN</p>
+                </div>
+
+                <!-- Karty kont -->
+                <div id="dashboard-accounts" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+
+                <!-- Wykres -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex justify-between items-center mb-5">
+                        <h2 class="font-bold text-slate-800">Przychody vs Wydatki</h2>
+                        <div class="flex gap-2">
+                            <button id="dashboard-toggle-monthly" onclick="setDashboardView('monthly')" class="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white font-medium transition-colors">Miesięcznie</button>
+                            <button id="dashboard-toggle-yearly" onclick="setDashboardView('yearly')" class="px-3 py-1.5 text-sm rounded-lg bg-slate-100 text-slate-600 font-medium hover:bg-slate-200 transition-colors">Rocznie</button>
+                        </div>
+                    </div>
+                    <canvas id="dashboard-chart"></canvas>
+                </div>
+
+                <!-- Ostatnie transakcje -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                        <h2 class="font-semibold text-slate-800">Ostatnie transakcje</h2>
+                        <button onclick="switchTab('transactions')" class="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">Zobacz wszystkie →</button>
+                    </div>
+                    <div id="dashboard-recent-tx" class="divide-y divide-slate-100"></div>
+                </div>
+            </div>
+
             <!-- ZAKŁADKA 1: TRANSAKCJE -->
-            <div id="tab-transactions" class="space-y-8">
+            <div id="tab-transactions" class="tab-hidden space-y-8">
                 <!-- Formularz dodawania/edycji -->
                 <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
                     <div class="flex justify-between items-center mb-4">

@@ -174,7 +174,8 @@ function renderStaging() {
 
             let rowBg = 'hover:bg-slate-50';
             let badgeHtml = '';
-            let btnClass = 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500';
+            let btnClass = 'bg-slate-200 text-slate-400 cursor-not-allowed';
+            let btnDisabled = true;
 
             if (isFullyMapped) {
                 if (isTransfer) {
@@ -186,6 +187,7 @@ function renderStaging() {
                     badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wider" title="Transakcja w pełni zmapowana">Zmapowano</span>`;
                     btnClass = 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500';
                 }
+                btnDisabled = false;
             } else if (hasSuggestion) {
                 rowBg = 'bg-amber-50/40 hover:bg-amber-100/50';
                 badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider" title="Automatyczna sugestia kontrahenta — wymaga akceptacji">Auto-sugestia</span>`;
@@ -223,7 +225,7 @@ function renderStaging() {
                 </td>
                 <td class="p-3 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
                 <td class="p-3 border-b border-slate-100 text-center">
-                    <button onclick="approveStaging(${t.id})" class="px-3 py-2 ${btnClass} text-white text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 whitespace-nowrap w-full">
+                    <button onclick="approveStaging(${t.id})" ${btnDisabled ? 'disabled title="Uzupełnij kategorię i kontrahenta, aby zatwierdzić"' : ''} class="px-3 py-2 ${btnClass} text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 whitespace-nowrap w-full ${btnDisabled ? '' : 'text-white'}">
                         Zatwierdź
                     </button>
                 </td>
@@ -2351,6 +2353,7 @@ async function fetchInitialData() {
         renderDashboard();
         await fetchPlannedTransactions();
         await fetchRecurringTransactions(); // Pobierz transakcje cykliczne
+        await fetchPendingStaging(); // Po załadowaniu categories/contractors, żeby badge i dropdown były poprawne
     } catch (error) {
         console.error('Błąd pobierania danych z API:', error);
         showToast('Nie udało się pobrać danych z serwera.', 'error');
@@ -2361,7 +2364,6 @@ async function fetchInitialData() {
 document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
 initContractorCombobox();
 fetchInitialData();
-fetchPendingStaging(); // Inicjalne pobranie transakcji do weryfikacji dla licznika (badge)
 
 // --- LOGIKA LOGOWANIA ---
 function showLoginModal() {

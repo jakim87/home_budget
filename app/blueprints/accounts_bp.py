@@ -16,14 +16,13 @@ def add_account():
     try:
         req_data = request.get_json() or {}
         data = AccountSchema().load(req_data)
-        acc = create_account(current_user.id, data)
-        
-        # Odczyt ze zwalidowanych danych (Marshmallow)
+        acc = create_account(current_user.token, data)
+
         if data.get('is_default'):
-            db.session.query(Account).filter(Account.user_id == current_user.id, Account.id != acc.id).update({'is_default': False})
+            db.session.query(Account).filter(Account.user_token == current_user.token, Account.id != acc.id).update({'is_default': False})
             acc.is_default = True
             db.session.commit()
-            
+
         return jsonify({'id': acc.id, 'name': acc.name, 'bank_name': acc.bank_name, 'account_number': acc.account_number, 'balance': 0.0, 'is_default': getattr(acc, 'is_default', False)}), 201
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
@@ -36,13 +35,13 @@ def edit_account(a_id):
     try:
         req_data = request.get_json() or {}
         data = AccountSchema(partial=True).load(req_data)
-        acc = update_account(current_user.id, a_id, data)
-        
+        acc = update_account(current_user.token, a_id, data)
+
         if data.get('is_default'):
-            db.session.query(Account).filter(Account.user_id == current_user.id, Account.id != acc.id).update({'is_default': False})
+            db.session.query(Account).filter(Account.user_token == current_user.token, Account.id != acc.id).update({'is_default': False})
             acc.is_default = True
             db.session.commit()
-            
+
         return jsonify({'id': acc.id, 'name': acc.name, 'bank_name': acc.bank_name, 'account_number': acc.account_number, 'balance': float(acc.balance), 'is_default': getattr(acc, 'is_default', False)}), 200
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
@@ -53,7 +52,7 @@ def edit_account(a_id):
 @login_required
 def delete_account(a_id):
     try:
-        soft_delete_account(current_user.id, a_id)
+        soft_delete_account(current_user.token, a_id)
         return jsonify({'message': 'Konto usunięte ze słownika.'}), 200
     except ValueError as err:
         return jsonify({'error': str(err)}), 404
@@ -75,7 +74,7 @@ def reconcile_account(account_id):
         return jsonify({'error': 'Nieprawidłowy format salda.'}), 400
 
     try:
-        reconciliation_tx = reconcile_account_balance(current_user.id, account_id, new_balance)
+        reconciliation_tx = reconcile_account_balance(current_user.token, account_id, new_balance)
         if reconciliation_tx:
             return jsonify({'message': 'Saldo uzgodnione pomyślnie.', 'transaction_id': reconciliation_tx.id}), 200
         return jsonify({'message': 'Saldo jest już zgodne, nie utworzono transakcji.'}), 200

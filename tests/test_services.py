@@ -9,26 +9,24 @@ def test_reconcile_balance_with_positive_difference(app):
     gdy nowe saldo jest wyższe od bieżącego.
     """
     with app.app_context():
-        # 1. Przygotowanie danych (Arrange)
+        # 1. Arrange
         user = User(username="testuser", email="test@test.com", password_hash="hash")
         account = Account(name="Test Account", bank_name="Test Bank", balance=Decimal("1000.00"), user=user)
         db.session.add_all([user, account])
         db.session.commit()
 
-        # 2. Wywołanie funkcji (Act)
+        # 2. Act
         new_balance = Decimal("1150.50")
-        reconciliation_tx = reconcile_account_balance(user.id, account.id, new_balance)
+        reconciliation_tx = reconcile_account_balance(user.token, account.id, new_balance)
 
-        # 3. Sprawdzenie wyników (Assert)
+        # 3. Assert
         assert reconciliation_tx is not None
         assert reconciliation_tx.amount == Decimal("150.50")
         assert reconciliation_tx.title == "Uzgadnianie salda"
-        
-        # Sprawdź, czy saldo konta zostało poprawnie zaktualizowane
+
         updated_account = db.session.get(Account, account.id)
         assert updated_account.balance == new_balance
 
-        # Sprawdź, czy kategoria systemowa została użyta
         category = db.session.get(Category, reconciliation_tx.category_id)
         assert category.name == "Uzgadnianie salda"
         assert category.is_system_category is True
@@ -47,12 +45,12 @@ def test_reconcile_balance_with_negative_difference(app):
 
         # 2. Act
         new_balance = Decimal("950.25")
-        reconciliation_tx = reconcile_account_balance(user.id, account.id, new_balance)
+        reconciliation_tx = reconcile_account_balance(user.token, account.id, new_balance)
 
         # 3. Assert
         assert reconciliation_tx is not None
         assert reconciliation_tx.amount == Decimal("-49.75")
-        
+
         updated_account = db.session.get(Account, account.id)
         assert updated_account.balance == new_balance
 
@@ -69,11 +67,11 @@ def test_reconcile_balance_with_no_difference(app):
 
         # 2. Act
         new_balance = Decimal("1000.00")
-        reconciliation_tx = reconcile_account_balance(user.id, account.id, new_balance)
+        reconciliation_tx = reconcile_account_balance(user.token, account.id, new_balance)
 
         # 3. Assert
         assert reconciliation_tx is None
-        
+
         updated_account = db.session.get(Account, account.id)
         assert updated_account.balance == Decimal("1000.00")
 
@@ -87,8 +85,8 @@ def test_reconcile_creates_system_category_if_not_exists(app):
         db.session.add_all([user, account])
         db.session.commit()
 
-        reconcile_account_balance(user.id, account.id, Decimal("120.00"))
-        
+        reconcile_account_balance(user.token, account.id, Decimal("120.00"))
+
         category = db.session.query(Category).filter_by(name="Uzgadnianie salda").one()
         assert category is not None
         assert category.is_system_category is True

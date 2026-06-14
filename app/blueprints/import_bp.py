@@ -11,7 +11,7 @@ import_bp = Blueprint('import', __name__)
 @import_bp.route('/api/import/ing', methods=['POST'])
 @login_required
 def import_ing_csv():
-    user_id = current_user.id
+    user_token = current_user.token
 
     if 'file' not in request.files:
         return jsonify({'error': 'Brak pliku w żądaniu.'}), 400
@@ -29,12 +29,12 @@ def import_ing_csv():
     if not account_id:
         return jsonify({'error': 'Nie wybrano konta, którego dotyczy wyciąg.'}), 400
 
-    parsed_data = parse_ing_csv(file_content, user_id=user_id, main_account_id=int(account_id))
+    parsed_data = parse_ing_csv(file_content, user_token=user_token, main_account_id=int(account_id))
     if not parsed_data:
         return jsonify({'error': 'Plik nie zawiera poprawnych transakcji lub jest uszkodzony.'}), 400
-        
+
     try:
-        saved_records = save_transactions_to_staging(parsed_data, user_id=user_id)
+        saved_records = save_transactions_to_staging(parsed_data, user_token=user_token)
         return jsonify({'message': f'Udało się zaimportować {len(saved_records)} transakcji do weryfikacji.', 'count': len(saved_records)}), 201
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
@@ -42,19 +42,19 @@ def import_ing_csv():
 @import_bp.route('/api/staging/pending', methods=['GET'])
 @login_required
 def get_pending_staging_transactions():
-    user_id = current_user.id
+    user_token = current_user.token
 
-    pending_txs = db.session.query(TransactionStaging, Category, Contractor).outerjoin(Category, TransactionStaging.proposed_category_id == Category.id).outerjoin(Contractor, TransactionStaging.proposed_contractor_id == Contractor.id).filter(TransactionStaging.user_id == user_id, TransactionStaging.status == 'pending').order_by(TransactionStaging.date.desc()).all()
+    pending_txs = db.session.query(TransactionStaging, Category, Contractor).outerjoin(Category, TransactionStaging.proposed_category_id == Category.id).outerjoin(Contractor, TransactionStaging.proposed_contractor_id == Contractor.id).filter(TransactionStaging.user_token == user_token, TransactionStaging.status == 'pending').order_by(TransactionStaging.date.desc()).all()
     data = [{'id': tx.id, 'date': tx.date.strftime('%Y-%m-%d'), 'amount': float(tx.amount), 'title': tx.title, 'contractor': tx.contractor or '', 'status': tx.status, 'proposed_category': cat.name if cat else '', 'proposed_contractor_id': tx.proposed_contractor_id, 'proposed_contractor_name': cont.name if cont else '', 'suggested_contractor_name': tx.suggested_contractor_name or ''} for tx, cat, cont in pending_txs]
     return jsonify(data), 200
 
 @import_bp.route('/api/staging/pending', methods=['DELETE'])
 @login_required
 def clear_pending_staging_transactions():
-    user_id = current_user.id
+    user_token = current_user.token
 
     try:
-        deleted_count = db.session.query(TransactionStaging).filter_by(user_id=user_id, status='pending').delete()
+        deleted_count = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending').delete()
         db.session.commit()
         return jsonify({'message': f'Odrzucono {deleted_count} transakcji.'}), 200
     except Exception as e:
@@ -64,7 +64,7 @@ def clear_pending_staging_transactions():
 @import_bp.route('/api/staging/<int:stg_id>/accept-contractor', methods=['POST'])
 @login_required
 def accept_suggested_contractor(stg_id):
-    user_id = current_user.id
+    user_token = current_user.token
     data = request.get_json() or {}
     name = data.get('name', '').strip()
 
@@ -72,21 +72,19 @@ def accept_suggested_contractor(stg_id):
         return jsonify({'error': 'Nazwa kontrahenta nie może być pusta.'}), 400
 
     try:
-        stg_tx = db.session.query(TransactionStaging).filter_by(id=stg_id, user_id=user_id, status='pending').first()
+        stg_tx = db.session.query(TransactionStaging).filter_by(id=stg_id, user_token=user_token, status='pending').first()
         if not stg_tx:
             return jsonify({'error': 'Nie znaleziono transakcji.'}), 404
 
-        # Sprawdź czy kontrahent o tej nazwie już istnieje
-        existing = db.session.query(Contractor).filter_by(user_id=user_id, name=name, is_active=True).first()
+        existing = db.session.query(Contractor).filter_by(user_token=user_token, name=name, is_active=True).first()
         if existing:
             stg_tx.proposed_contractor_id = existing.id
             stg_tx.suggested_contractor_name = None
             db.session.commit()
             return jsonify({'contractor_id': existing.id, 'contractor_name': existing.name, 'mapping_rules': existing.mapping_rules or '', 'default_category_id': existing.default_category_id, 'default_category_name': ''}), 200
 
-        # Utwórz nowego kontrahenta; reguła mapowania = znormalizowana nazwa (małe litery)
         mapping_rules = name.lower()
-        new_cont = Contractor(name=name, mapping_rules=mapping_rules, user_id=user_id)
+        new_cont = Contractor(name=name, mapping_rules=mapping_rules, user_token=user_token)
         db.session.add(new_cont)
         db.session.flush()
 
@@ -103,11 +101,11 @@ def accept_suggested_contractor(stg_id):
 @import_bp.route('/api/staging/<int:stg_id>/approve', methods=['POST'])
 @login_required
 def approve_staging_transaction(stg_id):
-    user_id = current_user.id
+    user_token = current_user.token
 
     try:
         data = StagingApproveSchema().load(request.get_json() or {})
-        new_tx = approve_staging_record(user_id, stg_id, data)
+        new_tx = approve_staging_record(user_token, stg_id, data)
         return jsonify({'message': 'Transakcja zatwierdzona.', 'transaction_id': new_tx.id}), 200
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400

@@ -4,7 +4,6 @@ import pytest
 from app import db
 from app.models import User, Account
 
-# TDD: Faza RED - importujemy funkcję, która jeszcze nie istnieje
 from app.services.budget_service import parse_ing_csv
 
 @pytest.fixture
@@ -16,11 +15,11 @@ def parser_user(app):
         acc2 = Account(user=user, name="Smart Saver", bank_name="ING", account_number="PL24105010251000009180015928")
         db.session.add_all([user, acc1, acc2])
         db.session.commit()
-        return user.id, {'acc1_id': acc1.id, 'acc2_id': acc2.id}
+        return user.token, {'acc1_id': acc1.id, 'acc2_id': acc2.id}
 
 def test_parse_ing_csv_content(app, parser_user):
     """Testuje parsowanie całego pliku CSV z automatycznym wykrywaniem wielu kont na podstawie ich nazw."""
-    user_id, account_ids = parser_user
+    user_token, account_ids = parser_user
     csv_content = """
 "Wybrane rachunki:";
 "KONTO Z LWEM Direct (PLN)";;"10 1050 0099 7603 1234 5678 9123";
@@ -32,7 +31,7 @@ def test_parse_ing_csv_content(app, parser_user):
 "2023-10-29";"2023-10-29";"Przelew";"Oszczędności";"";"Bank";"";"";"-100,00";"PLN";"Smart Saver (PLN)"
 """
     with app.app_context():
-        parsed_list = parse_ing_csv(csv_content, user_id, account_ids['acc1_id'])
+        parsed_list = parse_ing_csv(csv_content, user_token, account_ids['acc1_id'])
 
     assert len(parsed_list) == 3
     assert parsed_list[0]['title'] == "Wypłata"

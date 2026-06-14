@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import datetime, timezone
 from flask_login import UserMixin
 import enum
-# ... inne importy
+import uuid
 
 class Frequency(enum.Enum):
     DAILY = 'daily'
@@ -19,7 +19,7 @@ class RecurringTransaction(db.Model):
     __tablename__ = 'recurring_transactions'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False, index=True)
+    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False, index=True)
     account_id: Mapped[int] = mapped_column(ForeignKey('accounts.id'), nullable=False)
     category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=True)
     contractor_id: Mapped[int] = mapped_column(ForeignKey('contractors.id'), nullable=True)
@@ -40,7 +40,7 @@ class RecurringTransaction(db.Model):
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    user: Mapped["User"] = relationship(back_populates="recurring_transactions")
+    user: Mapped["User"] = relationship(back_populates="recurring_transactions", foreign_keys=[user_token])
     account: Mapped["Account"] = relationship()
     category: Mapped["Category"] = relationship()
     contractor: Mapped["Contractor"] = relationship()
@@ -49,7 +49,7 @@ class PlannedTransaction(db.Model):
     __tablename__ = 'planned_transactions'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False, index=True)
+    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False, index=True)
     account_id: Mapped[int] = mapped_column(ForeignKey('accounts.id'), nullable=False)
     category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=True)
     contractor_id: Mapped[int] = mapped_column(ForeignKey('contractors.id'), nullable=True)
@@ -63,7 +63,7 @@ class PlannedTransaction(db.Model):
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    user: Mapped["User"] = relationship(back_populates="planned_transactions")
+    user: Mapped["User"] = relationship(back_populates="planned_transactions", foreign_keys=[user_token])
     account: Mapped["Account"] = relationship()
     category: Mapped["Category"] = relationship()
     contractor: Mapped["Contractor"] = relationship()
@@ -80,18 +80,19 @@ class TransactionArchive(db.Model):
     account_id: Mapped[int] = mapped_column(nullable=False)
     contractor_id: Mapped[Optional[int]] = mapped_column()
     category_id: Mapped[Optional[int]] = mapped_column()
-    user_id: Mapped[int] = mapped_column(nullable=False)
+    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
     
     # Znacznik czasu operacji usunięcia
     deleted_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), nullable=False)
 
 class User(db.Model, UserMixin):
     __tablename__ = 'users'
-    
+
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
+    token: Mapped[str] = mapped_column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
 
     # Relacja zwrotna do kont
     accounts: Mapped[list['Account']] = relationship(back_populates="user")
@@ -113,10 +114,10 @@ class Account(db.Model):
     # Miękkie usuwanie ze słownika
     is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
     is_default: Mapped[bool] = mapped_column(default=False, server_default='false', nullable=False)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
 
     # Relacja do użytkownika
-    user: Mapped['User'] = relationship(back_populates="accounts")
+    user: Mapped['User'] = relationship(back_populates="accounts", foreign_keys=[user_token])
 
 class Category(db.Model):
     __tablename__ = 'categories'
@@ -136,7 +137,7 @@ class Contractor(db.Model):
     mapping_rules: Mapped[Optional[str]] = mapped_column(String(500)) # np. "biedronka, jeronimo martins"
     
     default_category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
     # NOWE POLE: Miękkie usuwanie
     is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
 
@@ -165,13 +166,13 @@ class Transaction(db.Model):
     account_id: Mapped[int] = mapped_column(ForeignKey('accounts.id'), nullable=False)
     contractor_id: Mapped[Optional[int]] = mapped_column(ForeignKey('contractors.id')) # Powiązanie ze słownikiem
     category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
 
     # Właściwości relacyjne (wymagane m.in. dla eager loadingu w zapytaniach)
     account: Mapped['Account'] = relationship()
     contractor_details: Mapped[Optional['Contractor']] = relationship("Contractor", foreign_keys=[contractor_id])
     category: Mapped[Optional['Category']] = relationship()
-    user: Mapped['User'] = relationship()
+    user: Mapped['User'] = relationship(foreign_keys=[user_token])
 
     # Znacznik czasu ostatniej modyfikacji
     updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), server_default=db.func.now())
@@ -188,7 +189,7 @@ class Budget(db.Model):
     year: Mapped[int] = mapped_column(nullable=False)
     
     category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=False)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
 
 class TransactionStaging(db.Model):
     """Tabela tymczasowa (staging) na dane z importu plików CSV przed ich zatwierdzeniem."""
@@ -207,5 +208,5 @@ class TransactionStaging(db.Model):
     
     status: Mapped[str] = mapped_column(String(20), default='pending') # np. 'pending', 'approved', 'rejected'
     account_id: Mapped[Optional[int]] = mapped_column(ForeignKey('accounts.id'))
-    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey('users.id'))
+    user_token: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey('users.token'))
     suggested_contractor_name: Mapped[Optional[str]] = mapped_column(String(255))

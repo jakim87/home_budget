@@ -1,14 +1,14 @@
 from app import db
 from app.models import Account
 
-def create_account(user_id, data):
+def create_account(user_token, data):
     try:
         new_acc = Account(
             name=data['name'],
             bank_name=data.get('bank_name'),
             account_number=data.get('account_number'),
             balance=0.0,
-            user_id=user_id
+            user_token=user_token
         )
         db.session.add(new_acc)
         db.session.commit()
@@ -17,9 +17,9 @@ def create_account(user_id, data):
         db.session.rollback()
         raise ValueError(f"Błąd tworzenia konta: {str(e)}")
 
-def update_account(user_id, a_id, data):
+def update_account(user_token, a_id, data):
     try:
-        acc = db.session.query(Account).filter_by(id=a_id, user_id=user_id).first()
+        acc = db.session.query(Account).filter_by(id=a_id, user_token=user_token).first()
         if not acc:
             raise ValueError('Nie znaleziono konta.')
         acc.name = data.get('name', acc.name)
@@ -31,9 +31,9 @@ def update_account(user_id, a_id, data):
         db.session.rollback()
         raise ValueError(str(e))
 
-def soft_delete_account(user_id, a_id):
+def soft_delete_account(user_token, a_id):
     try:
-        acc = db.session.query(Account).filter_by(id=a_id, user_id=user_id).first()
+        acc = db.session.query(Account).filter_by(id=a_id, user_token=user_token).first()
         if acc:
             acc.is_active = False
             db.session.commit()

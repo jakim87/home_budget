@@ -3,22 +3,18 @@ from app.models import Transaction, TransactionArchive, Category, TransactionSpl
 from datetime import datetime
 from decimal import Decimal
 
-def archive_and_delete_transaction(user_id, tx_id):
+def archive_and_delete_transaction(user_token, tx_id):
     try:
-        tx = db.session.query(Transaction).filter_by(id=tx_id, user_id=user_id).first()
+        tx = db.session.query(Transaction).filter_by(id=tx_id, user_token=user_token).first()
         if not tx:
             raise ValueError('Transakcja nie istnieje lub brak uprawnień.')
 
-        # --- AKTUALIZACJA SALDA ---
-        # Znajdź konto i zaktualizuj jego saldo, odejmując kwotę usuwanej transakcji.
         account = db.session.get(Account, tx.account_id)
         if account:
-            # Upewniamy się, że operujemy na typie Decimal dla zachowania precyzji
             balance = Decimal(str(account.balance)) if not isinstance(account.balance, Decimal) else account.balance
             amount = Decimal(str(tx.amount)) if not isinstance(tx.amount, Decimal) else tx.amount
             account.balance = balance - amount
-        # -------------------------
-            
+
         archive_tx = TransactionArchive(
             original_id=tx.id,
             title=tx.title,
@@ -27,7 +23,7 @@ def archive_and_delete_transaction(user_id, tx_id):
             account_id=tx.account_id,
             category_id=tx.category_id,
             contractor_id=tx.contractor_id,
-            user_id=tx.user_id
+            user_token=tx.user_token
         )
         db.session.add(archive_tx)
         db.session.delete(tx)
@@ -36,9 +32,9 @@ def archive_and_delete_transaction(user_id, tx_id):
         db.session.rollback()
         raise ValueError(str(e))
 
-def update_transaction(user_id, tx_id, data):
+def update_transaction(user_token, tx_id, data):
     try:
-        tx = db.session.query(Transaction).filter_by(id=tx_id, user_id=user_id).first()
+        tx = db.session.query(Transaction).filter_by(id=tx_id, user_token=user_token).first()
         if not tx:
             raise ValueError('Transakcja nie istnieje.')
 

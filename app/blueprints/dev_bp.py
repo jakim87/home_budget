@@ -10,9 +10,9 @@ dev_bp = Blueprint('dev', __name__)
 @login_required
 def reset_user_data():
     """Czyści wszystkie dane użytkownika — tylko do testów."""
-    uid = current_user.id
+    utok = current_user.token
     try:
-        # 1. Wyzeruj FK do kategorii we WSZYSTKICH wierszach (kategorie są globalne, bez user_id)
+        # 1. Wyzeruj FK do kategorii we WSZYSTKICH wierszach (kategorie są globalne, bez user_token)
         db.session.execute(text("UPDATE transactions SET category_id = NULL"))
         db.session.execute(text("UPDATE transaction_splits SET category_id = NULL"))
         db.session.execute(text("UPDATE transaction_staging SET proposed_category_id = NULL"))
@@ -24,22 +24,22 @@ def reset_user_data():
         # 2. Usuń rekordy w odpowiedniej kolejności
         db.session.execute(text(
             "DELETE FROM transaction_splits "
-            "WHERE transaction_id IN (SELECT id FROM transactions WHERE user_id = :uid)"
-        ), {'uid': uid})
-        db.session.execute(text("DELETE FROM transaction_staging WHERE user_id = :uid"), {'uid': uid})
-        db.session.execute(text("DELETE FROM transaction_archive WHERE user_id = :uid"), {'uid': uid})
-        db.session.execute(text("DELETE FROM transactions WHERE user_id = :uid"), {'uid': uid})
-        db.session.execute(text("DELETE FROM recurring_transactions WHERE user_id = :uid"), {'uid': uid})
-        db.session.execute(text("DELETE FROM planned_transactions WHERE user_id = :uid"), {'uid': uid})
-        db.session.execute(text("DELETE FROM budgets WHERE user_id = :uid"), {'uid': uid})
-        db.session.execute(text("DELETE FROM contractors WHERE user_id = :uid"), {'uid': uid})
+            "WHERE transaction_id IN (SELECT id FROM transactions WHERE user_token = :utok)"
+        ), {'utok': utok})
+        db.session.execute(text("DELETE FROM transaction_staging WHERE user_token = :utok"), {'utok': utok})
+        db.session.execute(text("DELETE FROM transaction_archive WHERE user_token = :utok"), {'utok': utok})
+        db.session.execute(text("DELETE FROM transactions WHERE user_token = :utok"), {'utok': utok})
+        db.session.execute(text("DELETE FROM recurring_transactions WHERE user_token = :utok"), {'utok': utok})
+        db.session.execute(text("DELETE FROM planned_transactions WHERE user_token = :utok"), {'utok': utok})
+        db.session.execute(text("DELETE FROM budgets WHERE user_token = :utok"), {'utok': utok})
+        db.session.execute(text("DELETE FROM contractors WHERE user_token = :utok"), {'utok': utok})
         db.session.flush()
 
         # 3. Teraz bezpiecznie usuń kategorie (bez systemowych)
         db.session.execute(text("DELETE FROM categories WHERE is_system_category = false"))
 
         # 4. Wyzeruj salda kont
-        db.session.execute(text("UPDATE accounts SET balance = 0 WHERE user_id = :uid"), {'uid': uid})
+        db.session.execute(text("UPDATE accounts SET balance = 0 WHERE user_token = :utok"), {'utok': utok})
 
         db.session.commit()
         return jsonify({'message': 'Dane zostały wyczyszczone.'}), 200

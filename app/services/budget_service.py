@@ -40,11 +40,9 @@ def normalize_contractor_name(text: str) -> str:
     t = text.strip()
     t = _PAYMENT_ARTIFACTS.sub('', t).strip()
     if not t:
-        return ''  # cały tekst to artefakt płatności — nie ma nazwy
+        return ''
     t = _LEGAL_SUFFIXES.sub('', t).strip()
     t = _TRAILING_CODES.sub('', t).strip()
-    # Usuń nadmiarowe słowa na końcu (np. nazwy miast: "WARSZAWA", "KRAKÓW")
-    # jeśli po pierwszym słowie zostają 2+ dodatkowych słów w CAPS
     words = t.split()
     if len(words) > 2:
         t = ' '.join(words[:2])
@@ -73,7 +71,7 @@ def _fuzzy_match_contractor(normalized_name: str, contractors: list) -> Optional
     return best_match
 
 def create_transaction(
-    user_id: int,
+    user_token: str,
     account_id: int,
     amount: Decimal | float,
     title: str,
@@ -90,12 +88,12 @@ def create_transaction(
         if not isinstance(amount, Decimal):
             amount = Decimal(str(amount))
 
-        account = db.session.query(Account).filter_by(id=account_id, user_id=user_id).first()
+        account = db.session.query(Account).filter_by(id=account_id, user_token=user_token).first()
         if not account:
             raise ValueError(f"Konto o ID {account_id} nie istnieje lub brak uprawnień.")
 
         new_transaction = Transaction(
-            user_id=user_id,
+            user_token=user_token,
             account_id=account_id,
             amount=amount,
             title=title,
@@ -105,12 +103,10 @@ def create_transaction(
             contractor_id=contractor_id
         )
 
-        # Aktualizacja salda konta (obsługa Decimal dla precyzji finansowej)
         account.balance = Decimal(account.balance) + amount
-        
+
         db.session.add(new_transaction)
-        
-        # --- ZAPIS PODZIAŁÓW (SPLITS) ---
+
         if splits_data:
             for split in splits_data:
                 cat_name = split.get('category')
@@ -131,58 +127,52 @@ def create_transaction(
                     db.session.commit()
                     return new_transaction
 
-                # --- Logika przelewu wewnętrznego ---
-                # Dla przelewu, transakcja na koncie źródłowym jest zawsze wydatkiem (ujemna),
-                # a na docelowym przychodem (dodatnia). Wymuszamy to, używając abs().
                 outflow_amount = -abs(amount)
                 inflow_amount = abs(amount)
 
-                # Korekta salda i kwoty na transakcji źródłowej, jeśli pierwotna kwota miała zły znak.
                 if amount != outflow_amount:
                     correction = outflow_amount - amount
                     account.balance += correction
                     new_transaction.amount = outflow_amount
 
                 dest_account_name = contractor_obj.name.replace("Moje konto: ", "")
-                dest_account = db.session.query(Account).filter_by(user_id=user_id, name=dest_account_name, is_active=True).first()
-                
+                dest_account = db.session.query(Account).filter_by(user_token=user_token, name=dest_account_name, is_active=True).first()
+
                 if not (dest_account and dest_account.id != account_id):
                     db.session.commit()
                     return new_transaction
 
-                # Sprawdzamy, czy lustrzana transakcja już istnieje
-                existing_mirror = db.session.query(Transaction).filter_by(user_id=user_id, account_id=dest_account.id, amount=inflow_amount, date=transaction_date).first()
+                existing_mirror = db.session.query(Transaction).filter_by(user_token=user_token, account_id=dest_account.id, amount=inflow_amount, date=transaction_date).first()
                 if not existing_mirror:
                     source_cont_name = f"Moje konto: {account.name}"
-                    source_contractor = db.session.query(Contractor).filter_by(user_id=user_id, name=source_cont_name).first()
+                    source_contractor = db.session.query(Contractor).filter_by(user_token=user_token, name=source_cont_name).first()
                     if not source_contractor:
-                        source_contractor = Contractor(name=source_cont_name, user_id=user_id, default_category_id=category_id)
+                        source_contractor = Contractor(name=source_cont_name, user_token=user_token, default_category_id=category_id)
                         db.session.add(source_contractor)
                         db.session.flush()
-                        
-                    mirror_tx = Transaction(user_id=user_id, account_id=dest_account.id, amount=inflow_amount, title=title, date=transaction_date, category_id=category_id, contractor=source_contractor.name, contractor_id=source_contractor.id)
+
+                    mirror_tx = Transaction(user_token=user_token, account_id=dest_account.id, amount=inflow_amount, title=title, date=transaction_date, category_id=category_id, contractor=source_contractor.name, contractor_id=source_contractor.id)
                     dest_account.balance = Decimal(dest_account.balance) + inflow_amount
                     db.session.add(mirror_tx)
-                    
-                # Usuwamy pasujący wpis ze stagingu (aby uniknąć duplikatów)
-                matching_staging = db.session.query(TransactionStaging).filter_by(user_id=user_id, account_id=dest_account.id, amount=inflow_amount, date=transaction_date, status='pending').first()
+
+                matching_staging = db.session.query(TransactionStaging).filter_by(user_token=user_token, account_id=dest_account.id, amount=inflow_amount, date=transaction_date, status='pending').first()
                 if matching_staging:
                     db.session.delete(matching_staging)
 
         db.session.commit()
-        
+
         return new_transaction
     except Exception as e:
         db.session.rollback()
         raise ValueError(str(e))
 
-def reconcile_account_balance(user_id: int, account_id: int, new_balance: Decimal) -> Transaction:
+def reconcile_account_balance(user_token: str, account_id: int, new_balance: Decimal) -> Transaction:
     """
     Uzgadnia saldo konta. Tworzy transakcję korygującą, jeśli istnieje różnica
     między nowym saldem a bieżącym saldem w systemie.
     """
     try:
-        account = db.session.query(Account).filter_by(id=account_id, user_id=user_id).first()
+        account = db.session.query(Account).filter_by(id=account_id, user_token=user_token).first()
         if not account:
             raise ValueError(f"Konto o ID {account_id} nie istnieje lub brak uprawnień.")
 
@@ -190,25 +180,22 @@ def reconcile_account_balance(user_id: int, account_id: int, new_balance: Decima
         difference = new_balance - current_balance
 
         if difference == Decimal('0.00'):
-            # Jeśli salda są takie same, nie ma potrzeby tworzenia transakcji
             return None
 
-        # Znajdź lub utwórz systemową kategorię "Uzgadnianie salda"
         reconciliation_category = db.session.query(Category).filter_by(name="Uzgadnianie salda", is_system_category=True).first()
         if not reconciliation_category:
             reconciliation_category = Category(name="Uzgadnianie salda", type="system_reconciliation", is_system_category=True)
             db.session.add(reconciliation_category)
-            db.session.flush() # Aby uzyskać ID
+            db.session.flush()
 
-        # Utwórz transakcję korygującą
         reconciliation_tx = create_transaction(
-            user_id=user_id,
+            user_token=user_token,
             account_id=account_id,
             amount=difference,
             title="Uzgadnianie salda",
             transaction_date=date.today(),
             category_id=reconciliation_category.id,
-            contractor="-" # Kontrahent pusty lub placeholder
+            contractor="-"
         )
         db.session.commit()
         return reconciliation_tx
@@ -228,7 +215,7 @@ def parse_ing_csv_row(row_data: str, header_map: dict, key_map: dict) -> Optiona
     try:
         parts = next(reader)
     except StopIteration:
-        return None  # Pusta linia
+        return None
 
     try:
         date_str = parts[header_map[key_map['date']]].strip()
@@ -238,7 +225,7 @@ def parse_ing_csv_row(row_data: str, header_map: dict, key_map: dict) -> Optiona
         amount_str = parts[header_map[key_map['amount']]].strip().replace(' ', '').replace('\xa0', '').replace(',', '.')
     except (KeyError, IndexError) as e:
         raise ValueError(f"Błąd struktury pliku CSV. Brak oczekiwanej kolumny: {e} lub nieprawidłowy wiersz.")
-    
+
     if not amount_str:
         return None
 
@@ -263,13 +250,12 @@ def parse_ing_csv_row(row_data: str, header_map: dict, key_map: dict) -> Optiona
         'counterparty_account': counterparty_account
     }
 
-def parse_ing_csv(file_content: str, user_id: int, main_account_id: int) -> list[dict]:
+def parse_ing_csv(file_content: str, user_token: str, main_account_id: int) -> list[dict]:
     """
     Parsuje plik CSV z ING, używając podanego konta głównego jako kontekstu.
     """
     lines = file_content.strip().splitlines()
 
-    # 1. Znajdź nagłówek tabeli transakcji i zmapuj kolumny
     header_map = {}
     tx_lines = []
     in_tx_section = False
@@ -288,7 +274,6 @@ def parse_ing_csv(file_content: str, user_id: int, main_account_id: int) -> list
     if not header_map:
         raise ValueError("Nie znaleziono nagłówka transakcji ('Data transakcji') w pliku CSV.")
 
-    # 2. Znajdź faktyczne klucze nagłówków użyte w tym pliku
     key_map = {
         'date': 'Data transakcji',
         'contractor': 'Dane kontrahenta',
@@ -299,15 +284,12 @@ def parse_ing_csv(file_content: str, user_id: int, main_account_id: int) -> list
     if not key_map['amount']:
         raise ValueError("Nie znaleziono kolumny z kwotą transakcji ('Kwota transakcji' lub 'Kwota transakcji (waluta rachunku)').")
 
-    # 3. Parsuj wiersze transakcji
     transactions = []
     for line in tx_lines:
         try:
             parsed_row = parse_ing_csv_row(line, header_map, key_map)
             if parsed_row is None:
                 continue
-
-            # Każda transakcja w pliku dotyczy konta wybranego w formularzu
             parsed_row['account_id'] = main_account_id
             transactions.append(parsed_row)
         except (ValueError, StopIteration, IndexError) as e:
@@ -315,13 +297,13 @@ def parse_ing_csv(file_content: str, user_id: int, main_account_id: int) -> list
                 print(f"[Parser] Odrzucono potencjalną transakcję: {line}")
                 print(f"[Parser] Powód: {e}")
             continue
-            
+
     return transactions
 
 def analyze_transaction_data(
     title: str,
     raw_contractor: Optional[str],
-    user_id: int,
+    user_token: str,
     counterparty_account: Optional[str] = None
 ) -> tuple[Optional[int], Optional[int], Optional[str]]:
     """
@@ -333,7 +315,7 @@ def analyze_transaction_data(
     if counterparty_account:
         norm_csv_acc = _normalize_acc_num(counterparty_account)
         if norm_csv_acc:
-            accounts = db.session.query(Account).filter_by(user_id=user_id, is_active=True).all()
+            accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
             for acc in accounts:
                 if acc.account_number and _normalize_acc_num(acc.account_number) == norm_csv_acc:
                     transfer_cat = db.session.query(Category).filter_by(name="Przelew wewnętrzny").first()
@@ -342,15 +324,15 @@ def analyze_transaction_data(
                         db.session.add(transfer_cat)
                         db.session.commit()
                     cont_name = f"Moje konto: {acc.name}"
-                    transfer_cont = db.session.query(Contractor).filter_by(user_id=user_id, name=cont_name).first()
+                    transfer_cont = db.session.query(Contractor).filter_by(user_token=user_token, name=cont_name).first()
                     if not transfer_cont:
-                        transfer_cont = Contractor(name=cont_name, user_id=user_id, default_category_id=transfer_cat.id)
+                        transfer_cont = Contractor(name=cont_name, user_token=user_token, default_category_id=transfer_cat.id)
                         db.session.add(transfer_cont)
                         db.session.commit()
                     return transfer_cat.id, transfer_cont.id, None
 
     # 2. Dopasowanie po nazwie i regułach mapowania
-    contractors = db.session.query(Contractor).filter_by(user_id=user_id, is_active=True).all()
+    contractors = db.session.query(Contractor).filter_by(user_token=user_token, is_active=True).all()
     search_text = f"{title} {raw_contractor or ''}".lower()
 
     for contractor in contractors:
@@ -374,19 +356,19 @@ def analyze_transaction_data(
     return None, None, suggested or None
 
 def save_transactions_to_staging(
-    parsed_transactions: list[dict], 
-    user_id: Optional[int] = None
+    parsed_transactions: list[dict],
+    user_token: Optional[str] = None
 ) -> list[TransactionStaging]:
     """Zapisuje sparsowaną listę transakcji do tabeli tymczasowej (stagingowej)."""
     try:
         staging_records = []
         for tx_data in parsed_transactions:
             prop_cat_id, prop_contractor_id, suggested_name = None, None, None
-            if user_id:
+            if user_token:
                 prop_cat_id, prop_contractor_id, suggested_name = analyze_transaction_data(
                     title=tx_data['title'],
                     raw_contractor=tx_data.get('contractor'),
-                    user_id=user_id,
+                    user_token=user_token,
                     counterparty_account=tx_data.get('counterparty_account')
                 )
 
@@ -395,7 +377,7 @@ def save_transactions_to_staging(
                 amount=tx_data['amount'],
                 title=tx_data['title'],
                 contractor=tx_data.get('contractor'),
-                user_id=user_id,
+                user_token=user_token,
                 account_id=tx_data.get('account_id'),
                 proposed_category_id=prop_cat_id,
                 proposed_contractor_id=prop_contractor_id,
@@ -403,39 +385,38 @@ def save_transactions_to_staging(
             )
             db.session.add(staging_tx)
             staging_records.append(staging_tx)
-            
+
         db.session.commit()
         return staging_records
     except Exception as e:
         db.session.rollback()
         raise ValueError(str(e))
 
-def approve_staging_record(user_id, stg_id, data):
+def approve_staging_record(user_token, stg_id, data):
     try:
-        stg_tx = db.session.query(TransactionStaging).filter_by(id=stg_id, user_id=user_id, status='pending').first()
+        stg_tx = db.session.query(TransactionStaging).filter_by(id=stg_id, user_token=user_token, status='pending').first()
         if not stg_tx:
             raise ValueError('Nie znaleziono oczekującej transakcji.')
-            
+
         if not stg_tx.account_id:
             raise ValueError('Ta transakcja nie ma przypisanego konta (pochodzi z wcześniejszego importu). Proszę usunąć ją i wgrać wyciąg ponownie.')
-            
+
         category_name = data.get('category')
         contractor_id = data.get('contractor_id')
-        
+
         if not category_name or not contractor_id:
-            # Ta walidacja jest też w Marshmallow, ale dla pewności.
             raise ValueError('Wybór kategorii i kontrahenta jest wymagany do zatwierdzenia.')
 
         category = db.session.query(Category).filter_by(name=category_name, is_active=True).first()
         if not category:
             raise ValueError(f"Kategoria '{category_name}' nie istnieje lub jest nieaktywna.")
 
-        contractor = db.session.query(Contractor).filter_by(id=contractor_id, user_id=user_id, is_active=True).first()
+        contractor = db.session.query(Contractor).filter_by(id=contractor_id, user_token=user_token, is_active=True).first()
         if not contractor:
             raise ValueError(f"Kontrahent o ID {contractor_id} nie istnieje lub jest nieaktywny.")
-            
+
         new_tx = create_transaction(
-            user_id=stg_tx.user_id,
+            user_token=stg_tx.user_token,
             account_id=stg_tx.account_id,
             amount=stg_tx.amount,
             title=stg_tx.title,

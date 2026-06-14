@@ -10,7 +10,7 @@ def test_create_account_success(app):
     db.session.commit()
 
     # Action
-    account = Account(name="Konto Osobiste", bank_name="mBank", balance=500.0, user_id=user.id)
+    account = Account(name="Konto Osobiste", bank_name="mBank", balance=500.0, user_token=user.token)
     db.session.add(account)
     db.session.commit()
 
@@ -27,10 +27,8 @@ def test_create_account_missing_bank_name_raises_error(app):
     db.session.commit()
 
     # Action & Assert
-    # bank_name jest wymagane (Mapped[str] bez Optional), 
-    # więc próba commitu bez tej wartości rzuci IntegrityError
-    account = Account(name="Błędne Konto", user_id=user.id)
+    account = Account(name="Błędne Konto", user_token=user.token)
     db.session.add(account)
-    
+
     with pytest.raises(IntegrityError):
         db.session.commit()

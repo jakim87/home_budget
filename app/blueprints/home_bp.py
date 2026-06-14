@@ -13,27 +13,23 @@ def index():
 @home_bp.route('/api/init', methods=['GET'])
 @login_required
 def init_data():
-    user_id = current_user.id
+    user_token = current_user.token
 
-    # Pobieranie kategorii z bazy
     categories = db.session.query(Category).filter_by(is_active=True).order_by(Category.name).all()
     categories_data = [{'id': c.id, 'name': c.name, 'type': c.type, 'is_system_category': c.is_system_category} for c in categories]
-    
-    # Pobieranie kontrahentów
-    contractors = db.session.query(Contractor).filter_by(user_id=user_id, is_active=True).order_by(Contractor.name).all()
+
+    contractors = db.session.query(Contractor).filter_by(user_token=user_token, is_active=True).order_by(Contractor.name).all()
     contractors_data = [{'id': c.id, 'name': c.name, 'rules': c.mapping_rules, 'default_category_id': c.default_category_id, 'default_category_name': db.session.get(Category, c.default_category_id).name if c.default_category_id else ''} for c in contractors]
 
-    # Pobieranie kont (Słownik kont)
-    accounts = db.session.query(Account).filter_by(user_id=user_id, is_active=True).order_by(Account.name).all()
+    accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).order_by(Account.name).all()
     accounts_data = [{'id': a.id, 'name': a.name, 'bank_name': a.bank_name, 'account_number': a.account_number, 'balance': float(a.balance), 'is_default': getattr(a, 'is_default', False)} for a in accounts]
 
-    # Zoptymalizowane pobieranie transakcji z unikaniem problemu N+1
     transactions = db.session.query(Transaction).options(
         joinedload(Transaction.category),
         joinedload(Transaction.contractor_details),
         selectinload(Transaction.splits).joinedload(TransactionSplit.category)
-    ).filter(Transaction.user_id == user_id).order_by(Transaction.date.desc(), Transaction.id.desc()).all()
-        
+    ).filter(Transaction.user_token == user_token).order_by(Transaction.date.desc(), Transaction.id.desc()).all()
+
     transactions_data = []
     for tx in transactions:
         splits_data = []
@@ -45,7 +41,7 @@ def init_data():
                     'desc': split.desc or '',
                     'category': split.category.name if split.category else 'Inne'
                 })
-            
+
         transactions_data.append({
             'id': tx.id,
             'desc': tx.title,
@@ -57,7 +53,7 @@ def init_data():
             'account_id': tx.account_id,
             'splits': splits_data
         })
-    
+
     return jsonify({
         'transactions': transactions_data,
         'categories': categories_data,

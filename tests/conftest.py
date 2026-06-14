@@ -2,7 +2,6 @@ import pytest
 import os
 import sys
 
-# Upewniamy się, że główny katalog jest w ścieżce (podobnie jak w test_db.py)
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
@@ -14,17 +13,16 @@ from werkzeug.security import generate_password_hash
 
 class TestConfig(Config):
     TESTING = True
-    # Używamy bazy danych SQLite w pamięci RAM, aby testy były błyskawiczne i izolowane
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
 
 @pytest.fixture
 def app():
     app = create_app(TestConfig)
     with app.app_context():
-        db.create_all()  # Tworzy struktury tabel przed testem
+        db.create_all()
         yield app
         db.session.remove()
-        db.drop_all()    # Ciszczy bazę po teście
+        db.drop_all()
 
 @pytest.fixture
 def client(app):
@@ -32,9 +30,18 @@ def client(app):
 
 @pytest.fixture
 def test_user_id(app):
-    """Fixture przygotowujący użytkownika testowego i zwracający jego ID."""
+    """Fixture zwracający ID użytkownika testowego (potrzebne do Flask-Login)."""
     with app.app_context():
         user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
         db.session.add(user)
         db.session.commit()
         return user.id
+
+@pytest.fixture
+def test_user_token(app):
+    """Fixture zwracający token użytkownika testowego (do filtrowania danych finansowych)."""
+    with app.app_context():
+        user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
+        db.session.add(user)
+        db.session.commit()
+        return user.token

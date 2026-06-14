@@ -77,28 +77,28 @@ def create_app(config_class=Config):
             print("Created default_user with password 'password'.")
 
             # --- Generowanie danych deweloperskich ---
-            account = Account(name="Portfel", bank_name="Gotówka", balance=1500.0, user_id=user.id, is_default=True)
+            account = Account(name="Portfel", bank_name="Gotówka", balance=1500.0, user_token=user.token, is_default=True)
             db.session.add(account)
-            
+
             cat_income = Category(name="Wynagrodzenie", type="income")
             cat_expense = Category(name="Spożywcze", type="expense")
             reconciliation_cat = Category(name="Uzgadnianie salda", type="system_reconciliation", is_system_category=True)
             db.session.add_all([cat_income, cat_expense, reconciliation_cat])
             db.session.commit()
 
-            cont_employer = Contractor(name="Pracodawca", user_id=user.id, default_category_id=cat_income.id)
-            cont_biedronka = Contractor(name="Biedronka", mapping_rules="biedronka, jeronimo", user_id=user.id, default_category_id=cat_expense.id)
+            cont_employer = Contractor(name="Pracodawca", user_token=user.token, default_category_id=cat_income.id)
+            cont_biedronka = Contractor(name="Biedronka", mapping_rules="biedronka, jeronimo", user_token=user.token, default_category_id=cat_expense.id)
             db.session.add_all([cont_employer, cont_biedronka])
             db.session.commit()
 
             tx1 = Transaction(
                 date=date.today(), title="Wypłata", amount=2000.0,
-                account_id=account.id, category_id=cat_income.id, user_id=user.id,
+                account_id=account.id, category_id=cat_income.id, user_token=user.token,
                 contractor_id=cont_employer.id
             )
             tx2 = Transaction(
                 date=date.today(), title="Zakupy Biedronka", amount=-150.50,
-                account_id=account.id, category_id=cat_expense.id, user_id=user.id,
+                account_id=account.id, category_id=cat_expense.id, user_token=user.token,
                 contractor_id=cont_biedronka.id
             )
             db.session.add_all([tx1, tx2])

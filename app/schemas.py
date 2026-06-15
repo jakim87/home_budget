@@ -42,6 +42,7 @@ class TransactionSchema(ma.Schema):
     contractor_id = fields.Integer(load_default=None, allow_none=True)
     account_id = fields.Integer(required=True)
     splits = fields.List(fields.Nested(SplitSchema), load_default=[])
+    comment = fields.String(load_default=None, allow_none=True, validate=validate.Length(max=255))
 
 class StagingApproveSchema(ma.Schema):
     category = fields.String(required=True)

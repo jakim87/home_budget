@@ -28,12 +28,14 @@ def add_transaction():
         category = db.session.query(Category).filter_by(name=category_name).first()
         contractor_id = data.get('contractor_id')
         splits_data = data.get('splits', [])
+        comment = data.get('comment') or None
 
         new_tx = create_transaction(
             current_user.token, account_id, amount, title, tx_date,
             category.id if category else None,
             contractor_id=contractor_id,
-            splits_data=splits_data
+            splits_data=splits_data,
+            comment=comment
         )
 
         return_splits = []

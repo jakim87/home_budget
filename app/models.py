@@ -124,7 +124,7 @@ class Category(db.Model):
     
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    type: Mapped[str] = mapped_column(String(20)) # np. "expense" (wydatek) lub "income" (przychód)
+    type: Mapped[str] = mapped_column(String(50)) # np. "expense", "income", "transfer", "system_reconciliation"
     # NOWE POLE: Miękkie usuwanie
     is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
     is_system_category: Mapped[bool] = mapped_column(default=False, server_default='false', nullable=False)
@@ -167,6 +167,7 @@ class Transaction(db.Model):
     contractor_id: Mapped[Optional[int]] = mapped_column(ForeignKey('contractors.id')) # Powiązanie ze słownikiem
     category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
     user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
+    comment: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Właściwości relacyjne (wymagane m.in. dla eager loadingu w zapytaniach)
     account: Mapped['Account'] = relationship()

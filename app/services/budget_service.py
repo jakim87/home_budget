@@ -79,7 +79,8 @@ def create_transaction(
     category_id: Optional[int] = None,
     contractor: Optional[str] = None,
     contractor_id: Optional[int] = None,
-    splits_data: Optional[list] = None
+    splits_data: Optional[list] = None,
+    comment: Optional[str] = None
 ) -> Transaction:
     """
     Tworzy nową transakcję i automatycznie aktualizuje saldo powiązanego konta.
@@ -100,7 +101,8 @@ def create_transaction(
             date=transaction_date,
             category_id=category_id,
             contractor=contractor,
-            contractor_id=contractor_id
+            contractor_id=contractor_id,
+            comment=comment or None
         )
 
         account.balance = Decimal(account.balance) + amount
@@ -166,7 +168,7 @@ def create_transaction(
         db.session.rollback()
         raise ValueError(str(e))
 
-def reconcile_account_balance(user_token: str, account_id: int, new_balance: Decimal) -> Transaction:
+def reconcile_account_balance(user_token: str, account_id: int, new_balance: Decimal, comment: Optional[str] = None) -> Transaction:
     """
     Uzgadnia saldo konta. Tworzy transakcję korygującą, jeśli istnieje różnica
     między nowym saldem a bieżącym saldem w systemie.
@@ -195,7 +197,8 @@ def reconcile_account_balance(user_token: str, account_id: int, new_balance: Dec
             title="Uzgadnianie salda",
             transaction_date=date.today(),
             category_id=reconciliation_category.id,
-            contractor="-"
+            contractor="-",
+            comment=comment or None
         )
         db.session.commit()
         return reconciliation_tx

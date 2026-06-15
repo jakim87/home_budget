@@ -8,7 +8,15 @@
             </button>
         </div>
         <form id="reconcile-form" class="space-y-4">
-            <div>
+            <!-- Tryb: wybór konta (otwierany z zakładki Transakcje) -->
+            <div id="reconcile-account-selector" class="hidden">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Konto:</label>
+                <select id="reconcile-account-select" onchange="onReconcileAccountChange(this.value)" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white cursor-pointer">
+                    <option value="">Wybierz konto...</option>
+                </select>
+            </div>
+            <!-- Tryb: konto z góry wybrane (otwierany z karty konta) -->
+            <div id="reconcile-account-display">
                 <label class="block text-sm font-medium text-slate-700">Konto:</label>
                 <p id="reconcile-account-name" class="mt-1 text-lg font-bold text-slate-900"></p>
             </div>
@@ -20,6 +28,10 @@
                 <label for="reconcile-new-balance" class="block text-sm font-medium text-slate-700">Nowe saldo (rzeczywiste):</label>
                 <input type="number" id="reconcile-new-balance" step="0.01" class="mt-1 block w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
             </div>
+            <div>
+                <label for="reconcile-comment" class="block text-sm font-medium text-slate-700">Komentarz <span class="text-slate-400 font-normal">(opcjonalnie)</span></label>
+                <input type="text" id="reconcile-comment" maxlength="255" placeholder="np. weryfikacja na koniec miesiąca" class="mt-1 block w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
             <div class="bg-blue-50 border-l-4 border-blue-400 text-blue-700 p-3" role="alert">
                 <p class="font-bold">Ważne!</p>
                 <p class="text-sm">Jeśli wprowadzone saldo będzie się różnić od bieżącego, zostanie utworzona transakcja korygująca o nazwie "Uzgadnianie salda".</p>
@@ -29,7 +41,7 @@
                     Anuluj
                 </button>
                 <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                    Uzgadniaj Saldo
+                    Uzgodnij Saldo
                 </button>
             </div>
         </form>

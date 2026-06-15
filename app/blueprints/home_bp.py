@@ -51,7 +51,8 @@ def init_data():
             'contractor_id': tx.contractor_id,
             'contractor_name': tx.contractor_details.name if tx.contractor_details else tx.contractor,
             'account_id': tx.account_id,
-            'splits': splits_data
+            'splits': splits_data,
+            'comment': tx.comment or ''
         })
 
     return jsonify({

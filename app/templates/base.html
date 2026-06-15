@@ -689,43 +689,7 @@
         </div>
     </div>
 
-    <!-- Reconcile Modal -->
-    <div id="reconcile-modal" class="hidden fixed inset-0 bg-slate-600 bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-semibold text-slate-800">Uzgadnianie Salda Konta</h3>
-                <button onclick="closeReconcileModal()" class="text-slate-400 hover:text-slate-600">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
-            <form id="reconcile-form" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-700">Konto:</label>
-                    <p id="reconcile-account-name" class="mt-1 text-lg font-bold text-slate-900"></p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700">Bieżące saldo w systemie:</label>
-                    <p id="reconcile-current-balance" class="mt-1 text-lg font-bold text-slate-900"></p>
-                </div>
-                <div>
-                    <label for="reconcile-new-balance" class="block text-sm font-medium text-slate-700">Nowe saldo (rzeczywiste):</label>
-                    <input type="number" id="reconcile-new-balance" step="0.01" class="mt-1 block w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
-                </div>
-                <div class="bg-blue-50 border-l-4 border-blue-400 text-blue-700 p-3" role="alert">
-                    <p class="font-bold">Ważne!</p>
-                    <p class="text-sm">Jeśli wprowadzone saldo będzie się różnić od bieżącego, zostanie utworzona transakcja korygująca o nazwie "Uzgadnianie salda".</p>
-                </div>
-                <div class="flex justify-end space-x-3 mt-6">
-                    <button type="button" onclick="closeReconcileModal()" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500">
-                        Anuluj
-                    </button>
-                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                        Uzgadniaj Saldo
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
+    {% include 'reconcile_modal.html' %}
 
     <!-- Login Modal -->
     <div id="login-modal" class="hidden fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[100] backdrop-blur-sm">

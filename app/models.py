@@ -167,6 +167,7 @@ class Transaction(db.Model):
     contractor_id: Mapped[Optional[int]] = mapped_column(ForeignKey('contractors.id')) # Powiązanie ze słownikiem
     category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
     user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
+    comment: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Właściwości relacyjne (wymagane m.in. dla eager loadingu w zapytaniach)
     account: Mapped['Account'] = relationship()

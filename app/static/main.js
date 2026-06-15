@@ -1193,12 +1193,43 @@ const reconcileForm = document.getElementById('reconcile-form');
 let currentReconcileAccountId = null;
 
 window.openReconcileModal = function(accountId, accountName, currentBalance) {
-    currentReconcileAccountId = accountId;
-    reconcileAccountName.innerText = accountName;
-    reconcileCurrentBalance.innerText = `${currentBalance.toFixed(2)} PLN`;
-    reconcileNewBalanceInput.value = currentBalance.toFixed(2); // Domyślnie proponujemy bieżące saldo
+    document.getElementById('reconcile-comment').value = '';
+    if (accountId) {
+        // Tryb: otwierany z karty konta — konto znane z góry
+        currentReconcileAccountId = accountId;
+        document.getElementById('reconcile-account-selector').classList.add('hidden');
+        document.getElementById('reconcile-account-display').classList.remove('hidden');
+        reconcileAccountName.innerText = accountName;
+        reconcileCurrentBalance.innerText = `${currentBalance.toFixed(2)} PLN`;
+        reconcileNewBalanceInput.value = currentBalance.toFixed(2);
+    } else {
+        // Tryb: otwierany z zakładki Transakcje — użytkownik wybiera konto
+        currentReconcileAccountId = null;
+        document.getElementById('reconcile-account-selector').classList.remove('hidden');
+        document.getElementById('reconcile-account-display').classList.add('hidden');
+        const sel = document.getElementById('reconcile-account-select');
+        sel.innerHTML = '<option value="">Wybierz konto...</option>' +
+            accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${a.balance.toFixed(2)} PLN)</option>`).join('');
+        reconcileCurrentBalance.innerText = '—';
+        reconcileNewBalanceInput.value = '';
+    }
     reconcileModal.classList.remove('hidden');
     reconcileModal.classList.add('flex');
+};
+
+window.onReconcileAccountChange = function(val) {
+    if (!val) {
+        currentReconcileAccountId = null;
+        reconcileCurrentBalance.innerText = '—';
+        reconcileNewBalanceInput.value = '';
+        return;
+    }
+    const acc = accounts.find(a => a.id == parseInt(val));
+    if (acc) {
+        currentReconcileAccountId = acc.id;
+        reconcileCurrentBalance.innerText = `${acc.balance.toFixed(2)} PLN`;
+        reconcileNewBalanceInput.value = acc.balance.toFixed(2);
+    }
 };
 
 window.closeReconcileModal = function() {
@@ -1222,11 +1253,13 @@ reconcileForm.addEventListener('submit', async function(e) {
         return;
     }
 
+    const commentVal = document.getElementById('reconcile-comment')?.value.trim() || '';
+
     try {
         const response = await fetch(`/api/accounts/${currentReconcileAccountId}/reconcile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ new_balance: newBalance })
+            body: JSON.stringify({ new_balance: newBalance, comment: commentVal || null })
         });
 
         if (response.ok) {
@@ -1540,6 +1573,7 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
     const categoryInput = document.getElementById('tx-category').value;
     const contractorInput = document.getElementById('tx-contractor').value;
     const accountInput = document.getElementById('tx-account').value;
+    const commentInput = document.getElementById('tx-comment').value.trim();
 
     if (!dateInput || !descInput || isNaN(rawAmount) || rawAmount <= 0) {
         showToast('Wypełnij poprawnie wszystkie pola.', 'error');
@@ -1558,7 +1592,8 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
         amount: finalAmount,
         category: categoryInput,
         contractor_id: contractorInput ? parseInt(contractorInput) : null,
-        account_id: parseInt(accountInput)
+        account_id: parseInt(accountInput),
+        comment: commentInput || null
     };
 
     try {
@@ -1573,6 +1608,7 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
             document.getElementById('tx-amount').value = '';
             document.getElementById('tx-contractor').value = '';
             document.getElementById('tx-contractor-input').value = '';
+            document.getElementById('tx-comment').value = '';
             
             const defaultAcc = accounts.find(a => a.is_default);
             if (defaultAcc) document.getElementById('tx-account').value = defaultAcc.id;
@@ -1587,6 +1623,18 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
         showToast('Błąd połączenia z serwerem.', 'error');
     }
 });
+
+function escapeHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+window.toggleComment = function(uid) {
+    const s = document.getElementById(uid + '-s');
+    const f = document.getElementById(uid + '-f');
+    if (!s || !f) return;
+    s.classList.toggle('hidden');
+    f.classList.toggle('hidden');
+};
 
 function startInlineEdit(id) {
     inlineEditingTxId = id;
@@ -1614,12 +1662,15 @@ async function saveInlineEdit(id) {
     const tx = transactions.find(t => t.id === id);
     if (!tx) return;
 
+    const commentVal = document.getElementById(`edit-comment-${id}`)?.value.trim() || '';
+
     const updatedTx = {
         date: dateVal,
         desc: descVal,
         amount: isIncome ? Math.abs(rawAmount) : -Math.abs(rawAmount),
         category: categoryVal,
-        contractor_id: contractorVal ? parseInt(contractorVal) : null
+        contractor_id: contractorVal ? parseInt(contractorVal) : null,
+        comment: commentVal || null
     };
 
     try {
@@ -1710,6 +1761,9 @@ function renderTransactions() {
                             <input type="number" id="edit-amount-${t.id}" value="${Math.abs(t.amount).toFixed(2)}" step="0.01" min="0.01" ${isSplit ? 'readonly title="Kwota wynika z podziału"' : ''} class="w-1/2 p-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white ${isSplit ? 'bg-slate-100 text-slate-500' : ''}">
                         </div>
                     </td>
+                    <td class="p-2 border-b border-blue-100">
+                        <input type="text" id="edit-comment-${t.id}" value="${escapeHtml(t.comment || '')}" maxlength="255" placeholder="Komentarz..." class="w-full p-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-white">
+                    </td>
                     <td class="p-2 border-b border-blue-100 text-center">
                         <div class="flex justify-center items-center gap-1">
                             <button onclick="saveInlineEdit(${t.id})" title="Zapisz" class="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-md transition-colors bg-white border border-emerald-200">
@@ -1740,6 +1794,15 @@ function renderTransactions() {
                     ? `<svg class="w-4 h-4 text-indigo-500 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="Transakcja zaplanowana (cykliczna)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>`
                     : ``;
                 
+                const commentHtml = (() => {
+                    const c = t.comment || '';
+                    if (!c) return `<span class="text-slate-300 text-xs">—</span>`;
+                    const maxLen = 40;
+                    if (c.length <= maxLen) return `<span class="text-slate-600 text-xs">${escapeHtml(c)}</span>`;
+                    const uid = `cmt-${t.id}`;
+                    return `<span id="${uid}-s" class="text-slate-600 text-xs cursor-pointer hover:text-blue-600" onclick="toggleComment('${uid}')">${escapeHtml(c.substring(0, maxLen))}&hellip; <span class="text-blue-500 font-medium">[rozwiń]</span></span><span id="${uid}-f" class="hidden text-slate-600 text-xs">${escapeHtml(c)} <span class="text-blue-500 font-medium cursor-pointer" onclick="toggleComment('${uid}')">[zwiń]</span></span>`;
+                })();
+
                 row.className = `transition-colors group hover:bg-slate-50 ${isVirtual ? 'bg-indigo-50/30' : ''}`;
                 row.innerHTML = `
                     <td class="p-4 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
@@ -1748,12 +1811,13 @@ function renderTransactions() {
                         ${t.contractor_name || t.contractor || '-'}
                     </td>
                     <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
-                        ${isSplit ? 
-                            '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 font-medium text-xs border border-indigo-100" title="Transakcja rozbita na pozycje"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Sprawdź szczegóły</span>' 
-                            : 
+                        ${isSplit ?
+                            '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 font-medium text-xs border border-indigo-100" title="Transakcja rozbita na pozycje"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Sprawdź szczegóły</span>'
+                            :
                             t.category
                         }
                     </td>
+                    <td class="p-4 border-b border-slate-100 text-sm">${commentHtml}</td>
                     <td class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
                     <td class="p-4 border-b border-slate-100 text-center">
                         ${isVirtual ? `

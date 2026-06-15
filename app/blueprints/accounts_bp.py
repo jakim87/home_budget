@@ -74,7 +74,8 @@ def reconcile_account(account_id):
         return jsonify({'error': 'Nieprawidłowy format salda.'}), 400
 
     try:
-        reconciliation_tx = reconcile_account_balance(current_user.token, account_id, new_balance)
+        comment = data.get('comment') or None
+        reconciliation_tx = reconcile_account_balance(current_user.token, account_id, new_balance, comment=comment)
         if reconciliation_tx:
             return jsonify({'message': 'Saldo uzgodnione pomyślnie.', 'transaction_id': reconciliation_tx.id}), 200
         return jsonify({'message': 'Saldo jest już zgodne, nie utworzono transakcji.'}), 200

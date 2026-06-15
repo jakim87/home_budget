@@ -50,6 +50,8 @@ def update_transaction(user_token, tx_id, data):
         if 'contractor_id' in data:
             cid = data.get('contractor_id')
             tx.contractor_id = int(cid) if cid else None
+        if 'comment' in data:
+            tx.comment = data.get('comment') or None
 
         if 'splits' in data:
             tx.splits.clear()

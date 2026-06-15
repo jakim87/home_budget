@@ -4,7 +4,7 @@ from marshmallow import ValidationError
 from app import db
 from app.models import TransactionStaging, Category, Contractor, User
 from app.schemas import StagingApproveSchema
-from app.services.budget_service import parse_ing_csv, save_transactions_to_staging, approve_staging_record
+from app.services.budget_service import parse_ing_csv, save_transactions_to_staging, approve_staging_record, analyze_transaction_data
 
 import_bp = Blueprint('import', __name__)
 
@@ -47,6 +47,24 @@ def get_pending_staging_transactions():
     pending_txs = db.session.query(TransactionStaging, Category, Contractor).outerjoin(Category, TransactionStaging.proposed_category_id == Category.id).outerjoin(Contractor, TransactionStaging.proposed_contractor_id == Contractor.id).filter(TransactionStaging.user_token == user_token, TransactionStaging.status == 'pending').order_by(TransactionStaging.date.desc()).all()
     data = [{'id': tx.id, 'date': tx.date.strftime('%Y-%m-%d'), 'amount': float(tx.amount), 'title': tx.title, 'contractor': tx.contractor or '', 'status': tx.status, 'proposed_category': cat.name if cat else '', 'proposed_contractor_id': tx.proposed_contractor_id, 'proposed_contractor_name': cont.name if cont else '', 'suggested_contractor_name': tx.suggested_contractor_name or ''} for tx, cat, cont in pending_txs]
     return jsonify(data), 200
+
+@import_bp.route('/api/staging/reanalyze', methods=['POST'])
+@login_required
+def reanalyze_staging():
+    """Ponownie uruchamia autokategoryzację na wszystkich pending rekordach stagingu."""
+    user_token = current_user.token
+    try:
+        rows = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending').all()
+        for row in rows:
+            cat_id, cont_id, suggested = analyze_transaction_data(row.title, row.contractor, user_token)
+            row.proposed_category_id = cat_id
+            row.proposed_contractor_id = cont_id
+            row.suggested_contractor_name = suggested
+        db.session.commit()
+        return jsonify({'message': f'Przeanalizowano ponownie {len(rows)} rekordów.', 'count': len(rows)}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @import_bp.route('/api/staging/pending', methods=['DELETE'])
 @login_required

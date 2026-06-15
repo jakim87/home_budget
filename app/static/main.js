@@ -128,6 +128,21 @@ function setImportLoadingState(isLoading) {
 }
 
 // --- LOGIKA STAGINGU (OCZEKUJĄCYCH TRANSAKCJI) ---
+async function reanalyzeStaging() {
+    try {
+        const response = await fetch('/api/staging/reanalyze', { method: 'POST' });
+        const result = await response.json();
+        if (response.ok) {
+            showToast(`Odświeżono mapowanie dla ${result.count} transakcji.`, 'success');
+            await fetchPendingStaging();
+        } else {
+            showToast(result.error || 'Błąd podczas odświeżania mapowania.', 'error');
+        }
+    } catch (e) {
+        showToast('Błąd połączenia z serwerem.', 'error');
+    }
+}
+
 async function fetchPendingStaging() {
     try {
         const response = await fetch('/api/staging/pending');

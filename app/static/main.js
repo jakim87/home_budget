@@ -173,7 +173,11 @@ function renderStaging() {
         badge.classList.remove('hidden');
         empty.classList.add('hidden');
         list.parentElement.classList.remove('hidden');
-        
+
+        const mappedCount = pendingStaging.filter(t => t.proposed_category && t.proposed_contractor_id).length;
+        const approveBtn = document.getElementById('approve-all-btn');
+        if (approveBtn) approveBtn.textContent = `Zatwierdź zmapowane (${mappedCount})`;
+
         pendingStaging.forEach(t => {
             const isPositive = t.amount >= 0;
             const amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';

@@ -124,7 +124,7 @@ class Category(db.Model):
     
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    type: Mapped[str] = mapped_column(String(20)) # np. "expense" (wydatek) lub "income" (przychód)
+    type: Mapped[str] = mapped_column(String(50)) # np. "expense", "income", "transfer", "system_reconciliation"
     # NOWE POLE: Miękkie usuwanie
     is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
     is_system_category: Mapped[bool] = mapped_column(default=False, server_default='false', nullable=False)

@@ -5,6 +5,8 @@ let viewDate = new Date(); // Zarządza widocznym miesiącem
 let transactions = [];
 let categories = [];
 let pendingStaging = [];
+let stagingFilter = 'all';
+let stagingSort = { field: 'date', dir: 'desc' };
 let contractors = [];
 let accounts = [];
 
@@ -128,6 +130,21 @@ function setImportLoadingState(isLoading) {
 }
 
 // --- LOGIKA STAGINGU (OCZEKUJĄCYCH TRANSAKCJI) ---
+async function reanalyzeStaging() {
+    try {
+        const response = await fetch('/api/staging/reanalyze', { method: 'POST' });
+        const result = await response.json();
+        if (response.ok) {
+            showToast(`Odświeżono mapowanie dla ${result.count} transakcji.`, 'success');
+            await fetchPendingStaging();
+        } else {
+            showToast(result.error || 'Błąd podczas odświeżania mapowania.', 'error');
+        }
+    } catch (e) {
+        showToast('Błąd połączenia z serwerem.', 'error');
+    }
+}
+
 async function fetchPendingStaging() {
     try {
         const response = await fetch('/api/staging/pending');
@@ -146,97 +163,188 @@ async function fetchPendingStaging() {
     }
 }
 
+function getStagingStatus(t) {
+    const hasSuggestion = !!(t.suggested_contractor_name && !t.proposed_contractor_id);
+    const isFullyMapped = !!(t.proposed_category && t.proposed_contractor_id);
+    const isPartiallyMapped = !hasSuggestion && !isFullyMapped && !!(t.proposed_category || t.proposed_contractor_id);
+    const isUnmapped = !hasSuggestion && !isFullyMapped && !isPartiallyMapped;
+    return { hasSuggestion, isFullyMapped, isPartiallyMapped, isUnmapped };
+}
+
+window.setStagingFilter = function(filter) {
+    stagingFilter = filter;
+    renderStaging();
+};
+
+window.toggleStagingSort = function(field) {
+    if (stagingSort.field === field) {
+        stagingSort.dir = stagingSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        stagingSort.field = field;
+        stagingSort.dir = field === 'date' ? 'desc' : 'asc';
+    }
+    renderStaging();
+};
+
 function renderStaging() {
     const list = document.getElementById('staging-list');
     const empty = document.getElementById('staging-empty');
     const badge = document.getElementById('staging-badge');
-    
+    const filtersRow = document.getElementById('staging-filters');
+
     list.innerHTML = '';
-    
-    if (pendingStaging.length > 0) {
-        badge.innerText = pendingStaging.length;
-        badge.classList.remove('hidden');
-        empty.classList.add('hidden');
-        list.parentElement.classList.remove('hidden');
-        
-        pendingStaging.forEach(t => {
-            const isPositive = t.amount >= 0;
-            const amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
-            const amountText = `${isPositive ? '+' : ''}${t.amount.toFixed(2)} PLN`; // Używamy t.amount bezpośrednio, bo backend już ustawił znak
-            
-            // Sprawdzenie statusu zmapowania przez system
-            const hasSuggestion = t.suggested_contractor_name && !t.proposed_contractor_id;
-            const isFullyMapped = t.proposed_category && t.proposed_contractor_id;
-            const isPartiallyMapped = !hasSuggestion && (t.proposed_category || t.proposed_contractor_id);
 
-            const catObj = categories.find(c => c.name === t.proposed_category);
-            const isTransfer = catObj && catObj.type === 'transfer';
-
-            let rowBg = 'hover:bg-slate-50';
-            let badgeHtml = '';
-            let btnClass = 'bg-slate-200 text-slate-400 cursor-not-allowed';
-            let btnDisabled = true;
-
-            if (isFullyMapped) {
-                if (isTransfer) {
-                    rowBg = 'bg-sky-50/40 hover:bg-sky-100/50';
-                    badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700 uppercase tracking-wider" title="Transakcja rozpoznana jako przelew wewnętrzny">Przelew</span>`;
-                    btnClass = 'bg-sky-600 hover:bg-sky-700 focus:ring-sky-500';
-                } else {
-                    rowBg = 'bg-emerald-50/40 hover:bg-emerald-100/50';
-                    badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wider" title="Transakcja w pełni zmapowana">Zmapowano</span>`;
-                    btnClass = 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500';
-                }
-                btnDisabled = false;
-            } else if (hasSuggestion) {
-                rowBg = 'bg-amber-50/40 hover:bg-amber-100/50';
-                badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider" title="Automatyczna sugestia kontrahenta — wymaga akceptacji">Auto-sugestia</span>`;
-            } else if (isPartiallyMapped) {
-                rowBg = 'bg-blue-50/30 hover:bg-blue-100/50';
-                badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 uppercase tracking-wider" title="Znaleziono częściowe dopasowanie">Częściowo</span>`;
-            }
-
-            const row = document.createElement('tr');
-            row.className = `${rowBg} transition-colors`;
-            row.innerHTML = `
-                <td class="p-3 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
-                <td class="p-3 border-b border-slate-100 font-medium text-slate-800 break-words">
-                    <div class="flex flex-wrap items-center gap-1.5 mb-0.5">
-                        <span>${t.title}</span>
-                        ${badgeHtml}
-                    </div>
-                    ${t.contractor ? `<div class="text-xs text-slate-500 font-normal mt-0.5 break-all">${t.contractor}</div>` : ''}
-                </td>
-                <td class="p-3 border-b border-slate-100">
-                    ${hasSuggestion ? `
-                    <div class="flex items-center gap-1 mb-2 p-1.5 bg-amber-50 border border-amber-200 rounded-lg">
-                        <span class="text-xs text-amber-700 font-medium shrink-0">Sugestia:</span>
-                        <input type="text" id="suggested-name-${t.id}" value="${t.suggested_contractor_name}" class="flex-1 text-xs p-1 border border-amber-300 rounded focus:ring-1 focus:ring-amber-400 outline-none min-w-0">
-                        <button onclick="acceptSuggestedContractor(${t.id})" class="shrink-0 text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded font-medium transition-colors whitespace-nowrap">Akceptuj</button>
-                    </div>` : ''}
-                    <select id="staging-cont-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_contractor_id', this.value)" class="w-full p-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-1.5">
-                        <option value="">Wybierz kontrahenta...</option>
-                        ${getContractorOptionsHtml(t.proposed_contractor_id)}
-                    </select>
-                    <select id="staging-cat-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_category', this.value)" class="w-full p-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
-                        <option value="">Wybierz kategorię...</option>
-                        ${getCategoryOptionsHtml(t.proposed_category)}
-                    </select>
-                </td>
-                <td class="p-3 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
-                <td class="p-3 border-b border-slate-100 text-center">
-                    <button onclick="approveStaging(${t.id})" ${btnDisabled ? 'disabled title="Uzupełnij kategorię i kontrahenta, aby zatwierdzić"' : ''} class="px-3 py-2 ${btnClass} text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 whitespace-nowrap w-full ${btnDisabled ? '' : 'text-white'}">
-                        Zatwierdź
-                    </button>
-                </td>
-            `;
-            list.appendChild(row);
-        });
-    } else {
+    if (pendingStaging.length === 0) {
         badge.classList.add('hidden');
+        if (filtersRow) filtersRow.classList.add('hidden');
+        const emptyP = empty.querySelector('p');
+        if (emptyP) emptyP.textContent = 'Brak transakcji do weryfikacji.';
         empty.classList.remove('hidden');
         list.parentElement.classList.add('hidden');
+        return;
     }
+
+    badge.innerText = pendingStaging.length;
+    badge.classList.remove('hidden');
+    if (filtersRow) filtersRow.classList.remove('hidden');
+
+    // Zlicz statusy z pełnej listy
+    const counts = { all: pendingStaging.length, mapped: 0, suggestion: 0, partial: 0, unmapped: 0 };
+    pendingStaging.forEach(t => {
+        const { hasSuggestion, isFullyMapped, isPartiallyMapped } = getStagingStatus(t);
+        if (isFullyMapped) counts.mapped++;
+        else if (hasSuggestion) counts.suggestion++;
+        else if (isPartiallyMapped) counts.partial++;
+        else counts.unmapped++;
+    });
+
+    // Aktualizuj przyciski filtrów
+    ['all', 'mapped', 'suggestion', 'partial', 'unmapped'].forEach(f => {
+        const countEl = document.getElementById(`sf-count-${f}`);
+        if (countEl) countEl.textContent = counts[f];
+        const btn = document.getElementById(`sf-${f}`);
+        if (btn) {
+            btn.className = stagingFilter === f
+                ? 'text-xs px-3 py-1 rounded-full font-medium transition-colors bg-slate-700 text-white'
+                : 'text-xs px-3 py-1 rounded-full font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200';
+        }
+    });
+
+    // Aktualizuj ikony sortowania
+    ['date', 'title', 'amount'].forEach(f => {
+        const el = document.getElementById(`sort-icon-${f}`);
+        if (!el) return;
+        el.textContent = stagingSort.field === f ? (stagingSort.dir === 'asc' ? '↑' : '↓') : '↕';
+        el.className = `ml-0.5 ${stagingSort.field === f ? 'text-slate-700' : 'text-slate-300'}`;
+    });
+
+    // Aktualizuj licznik zmapowanych (zawsze z pełnej listy)
+    const approveBtn = document.getElementById('approve-all-btn');
+    if (approveBtn) approveBtn.textContent = `Zatwierdź zmapowane (${counts.mapped})`;
+
+    // Filtruj
+    let displayList = stagingFilter === 'all' ? pendingStaging : pendingStaging.filter(t => {
+        const { hasSuggestion, isFullyMapped, isPartiallyMapped, isUnmapped } = getStagingStatus(t);
+        if (stagingFilter === 'mapped') return isFullyMapped;
+        if (stagingFilter === 'suggestion') return hasSuggestion;
+        if (stagingFilter === 'partial') return isPartiallyMapped;
+        if (stagingFilter === 'unmapped') return isUnmapped;
+        return true;
+    });
+
+    // Sortuj
+    displayList = [...displayList].sort((a, b) => {
+        let valA, valB;
+        if (stagingSort.field === 'date') { valA = a.date; valB = b.date; }
+        else if (stagingSort.field === 'title') { valA = (a.title || '').toLowerCase(); valB = (b.title || '').toLowerCase(); }
+        else if (stagingSort.field === 'amount') { valA = a.amount; valB = b.amount; }
+        else { valA = a.date; valB = b.date; }
+        if (valA < valB) return stagingSort.dir === 'asc' ? -1 : 1;
+        if (valA > valB) return stagingSort.dir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    if (displayList.length === 0) {
+        const emptyP = empty.querySelector('p');
+        if (emptyP) emptyP.textContent = 'Brak transakcji dla wybranego filtru.';
+        empty.classList.remove('hidden');
+        list.parentElement.classList.add('hidden');
+        return;
+    }
+
+    empty.classList.add('hidden');
+    list.parentElement.classList.remove('hidden');
+
+    displayList.forEach(t => {
+        const isPositive = t.amount >= 0;
+        const amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
+        const amountText = `${isPositive ? '+' : ''}${t.amount.toFixed(2)} PLN`;
+
+        const { hasSuggestion, isFullyMapped, isPartiallyMapped } = getStagingStatus(t);
+
+        const catObj = categories.find(c => c.name === t.proposed_category);
+        const isTransfer = catObj && catObj.type === 'transfer';
+
+        let rowBg = 'hover:bg-slate-50';
+        let badgeHtml = '';
+        let btnClass = 'bg-slate-200 text-slate-400 cursor-not-allowed';
+        let btnDisabled = true;
+
+        if (isFullyMapped) {
+            if (isTransfer) {
+                rowBg = 'bg-sky-50/40 hover:bg-sky-100/50';
+                badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700 uppercase tracking-wider" title="Transakcja rozpoznana jako przelew wewnętrzny">Przelew</span>`;
+                btnClass = 'bg-sky-600 hover:bg-sky-700 focus:ring-sky-500';
+            } else {
+                rowBg = 'bg-emerald-50/40 hover:bg-emerald-100/50';
+                badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wider" title="Transakcja w pełni zmapowana">Zmapowano</span>`;
+                btnClass = 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500';
+            }
+            btnDisabled = false;
+        } else if (hasSuggestion) {
+            rowBg = 'bg-amber-50/40 hover:bg-amber-100/50';
+            badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider" title="Automatyczna sugestia kontrahenta — wymaga akceptacji">Auto-sugestia</span>`;
+        } else if (isPartiallyMapped) {
+            rowBg = 'bg-blue-50/30 hover:bg-blue-100/50';
+            badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 uppercase tracking-wider" title="Znaleziono częściowe dopasowanie">Częściowo</span>`;
+        }
+
+        const row = document.createElement('tr');
+        row.className = `${rowBg} transition-colors`;
+        row.innerHTML = `
+            <td class="p-3 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
+            <td class="p-3 border-b border-slate-100 font-medium text-slate-800 break-words">
+                <div class="flex flex-wrap items-center gap-1.5 mb-0.5">
+                    <span>${t.title}</span>
+                    ${badgeHtml}
+                </div>
+                ${t.contractor ? `<div class="text-xs text-slate-500 font-normal mt-0.5 break-all">${t.contractor}</div>` : ''}
+            </td>
+            <td class="p-3 border-b border-slate-100">
+                ${hasSuggestion ? `
+                <div class="flex items-center gap-1 mb-2 p-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+                    <span class="text-xs text-amber-700 font-medium shrink-0">Sugestia:</span>
+                    <input type="text" id="suggested-name-${t.id}" value="${t.suggested_contractor_name}" class="flex-1 text-xs p-1 border border-amber-300 rounded focus:ring-1 focus:ring-amber-400 outline-none min-w-0">
+                    <button onclick="acceptSuggestedContractor(${t.id})" class="shrink-0 text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded font-medium transition-colors whitespace-nowrap">Akceptuj</button>
+                </div>` : ''}
+                <select id="staging-cont-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_contractor_id', this.value)" class="w-full p-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-1.5">
+                    <option value="">Wybierz kontrahenta...</option>
+                    ${getContractorOptionsHtml(t.proposed_contractor_id)}
+                </select>
+                <select id="staging-cat-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_category', this.value)" class="w-full p-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
+                    <option value="">Wybierz kategorię...</option>
+                    ${getCategoryOptionsHtml(t.proposed_category)}
+                </select>
+            </td>
+            <td class="p-3 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
+            <td class="p-3 border-b border-slate-100 text-center">
+                <button onclick="approveStaging(${t.id})" ${btnDisabled ? 'disabled title="Uzupełnij kategorię i kontrahenta, aby zatwierdzić"' : ''} class="px-3 py-2 ${btnClass} text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 whitespace-nowrap w-full ${btnDisabled ? '' : 'text-white'}">
+                    Zatwierdź
+                </button>
+            </td>
+        `;
+        list.appendChild(row);
+    });
 }
 
 window.updateStagingLocalState = function(id, field, value) {

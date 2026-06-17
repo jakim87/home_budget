@@ -355,42 +355,14 @@ window.updateStagingLocalState = function(id, field, value) {
     }
 }
 
-window.acceptSuggestedContractor = async function(stg_id) {
+window.acceptSuggestedContractor = function(stg_id) {
     const input = document.getElementById(`suggested-name-${stg_id}`);
     const name = input ? input.value.trim() : '';
     if (!name) {
         showToast('Podaj nazwę kontrahenta.', 'error');
         return;
     }
-    try {
-        const response = await fetch(`/api/staging/${stg_id}/accept-contractor`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        if (response.ok) {
-            const saved = await response.json();
-            // Dodaj do globalnej listy kontrahentów (jeśli jeszcze nie ma)
-            if (!contractors.find(c => c.id === saved.contractor_id)) {
-                contractors.push({ id: saved.contractor_id, name: saved.contractor_name, rules: saved.mapping_rules, default_category_id: saved.default_category_id, default_category_name: saved.default_category_name || '' });
-            }
-            // Zaktualizuj lokalny stan staging
-            const item = pendingStaging.find(t => t.id === stg_id);
-            if (item) {
-                item.proposed_contractor_id = saved.contractor_id;
-                item.proposed_contractor_name = saved.contractor_name;
-                item.suggested_contractor_name = '';
-            }
-            updateContractorSelects();
-            renderStaging();
-            showToast(`Dodano kontrahenta: ${saved.contractor_name}`);
-        } else {
-            const err = await response.json();
-            showToast(err.error || 'Błąd akceptacji kontrahenta.', 'error');
-        }
-    } catch (e) {
-        showToast('Błąd połączenia z API.', 'error');
-    }
+    openQuickContractorModal(name, stg_id);
 }
 
 window.approveStaging = async function(id) {
@@ -1020,8 +992,8 @@ function updateCategorySelects() {
         plannedSelect.innerHTML = `<option value="">Wybierz kategorię...</option>` + getCategoryOptionsHtml(currentPlannedVal, true);
     }
     if(contCatSelect) {
-        const currentContCat = contCatSelect.value; // This is a category ID, so use byId=true
-        contCatSelect.innerHTML = `<option value="">Brak domyślnej kategorii</option>` + getCategoryOptionsHtml(currentContCat, true);
+        const currentContCat = contCatSelect.value;
+        contCatSelect.innerHTML = `<option value="">Brak domyślnej kategorii</option>` + getCategoryOptionsHtml(currentContCat, false);
     }
     
     // renderTransactions(); // Refresh inline selects - This is redundant and called later in fetchInitialData
@@ -1385,6 +1357,26 @@ reconcileForm.addEventListener('submit', async function(e) {
 
 // --- SZYBKIE DODAWANIE W LOCIE ---
 let currentQuickAddSelect = null;
+let currentSuggestionStagingId = null;
+let currentEditingContractorId = null;
+
+function lookupExistingContractor() {
+    const name = document.getElementById('quick-cont-name-inp').value.trim().toLowerCase();
+    const found = name ? contractors.find(c => c.name.toLowerCase() === name) : null;
+    const notice = document.getElementById('quick-cont-existing-notice');
+    if (found) {
+        document.getElementById('quick-cont-rules-inp').value = found.rules || '';
+        const qCatSelect = document.getElementById('quick-cont-cat-select');
+        if (qCatSelect && found.default_category_name) qCatSelect.value = found.default_category_name;
+        currentEditingContractorId = found.id;
+        if (notice) notice.classList.remove('hidden');
+    } else {
+        currentEditingContractorId = null;
+        if (notice) notice.classList.add('hidden');
+    }
+}
+
+document.getElementById('quick-cont-name-inp').addEventListener('input', lookupExistingContractor);
 
 document.addEventListener('change', function(e) {
     if (e.target && e.target.tagName === 'SELECT') {
@@ -1413,18 +1405,23 @@ window.closeQuickCategoryModal = function() {
     currentQuickAddSelect = null;
 };
 
-window.openQuickContractorModal = function() {
-    document.getElementById('quick-cont-name-inp').value = '';
+window.openQuickContractorModal = function(prefillName = '', suggestionStagingId = null) {
+    document.getElementById('quick-cont-name-inp').value = prefillName;
     document.getElementById('quick-cont-rules-inp').value = '';
-    
+    currentSuggestionStagingId = suggestionStagingId;
+    currentEditingContractorId = null;
+    document.getElementById('quick-cont-existing-notice').classList.add('hidden');
+
     const qCatSelect = document.getElementById('quick-cont-cat-select');
     let catHtml = `<option value="">Brak domyślnej kategorii</option>`;
     categories.filter(c=>c.type==='expense').forEach(c => catHtml += `<option value="${c.name}">${c.name}</option>`);
     categories.filter(c=>c.type==='income').forEach(c => catHtml += `<option value="${c.name}">${c.name}</option>`);
+    catHtml += `<option value="__NEW_CATEGORY__" class="font-bold text-blue-600">➕ Dodaj nową kategorię...</option>`;
     qCatSelect.innerHTML = catHtml;
 
     document.getElementById('quick-contractor-modal').classList.remove('hidden');
     document.getElementById('quick-contractor-modal').classList.add('flex');
+    if (prefillName) lookupExistingContractor();
 };
 
 window.closeQuickContractorModal = function() {
@@ -1434,6 +1431,9 @@ window.closeQuickContractorModal = function() {
         currentQuickAddSelect.value = '';
     }
     currentQuickAddSelect = null;
+    currentSuggestionStagingId = null;
+    currentEditingContractorId = null;
+    document.getElementById('quick-cont-existing-notice').classList.add('hidden');
 };
 
 document.getElementById('quick-category-form').addEventListener('submit', async function(e) {
@@ -1461,11 +1461,19 @@ document.getElementById('quick-category-form').addEventListener('submit', async 
             renderCategories();
             renderStaging();
 
-            if (selectId) {
+            if (selectId === 'quick-cont-cat-select') {
+                const qCatSelect = document.getElementById('quick-cont-cat-select');
+                let catHtml = `<option value="">Brak domyślnej kategorii</option>`;
+                categories.filter(c=>c.type==='expense').forEach(c => catHtml += `<option value="${c.name}">${c.name}</option>`);
+                categories.filter(c=>c.type==='income').forEach(c => catHtml += `<option value="${c.name}">${c.name}</option>`);
+                catHtml += `<option value="__NEW_CATEGORY__" class="font-bold text-blue-600">➕ Dodaj nową kategorię...</option>`;
+                qCatSelect.innerHTML = catHtml;
+                qCatSelect.value = saved.name;
+            } else if (selectId) {
                 const el = document.getElementById(selectId);
                 if (el) el.value = saved.name;
             }
-            
+
             closeQuickCategoryModal();
             showToast(`Dodano kategorię: ${name}`);
         } else {
@@ -1479,37 +1487,56 @@ document.getElementById('quick-contractor-form').addEventListener('submit', asyn
     e.preventDefault();
     const name = document.getElementById('quick-cont-name-inp').value.trim();
     const rules = document.getElementById('quick-cont-rules-inp').value.trim();
-    const category = document.getElementById('quick-cont-cat-select').value;
+    const rawCategory = document.getElementById('quick-cont-cat-select').value;
+    const category = (rawCategory && rawCategory !== '__NEW_CATEGORY__') ? rawCategory : '';
+
+    const isUpdate = !!currentEditingContractorId;
+    const method = isUpdate ? 'PUT' : 'POST';
+    const url = isUpdate ? `/api/contractors/${currentEditingContractorId}` : '/api/contractors';
 
     try {
-        const response = await fetch('/api/contractors', {
-            method: 'POST',
+        const response = await fetch(url, {
+            method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, rules, category })
         });
         if (response.ok) {
             const saved = await response.json();
-            contractors.push(saved);
-            
-            const selectId = currentQuickAddSelect ? currentQuickAddSelect.id : null;
-            if (selectId && selectId.startsWith('staging-cont-')) {
-                const stgId = parseInt(selectId.replace('staging-cont-', ''));
-                updateStagingLocalState(stgId, 'proposed_contractor_id', saved.id);
+
+            if (isUpdate) {
+                const idx = contractors.findIndex(c => c.id === saved.id);
+                if (idx >= 0) contractors[idx] = saved;
+            } else {
+                contractors.push(saved);
+            }
+
+            if (currentSuggestionStagingId) {
+                const item = pendingStaging.find(t => t.id === currentSuggestionStagingId);
+                if (item) {
+                    item.proposed_contractor_id = saved.id;
+                    item.suggested_contractor_name = '';
+                    if (saved.default_category_name) item.proposed_category = saved.default_category_name;
+                }
+            } else {
+                const selectId = currentQuickAddSelect ? currentQuickAddSelect.id : null;
+                if (selectId && selectId.startsWith('staging-cont-')) {
+                    const stgId = parseInt(selectId.replace('staging-cont-', ''));
+                    updateStagingLocalState(stgId, 'proposed_contractor_id', saved.id);
+                }
+                if (selectId) {
+                    const el = document.getElementById(selectId);
+                    if (el) el.value = saved.id;
+                    const displayEl = document.getElementById(selectId + '-input');
+                    if (displayEl) displayEl.value = saved.name;
+                }
             }
 
             updateContractorSelects();
             renderContractors();
             renderStaging();
 
-            if (selectId) {
-                const el = document.getElementById(selectId);
-                if (el) el.value = saved.id;
-                const displayEl = document.getElementById(selectId + '-input');
-                if (displayEl) displayEl.value = saved.name;
-            }
-
             closeQuickContractorModal();
-            showToast(`Dodano kontrahenta: ${name}`);
+            showToast(isUpdate ? `Zaktualizowano kontrahenta: ${name}` : `Dodano kontrahenta: ${name}`);
         } else {
             const err = await response.json();
             showToast(err.error || 'Błąd zapisu', 'error');
@@ -1570,7 +1597,8 @@ document.getElementById('contractor-form').addEventListener('submit', async func
     const id = document.getElementById('cont-id').value;
     const name = document.getElementById('cont-name').value.trim();
     const rules = document.getElementById('cont-rules').value.trim();
-    const category = document.getElementById('cont-cat').value;
+    const rawCategory = document.getElementById('cont-cat').value;
+    const category = (rawCategory && rawCategory !== '__NEW_CATEGORY__') ? rawCategory : '';
     
     const method = id ? 'PUT' : 'POST';
     const url = id ? `/api/contractors/${id}` : '/api/contractors';

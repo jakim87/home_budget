@@ -1160,6 +1160,15 @@ window.deleteCategory = async function(name) {
 }
 
 // --- KONTA (SŁOWNIK) ---
+function formatAccountNumber(num) {
+    if (!num) return '';
+    const digits = num.replace(/\s/g, '');
+    if (digits.length === 26) {
+        return digits.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})(\d{4})(\d{4})(\d{4})$/, '$1 $2 $3 $4 $5 $6 $7');
+    }
+    return digits.match(/.{1,4}/g)?.join(' ') || digits;
+}
+
 function renderAccounts() {
     const list = document.getElementById('account-list');
     list.innerHTML = '';
@@ -1172,7 +1181,7 @@ function renderAccounts() {
                     ${a.name} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal">(${a.bank_name})</span>` : ''}
                     ${a.is_default ? '<svg class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>' : ''}
                 </span>
-                ${a.account_number ? `<span class="text-xs text-slate-500 block break-all font-mono mt-0.5">${a.account_number}</span>` : ''}
+                ${a.account_number ? `<span class="text-xs text-slate-500 block break-all font-mono mt-0.5">${formatAccountNumber(a.account_number)}</span>` : ''}
             </div>
             <div class="flex gap-1">
                 <button onclick="editAccount(${a.id})" class="text-slate-400 hover:text-indigo-600 p-1.5 rounded-md hover:bg-indigo-50 transition-colors opacity-0 group-hover:opacity-100" title="Edytuj konto">
@@ -1196,7 +1205,7 @@ window.editAccount = function(id) {
     document.getElementById('acc-id').value = a.id;
     document.getElementById('acc-name').value = a.name;
     document.getElementById('acc-bank').value = a.bank_name || '';
-    document.getElementById('acc-number').value = a.account_number || '';
+    document.getElementById('acc-number').value = formatAccountNumber(a.account_number);
     document.getElementById('acc-default').checked = a.is_default || false;
     
     document.getElementById('acc-cancel-btn').classList.remove('hidden');

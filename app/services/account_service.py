@@ -3,10 +3,11 @@ from app.models import Account
 
 def create_account(user_token, data):
     try:
+        raw_num = data.get('account_number') or ''
         new_acc = Account(
             name=data['name'],
             bank_name=data.get('bank_name'),
-            account_number=data.get('account_number'),
+            account_number=raw_num.replace(' ', '') or None,
             balance=0.0,
             user_token=user_token
         )
@@ -24,7 +25,9 @@ def update_account(user_token, a_id, data):
             raise ValueError('Nie znaleziono konta.')
         acc.name = data.get('name', acc.name)
         acc.bank_name = data.get('bank_name', acc.bank_name)
-        acc.account_number = data.get('account_number', acc.account_number)
+        raw_num = data.get('account_number')
+        if raw_num is not None:
+            acc.account_number = raw_num.replace(' ', '') or None
         db.session.commit()
         return acc
     except Exception as e:

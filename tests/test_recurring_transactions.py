@@ -142,9 +142,10 @@ def test_api_update_recurring_transaction(client, app, setup_for_recurring):
         assert updated_rec_tx.day_of_month == 15
         assert updated_rec_tx.is_active is False
 
-def test_api_delete_recurring_transaction(client, app, setup_for_recurring):
+def test_api_delete_recurring_transaction_blocked(client, app, setup_for_recurring):
     """
-    (RED) Test - Sprawdza, czy można usunąć definicję transakcji cyklicznej przez API.
+    Usunięcie transakcji cyklicznej przez API jest zablokowane (405).
+    Zamiast tego użytkownik powinien ustawić datę zakończenia.
     """
     user_token, account_id, category_id = setup_for_recurring
     login_user_helper(client)
@@ -153,7 +154,7 @@ def test_api_delete_recurring_transaction(client, app, setup_for_recurring):
         rec_tx = RecurringTransaction(
             user_token=user_token,
             account_id=account_id,
-            title="Do usunięcia",
+            title="Do zakończenia",
             amount=Decimal("-200.00"),
             frequency=Frequency.MONTHLY,
             day_of_month=1,
@@ -166,10 +167,11 @@ def test_api_delete_recurring_transaction(client, app, setup_for_recurring):
 
     response = client.delete(f'/api/recurring-transactions/{rec_tx_id}')
 
-    assert response.status_code == 200
+    assert response.status_code == 405
     response_data = response.get_json()
-    assert response_data['message'] == 'Recurring transaction deleted'
+    assert 'error' in response_data
+    assert 'datę zakończenia' in response_data['error']
 
     with app.app_context():
-        deleted_rec_tx = db.session.get(RecurringTransaction, rec_tx_id)
-        assert deleted_rec_tx is None
+        still_exists = db.session.get(RecurringTransaction, rec_tx_id)
+        assert still_exists is not None

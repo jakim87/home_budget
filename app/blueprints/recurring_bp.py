@@ -7,7 +7,6 @@ from app.services.recurring_service import (
     create_recurring_transaction,
     get_all_recurring_transactions,
     update_recurring_transaction,
-    delete_recurring_transaction
 )
 
 recurring_bp = Blueprint('recurring', __name__, url_prefix='/api/recurring-transactions')
@@ -45,8 +44,6 @@ def edit_recurring_transaction(rec_tx_id):
 @recurring_bp.route('/<int:rec_tx_id>', methods=['DELETE'])
 @login_required
 def remove_recurring_transaction(rec_tx_id):
-    try:
-        delete_recurring_transaction(current_user.token, rec_tx_id)
-        return jsonify({'message': 'Recurring transaction deleted'}), 200
-    except ValueError as err:
-        return jsonify({'error': str(err)}), 404
+    return jsonify({
+        'error': 'Nie można usunąć transakcji cyklicznej. Aby ją zakończyć, ustaw datę zakończenia.'
+    }), 405

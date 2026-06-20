@@ -9,7 +9,9 @@ def create_account(user_token, data):
             bank_name=data.get('bank_name'),
             account_number=raw_num.replace(' ', '') or None,
             balance=0.0,
-            user_token=user_token
+            user_token=user_token,
+            owner=data.get('owner') or None,
+            co_owner=data.get('co_owner') or None,
         )
         db.session.add(new_acc)
         db.session.commit()
@@ -28,6 +30,10 @@ def update_account(user_token, a_id, data):
         raw_num = data.get('account_number')
         if raw_num is not None:
             acc.account_number = raw_num.replace(' ', '') or None
+        if 'owner' in data:
+            acc.owner = data['owner'] or None
+        if 'co_owner' in data:
+            acc.co_owner = data['co_owner'] or None
         db.session.commit()
         return acc
     except Exception as e:

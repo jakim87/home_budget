@@ -23,7 +23,7 @@ def add_account():
             acc.is_default = True
             db.session.commit()
 
-        return jsonify({'id': acc.id, 'name': acc.name, 'bank_name': acc.bank_name, 'account_number': acc.account_number, 'balance': 0.0, 'is_default': getattr(acc, 'is_default', False)}), 201
+        return jsonify({'id': acc.id, 'name': acc.name, 'bank_name': acc.bank_name, 'account_number': acc.account_number, 'balance': 0.0, 'is_default': getattr(acc, 'is_default', False), 'owner': acc.owner, 'co_owner': acc.co_owner}), 201
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
     except ValueError as err:
@@ -42,7 +42,7 @@ def edit_account(a_id):
             acc.is_default = True
             db.session.commit()
 
-        return jsonify({'id': acc.id, 'name': acc.name, 'bank_name': acc.bank_name, 'account_number': acc.account_number, 'balance': float(acc.balance), 'is_default': getattr(acc, 'is_default', False)}), 200
+        return jsonify({'id': acc.id, 'name': acc.name, 'bank_name': acc.bank_name, 'account_number': acc.account_number, 'balance': float(acc.balance), 'is_default': getattr(acc, 'is_default', False), 'owner': acc.owner, 'co_owner': acc.co_owner}), 200
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
     except ValueError as err:

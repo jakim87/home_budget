@@ -110,6 +110,8 @@ class Account(db.Model):
     account_number: Mapped[Optional[str]] = mapped_column(String(50)) # Numer rachunku docelowego
     balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0.0)
     currency: Mapped[str] = mapped_column(String(3), default='PLN')
+    owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    co_owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     
     # Miękkie usuwanie ze słownika
     is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)

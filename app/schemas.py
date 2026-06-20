@@ -17,6 +17,8 @@ class AccountSchema(ma.Schema):
     bank_name = fields.String(load_default="")
     account_number = fields.String(load_default="")
     is_default = fields.Boolean(load_default=False)
+    owner = fields.String(load_default=None, allow_none=True)
+    co_owner = fields.String(load_default=None, allow_none=True)
 
 class CategorySchema(ma.Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))

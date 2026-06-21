@@ -385,11 +385,11 @@ window.approveStaging = async function(id) {
         
         if (response.ok) {
             showToast('Transakcja zatwierdzona!');
-            // Usuń z lokalnej listy i odśwież widok stagingu
+            // Usuń z lokalnej listy i odśwież widok — nie fetch z serwera, żeby nie stracić zmian na pozostałych wierszach
             pendingStaging = pendingStaging.filter(t => t.id !== id);
             renderStaging();
-            // Odśwież główną listę transakcji (żeby zatwierdzona od razu pojawiła się w statystykach)
-            fetchInitialData(); 
+            // Odśwież transakcje/konta, ale bez nadpisywania pendingStaging z serwera
+            fetchInitialData({ skipStagingRefresh: true });
         } else {
             const err = await response.json();
             showToast(err.error || 'Błąd zatwierdzania transakcji.', 'error');
@@ -2609,7 +2609,7 @@ function initContractorCombobox() {
 }
 
 // --- POŁĄCZENIE Z BACKENDEM (FLASK) ---
-async function fetchInitialData() {
+async function fetchInitialData({ skipStagingRefresh = false } = {}) {
     try {
         const response = await fetch('/api/init');
         if (!response.ok) {
@@ -2627,7 +2627,7 @@ async function fetchInitialData() {
         categories = data.categories || [];
         contractors = data.contractors || [];
         accounts = data.accounts || [];
-        
+
         updateCategorySelects();
         updateContractorSelects();
         updateAccountSelects();
@@ -2637,8 +2637,10 @@ async function fetchInitialData() {
         renderTransactions();
         renderDashboard();
         await fetchPlannedTransactions();
-        await fetchRecurringTransactions(); // Pobierz transakcje cykliczne
-        await fetchPendingStaging(); // Po załadowaniu categories/contractors, żeby badge i dropdown były poprawne
+        await fetchRecurringTransactions();
+        if (!skipStagingRefresh) {
+            await fetchPendingStaging(); // Po załadowaniu categories/contractors, żeby badge i dropdown były poprawne
+        }
     } catch (error) {
         console.error('Błąd pobierania danych z API:', error);
         showToast('Nie udało się pobrać danych z serwera.', 'error');

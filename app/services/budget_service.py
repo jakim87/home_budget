@@ -395,6 +395,62 @@ def save_transactions_to_staging(
         db.session.rollback()
         raise ValueError(str(e))
 
+def reanalyze_all_staging(user_token: str) -> int:
+    """Ponownie uruchamia autokategoryzację na wszystkich pending rekordach stagingu."""
+    try:
+        rows = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending').all()
+        for row in rows:
+            cat_id, cont_id, suggested = analyze_transaction_data(row.title, row.contractor, user_token)
+            row.proposed_category_id = cat_id
+            row.proposed_contractor_id = cont_id
+            row.suggested_contractor_name = suggested
+        db.session.commit()
+        return len(rows)
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(str(e))
+
+
+def clear_pending_staging(user_token: str) -> int:
+    """Usuwa wszystkie oczekujące rekordy stagingu dla użytkownika."""
+    try:
+        deleted = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending').delete()
+        db.session.commit()
+        return deleted
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(str(e))
+
+
+def accept_staging_contractor(user_token: str, stg_id: int, name: str) -> dict:
+    """Tworzy lub wyszukuje kontrahenta po nazwie i przypisuje go do rekordu stagingu."""
+    try:
+        stg_tx = db.session.query(TransactionStaging).filter_by(id=stg_id, user_token=user_token, status='pending').first()
+        if not stg_tx:
+            raise ValueError('Nie znaleziono transakcji.')
+
+        cont = db.session.query(Contractor).filter_by(user_token=user_token, name=name, is_active=True).first()
+        if not cont:
+            cont = Contractor(name=name, mapping_rules=name.lower(), user_token=user_token)
+            db.session.add(cont)
+            db.session.flush()
+
+        stg_tx.proposed_contractor_id = cont.id
+        stg_tx.suggested_contractor_name = None
+        db.session.commit()
+
+        return {
+            'contractor_id': cont.id,
+            'contractor_name': cont.name,
+            'mapping_rules': cont.mapping_rules or '',
+            'default_category_id': cont.default_category_id,
+            'default_category_name': ''
+        }
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(str(e))
+
+
 def approve_staging_record(user_token, stg_id, data):
     try:
         stg_tx = db.session.query(TransactionStaging).filter_by(id=stg_id, user_token=user_token, status='pending').first()

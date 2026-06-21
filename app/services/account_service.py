@@ -1,19 +1,28 @@
 from app import db
 from app.models import Account
+from decimal import Decimal
 
 def create_account(user_token, data):
     try:
         raw_num = data.get('account_number') or ''
+        is_default = data.get('is_default', False)
         new_acc = Account(
             name=data['name'],
             bank_name=data.get('bank_name'),
             account_number=raw_num.replace(' ', '') or None,
-            balance=0.0,
+            balance=Decimal('0'),
             user_token=user_token,
             owner=data.get('owner') or None,
             co_owner=data.get('co_owner') or None,
         )
         db.session.add(new_acc)
+        db.session.flush()
+        if is_default:
+            db.session.query(Account).filter(
+                Account.user_token == user_token,
+                Account.id != new_acc.id
+            ).update({'is_default': False})
+            new_acc.is_default = True
         db.session.commit()
         return new_acc
     except Exception as e:
@@ -34,6 +43,12 @@ def update_account(user_token, a_id, data):
             acc.owner = data['owner'] or None
         if 'co_owner' in data:
             acc.co_owner = data['co_owner'] or None
+        if data.get('is_default'):
+            db.session.query(Account).filter(
+                Account.user_token == user_token,
+                Account.id != acc.id
+            ).update({'is_default': False})
+            acc.is_default = True
         db.session.commit()
         return acc
     except Exception as e:

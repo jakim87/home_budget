@@ -218,6 +218,19 @@ function renderStaging() {
         else counts.unmapped++;
     });
 
+    // Auto-przełącz na 'mapped' gdy aktywny filtr nic nie pokaże, ale są zmapowane transakcje.
+    // Zapobiega sytuacji gdy przycisk pokazuje "(X)" a lista jest pusta.
+    if (counts.mapped > 0 && stagingFilter !== 'all' && stagingFilter !== 'mapped') {
+        const filterStillHasItems = pendingStaging.some(t => {
+            const s = getStagingStatus(t);
+            if (stagingFilter === 'suggestion') return s.hasSuggestion;
+            if (stagingFilter === 'partial')    return s.isPartiallyMapped;
+            if (stagingFilter === 'unmapped')   return s.isUnmapped;
+            return false;
+        });
+        if (!filterStillHasItems) stagingFilter = 'mapped';
+    }
+
     // Aktualizuj przyciski filtrów
     ['all', 'mapped', 'suggestion', 'partial', 'unmapped'].forEach(f => {
         const countEl = document.getElementById(`sf-count-${f}`);

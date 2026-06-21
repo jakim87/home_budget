@@ -2,9 +2,9 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from marshmallow import ValidationError
 from app import db
-from app.models import TransactionStaging, Category, Contractor, User
+from app.models import TransactionStaging, Category, Contractor
 from app.schemas import StagingApproveSchema
-from app.services.budget_service import parse_ing_csv, save_transactions_to_staging, approve_staging_record, analyze_transaction_data
+from app.services.budget_service import parse_ing_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor
 
 import_bp = Blueprint('import', __name__)
 
@@ -52,37 +52,24 @@ def get_pending_staging_transactions():
 @login_required
 def reanalyze_staging():
     """Ponownie uruchamia autokategoryzację na wszystkich pending rekordach stagingu."""
-    user_token = current_user.token
     try:
-        rows = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending').all()
-        for row in rows:
-            cat_id, cont_id, suggested = analyze_transaction_data(row.title, row.contractor, user_token)
-            row.proposed_category_id = cat_id
-            row.proposed_contractor_id = cont_id
-            row.suggested_contractor_name = suggested
-        db.session.commit()
-        return jsonify({'message': f'Przeanalizowano ponownie {len(rows)} rekordów.', 'count': len(rows)}), 200
-    except Exception as e:
-        db.session.rollback()
+        count = reanalyze_all_staging(current_user.token)
+        return jsonify({'message': f'Przeanalizowano ponownie {count} rekordów.', 'count': count}), 200
+    except ValueError as e:
         return jsonify({'error': str(e)}), 500
 
 @import_bp.route('/api/staging/pending', methods=['DELETE'])
 @login_required
 def clear_pending_staging_transactions():
-    user_token = current_user.token
-
     try:
-        deleted_count = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending').delete()
-        db.session.commit()
+        deleted_count = clear_pending_staging(current_user.token)
         return jsonify({'message': f'Odrzucono {deleted_count} transakcji.'}), 200
-    except Exception as e:
-        db.session.rollback()
+    except ValueError:
         return jsonify({'error': 'Wystąpił błąd podczas odrzucania transakcji.'}), 500
 
 @import_bp.route('/api/staging/<int:stg_id>/accept-contractor', methods=['POST'])
 @login_required
 def accept_suggested_contractor(stg_id):
-    user_token = current_user.token
     data = request.get_json() or {}
     name = data.get('name', '').strip()
 
@@ -90,30 +77,10 @@ def accept_suggested_contractor(stg_id):
         return jsonify({'error': 'Nazwa kontrahenta nie może być pusta.'}), 400
 
     try:
-        stg_tx = db.session.query(TransactionStaging).filter_by(id=stg_id, user_token=user_token, status='pending').first()
-        if not stg_tx:
-            return jsonify({'error': 'Nie znaleziono transakcji.'}), 404
-
-        existing = db.session.query(Contractor).filter_by(user_token=user_token, name=name, is_active=True).first()
-        if existing:
-            stg_tx.proposed_contractor_id = existing.id
-            stg_tx.suggested_contractor_name = None
-            db.session.commit()
-            return jsonify({'contractor_id': existing.id, 'contractor_name': existing.name, 'mapping_rules': existing.mapping_rules or '', 'default_category_id': existing.default_category_id, 'default_category_name': ''}), 200
-
-        mapping_rules = name.lower()
-        new_cont = Contractor(name=name, mapping_rules=mapping_rules, user_token=user_token)
-        db.session.add(new_cont)
-        db.session.flush()
-
-        stg_tx.proposed_contractor_id = new_cont.id
-        stg_tx.suggested_contractor_name = None
-        db.session.commit()
-
-        return jsonify({'contractor_id': new_cont.id, 'contractor_name': new_cont.name, 'mapping_rules': new_cont.mapping_rules, 'default_category_id': None, 'default_category_name': ''}), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        result = accept_staging_contractor(current_user.token, stg_id, name)
+        return jsonify(result), 200
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404 if 'Nie znaleziono' in str(e) else 500
 
 
 @import_bp.route('/api/staging/<int:stg_id>/approve', methods=['POST'])

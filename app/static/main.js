@@ -10,14 +10,11 @@ let stagingSort = { field: 'date', dir: 'desc' };
 let contractors = [];
 let accounts = [];
 
-let currentTxType = 'expense';
 let inlineEditingTxId = null;
 
 // Stan transakcji cyklicznych
 let recurringTransactions = [];
-let plannedTransactions = []; // New variable for planned transactions
-let currentRecurringType = 'expense';
-let currentPlannedType = 'expense';
+let plannedTransactions = [];
 
 // Stan okna rozbijania
 let splitTxId = null;
@@ -659,20 +656,6 @@ window.closeRecurringModal = function() {
     toggleRecFreqInputs(); // Reset recurring frequency inputs
 };
 
-// New function for planned transaction type
-window.setPlannedType = function(type) {
-    currentPlannedType = type;
-    const btnExp = document.getElementById('planned-type-expense');
-    const btnInc = document.getElementById('planned-type-income');
-    if (type === 'expense') {
-        btnExp.className = 'flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm';
-        btnInc.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors'; // Deactivate income
-    } else {
-        btnInc.className = 'flex-1 px-4 py-2 rounded-md bg-emerald-100 text-emerald-700 font-medium text-sm transition-colors shadow-sm';
-        btnExp.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors'; // Deactivate expense
-    }
-};
-
 window.toggleRecEndDate = function() {
     const isIndefinite = document.getElementById('rec-indefinite').checked;
     document.getElementById('rec-end-date').disabled = isIndefinite;
@@ -680,20 +663,6 @@ window.toggleRecEndDate = function() {
 };
 
 window.toggleRecFreqInputs = function() {
-    // Ensure the correct type is set for the recurring form when modal opens
-    const recTypeButtons = document.getElementById('recurring-form').querySelector('.flex.bg-white.rounded-lg.border.border-slate-300.p-1');
-    if (recTypeButtons) {
-        const btnExp = recTypeButtons.querySelector('#rec-rec-type-expense');
-        const btnInc = recTypeButtons.querySelector('#rec-rec-type-income');
-        if (currentRecurringType === 'expense') {
-            btnExp.className = 'flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm';
-            btnInc.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
-        } else {
-            btnInc.className = 'flex-1 px-4 py-2 rounded-md bg-emerald-100 text-emerald-700 font-medium text-sm transition-colors shadow-sm';
-            btnExp.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
-        }
-    }
-
     const type = document.getElementById('rec-freq-type').value;
     document.getElementById('rec-opts-monthly').classList.toggle('hidden', type !== 'monthly');
     document.getElementById('rec-opts-monthly').classList.toggle('flex', type === 'monthly');
@@ -703,18 +672,6 @@ window.toggleRecFreqInputs = function() {
     document.getElementById('rec-opts-weekly').classList.toggle('flex', type === 'weekly');
 };
 
-window.setRecurringType = function(type) {
-    currentRecurringType = type;
-    const btnExp = document.getElementById('rec-rec-type-expense');
-    const btnInc = document.getElementById('rec-rec-type-income');
-    if (type === 'expense') {
-        btnExp.className = 'flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm';
-        btnInc.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
-    } else {
-        btnInc.className = 'flex-1 px-4 py-2 rounded-md bg-emerald-100 text-emerald-700 font-medium text-sm transition-colors shadow-sm';
-        btnExp.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
-    }
-};
 
 
 let _endRecurringId = null;
@@ -884,7 +841,7 @@ document.getElementById('recurring-form').addEventListener('submit', async funct
         showToast('Data zakończenia nie może być wcześniejsza niż rozpoczęcia.', 'error'); return;
     }
 
-    const finalAmount = currentRecurringType === 'expense' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+    const finalAmount = getSignFromCategoryId(categoryId) * Math.abs(rawAmount);
 
     const payload = {
         title: desc,
@@ -950,7 +907,7 @@ document.getElementById('planned-form').addEventListener('submit', async functio
         showToast('Wypełnij poprawnie wszystkie pola dla zaplanowanej transakcji.', 'error'); return;
     }
 
-    const finalAmount = currentPlannedType === 'expense' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+    const finalAmount = getSignFromCategoryId(categoryId) * Math.abs(rawAmount);
 
     const payload = {
         title: desc,
@@ -1044,6 +1001,27 @@ function getCategoryOptionsHtml(selectedValue = null, byId = false) {
         html += `<option value="__NEW_CATEGORY__" class="font-bold text-blue-600">➕ Dodaj nową kategorię...</option>`;
     }
     return html;
+}
+
+function getSignFromCategoryName(name) {
+    const cat = categories.find(c => c.name === name);
+    return (cat && cat.type === 'income') ? 1 : -1;
+}
+
+function getSignFromCategoryId(id) {
+    const cat = categories.find(c => c.id == id);
+    return (cat && cat.type === 'income') ? 1 : -1;
+}
+
+function updateDestAccountOptions() {
+    const sourceAccId = document.getElementById('tx-account').value;
+    const destSelect = document.getElementById('tx-dest-account');
+    const prevVal = destSelect.value;
+    destSelect.innerHTML = '<option value="">Wybierz konto docelowe...</option>';
+    accounts.filter(a => String(a.id) !== String(sourceAccId)).forEach(a => {
+        const sel = String(a.id) === prevVal ? 'selected' : '';
+        destSelect.innerHTML += `<option value="${a.id}" ${sel}>${a.name}</option>`;
+    });
 }
 
 function getContractorOptionsHtml(selectedId = null) {
@@ -1764,19 +1742,6 @@ window.handleAutoFill = function(textValue, contSelectEl, catSelectEl) {
 }
 
 // --- TRANSAKCJE ---
-function toggleTxType(type) {
-    currentTxType = type;
-    const btnExpense = document.getElementById('type-expense');
-    const btnIncome = document.getElementById('type-income');
-    
-    if (type === 'expense') {
-        btnExpense.className = 'flex-1 px-4 py-2 rounded-md bg-rose-100 text-rose-700 font-medium text-sm transition-colors shadow-sm';
-        btnIncome.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
-    } else {
-        btnIncome.className = 'flex-1 px-4 py-2 rounded-md bg-emerald-100 text-emerald-700 font-medium text-sm transition-colors shadow-sm';
-        btnExpense.className = 'flex-1 px-4 py-2 rounded-md text-slate-500 hover:bg-slate-100 font-medium text-sm transition-colors';
-    }
-}
 
 // Podpięcie Auto-uzupełniania do głównych formularzy
 document.getElementById('tx-desc').addEventListener('input', function(e) {
@@ -1790,13 +1755,33 @@ if (recDesc) {
     });
 }
 
+document.getElementById('tx-category').addEventListener('change', function() {
+    const catName = this.value;
+    const cat = categories.find(c => c.name === catName);
+    const isTransfer = cat && cat.type === 'transfer';
+    document.getElementById('tx-contractor-wrapper').classList.toggle('hidden', isTransfer);
+    document.getElementById('tx-dest-account-wrapper').classList.toggle('hidden', !isTransfer);
+    if (isTransfer) {
+        updateDestAccountOptions();
+    } else {
+        document.getElementById('tx-dest-account').value = '';
+        document.getElementById('tx-contractor').value = '';
+        document.getElementById('tx-contractor-input').value = '';
+    }
+});
+
+document.getElementById('tx-account').addEventListener('change', function() {
+    if (!document.getElementById('tx-dest-account-wrapper').classList.contains('hidden')) {
+        updateDestAccountOptions();
+    }
+});
+
 document.getElementById('transaction-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const dateInput = document.getElementById('tx-date').value;
     const descInput = document.getElementById('tx-desc').value.trim();
     const rawAmount = parseFloat(document.getElementById('tx-amount').value);
     const categoryInput = document.getElementById('tx-category').value;
-    const contractorInput = document.getElementById('tx-contractor').value;
     const accountInput = document.getElementById('tx-account').value;
     const commentInput = document.getElementById('tx-comment').value.trim();
 
@@ -1809,14 +1794,43 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
         return;
     }
 
-    const finalAmount = currentTxType === 'expense' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+    const cat = categories.find(c => c.name === categoryInput);
+    const isTransfer = cat && cat.type === 'transfer';
+    let contractorId = null;
+
+    if (isTransfer) {
+        const destAccId = document.getElementById('tx-dest-account').value;
+        if (!destAccId) {
+            showToast('Wybierz konto docelowe przelewu.', 'error');
+            return;
+        }
+        const destAcc = accounts.find(a => a.id == destAccId);
+        const contName = 'Moje konto: ' + destAcc.name;
+        let cont = contractors.find(c => c.name === contName);
+        if (!cont) {
+            const r = await fetch('/api/contractors', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: contName, rules: null, category: null })
+            });
+            if (!r.ok) { showToast('Błąd podczas tworzenia kontrahenta przelewu.', 'error'); return; }
+            cont = await r.json();
+            contractors.push(cont);
+        }
+        contractorId = cont.id;
+    } else {
+        const rawContractor = document.getElementById('tx-contractor').value;
+        contractorId = rawContractor ? parseInt(rawContractor) : null;
+    }
+
+    const finalAmount = getSignFromCategoryName(categoryInput) * Math.abs(rawAmount);
 
     const txData = {
         date: dateInput,
         desc: descInput,
         amount: finalAmount,
         category: categoryInput,
-        contractor_id: contractorInput ? parseInt(contractorInput) : null,
+        contractor_id: contractorId,
         account_id: parseInt(accountInput),
         comment: commentInput || null
     };

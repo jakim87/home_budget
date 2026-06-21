@@ -108,7 +108,7 @@ app/
 ├── models.py           # Modele ORM (SQLAlchemy): User, Account, Transaction,
 │                       #   Category, Contractor, TransactionSplit,
 │                       #   TransactionStaging, TransactionArchive,
-│                       #   RecurringTransaction, PlannedTransaction
+│                       #   RecurringTransaction, PlannedTransaction, Budget
 ├── schemas.py          # Serializatory Marshmallow (walidacja żądań i odpowiedzi)
 ├── cli.py              # Komendy Flask CLI
 ├── services/           # Logika biznesowa — oddzielona od warstwy HTTP
@@ -173,6 +173,8 @@ budget/
 │   ├── README.md                 # Dokumentacja i zasady testowania
 │   ├── conftest.py               # Fixture pytest (SQLite in-memory)
 │   └── test_*.py                 # Pliki z testami
+├── docs/
+│   └── DOCUMENTATION.md          # Dokumentacja biznesowa i procesowa aplikacji
 ├── .env                          # Zmienne środowiskowe (ignorowany przez git)
 ├── .flaskenv                     # Konfiguracja Flask (FLASK_DEBUG=1)
 ├── .gitignore

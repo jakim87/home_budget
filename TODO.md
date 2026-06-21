@@ -2,6 +2,8 @@
 
 ## ✅ Zrealizowane (Zrobione)
 
+- [X] Backendowa obsługa transakcji cyklicznych i zaplanowanych (`recurring_service.py`, `planned_transaction_service.py`, `recurring_bp.py`, `planned_transactions_bp.py`).
+- [X] Dashboard — panel Net Worth, wykresy miesięczne/roczne (Chart.js), zakładka domyślna.
 - [X] Inicjalizacja projektu Flask (App Factory) i konfiguracja.
 - [X] Utworzenie podstawowych modeli (User, Account, Category, Transaction, Budget, TransactionArchive).
 - [X] Refaktoryzacja modeli (SQLAlchemy 2.0, typowanie `Mapped`).
@@ -24,14 +26,8 @@
 - [X] Architektura importu: Tabela tymczasowa (`TransactionStaging`) i proces weryfikacji.
 - [X] Algorytm autokategoryzacji przy imporcie (oparty na słowach kluczowych i przelewach wewnętrznych).
 
-## ⏳ Do zrobienia (Backend & API)
+## ⏳ Do zrobienia (Frontend & UI)
 
-- [ ] Backendowa obsługa "Transakcji Cyklicznych" (przeniesienie logiki z `base.html` JS do backendu np. zadań w tle).
-
-## 🖥️ Do zrobienia (Frontend & UI)
-
-- [ ] Dashboard - Główny panel pokazujący całkowitą wartość netto (Net Worth) połączoną ze wszystkich kont.
-- [ ] Wizualizacja Danych: Zastąpienie prostych tekstowych podsumowań interaktywnymi wykresami (Chart.js).
 - [ ] Tryb edycji zbiorczej transakcji: checkbox przy każdej transakcji + "zaznacz wszystkie", akcje na zaznaczonych: usuń, zmień kategorię.
 
 ## 🚀 Funkcjonalności Biznesowe (zgodnie z README.md)

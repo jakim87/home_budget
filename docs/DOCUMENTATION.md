@@ -1,6 +1,6 @@
 # Dokumentacja projektu: Home Budget App
 
-> Ostatnia aktualizacja: 2026-06-12
+> Ostatnia aktualizacja: 2026-06-21
 > Zakres: dokumentacja biznesowa (procesy, wymagania, przepływy)
 
 ---
@@ -50,7 +50,7 @@
 | Pojęcie | Definicja |
 |---------|-----------|
 | **Transakcja** | Operacja finansowa (wpływ lub wypływ) przypisana do konta, kategorii i kontrahenta |
-| **Konto** | Rachunek bankowy, konto oszczędnościowe lub portfel gotówkowy użytkownika |
+| **Konto** | Rachunek bankowy, konto oszczędnościowe lub portfel gotówkowy użytkownika; posiada pola `owner` i `co_owner` (dane właścicieli) oraz flagę `is_default` (konto wybierane automatycznie w formularzach) |
 | **Kategoria** | Klasyfikacja transakcji: `expense` (wydatek), `income` (przychód), `transfer` (przelew wewnętrzny) |
 | **Kontrahent** | Słownikowy wpis reprezentujący sklep, osobę lub instytucję; zawiera reguły automatycznego mapowania |
 | **Staging** | Strefa buforowa dla transakcji zaimportowanych z CSV, oczekujących na weryfikację użytkownika |
@@ -173,11 +173,11 @@ Użytkownik wybiera kategorię i kontrahenta w dropdownie
 
 **Formularz przyjmuje:**
 - Konto (wymagane)
-- Kwota — ujemna = wydatek, dodatnia = przychód
+- Kwota — zawsze wpisywana jako liczba dodatnia; znak wyznaczany automatycznie z typu wybranej kategorii: `expense`/`transfer` → ujemna, `income` → dodatnia
 - Tytuł
 - Data
-- Kategoria (wymagana)
-- Kontrahent (opcjonalny, wybierany z comboboxa ze słownika lub wpisany ręcznie)
+- Kategoria (wymagana) — lista expense, income, transfer; wybór kategorii określa kierunek przepływu środków
+- Kontrahent (opcjonalny, wybierany z comboboxa ze słownika lub wpisany ręcznie); dla kategorii `transfer` pole kontrahenta jest ukryte — zamiast niego pojawia się selektor konta docelowego
 - Podział (split) na wiele kategorii z opisami
 
 Po zapisaniu saldo konta jest natychmiast aktualizowane.
@@ -188,9 +188,29 @@ Po zapisaniu saldo konta jest natychmiast aktualizowane.
 
 **Cel:** Odwzorowanie przesunięcia środków między własnymi kontami bez sztucznego zawyżania wydatków/przychodów.
 
-**Warunek wyzwolenia:** kategoria transakcji ma typ `transfer` ORAZ kontrahent ma nazwę w formacie `Moje konto: <nazwa konta>`.
+**Warunek wyzwolenia (backend):** kategoria transakcji ma typ `transfer` ORAZ kontrahent ma nazwę w formacie `Moje konto: <nazwa konta>`.
 
-**Mechanizm:**
+**Formularz ręczny — nowy przepływ UI:**
+
+```
+Użytkownik wybiera kategorię typu "transfer"
+         │
+         ▼
+  Pole kontrahenta jest ukrywane.
+  Pojawia się selektor "Wybierz konto docelowe..."
+  (lista kont użytkownika bez konta źródłowego)
+         │
+         ▼
+  Użytkownik wybiera konto docelowe
+         │
+         ▼
+  Przy zapisaniu formularz sprawdza czy kontrahent
+  "Moje konto: <nazwa konta docelowego>" istnieje.
+  Jeśli nie — tworzy go automatycznie (POST /api/contractors).
+  Następnie wysyła transakcję z contractor_id.
+```
+
+**Mechanizm backendu (`create_transaction`):**
 
 ```
 Transakcja źródłowa (np. -1000 PLN na Koncie A)
@@ -210,7 +230,7 @@ Transakcja źródłowa (np. -1000 PLN na Koncie A)
                   - auto-usunięcie pasującego rekordu ze stagingu
 ```
 
-**Korekta znaku:** jeśli użytkownik poda dodatnią kwotę dla transakcji wychodzącejnia — system automatycznie koryguje ją na ujemną (i odwrotnie dla konta docelowego).
+**Znak kwoty:** wyznaczany automatycznie — kategoria `transfer` jest traktowana jak wydatek (kwota ujemna na koncie źródłowym); konto docelowe otrzymuje lustrzaną kwotę dodatnią.
 
 ---
 

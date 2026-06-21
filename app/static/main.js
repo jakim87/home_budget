@@ -1891,8 +1891,6 @@ async function saveInlineEdit(id) {
     const rawAmount = parseFloat(document.getElementById(`edit-amount-${id}`).value);
     const categoryVal = document.getElementById(`edit-cat-${id}`).value;
     const contractorVal = document.getElementById(`edit-cont-${id}`).value;
-    const isIncome = document.getElementById(`edit-type-${id}`).value === 'income';
-
     if (!dateVal || !descVal || isNaN(rawAmount) || rawAmount <= 0) {
         showToast('Wypełnij poprawnie wszystkie pola edycji.', 'error');
         return;
@@ -1906,7 +1904,7 @@ async function saveInlineEdit(id) {
     const updatedTx = {
         date: dateVal,
         desc: descVal,
-        amount: isIncome ? Math.abs(rawAmount) : -Math.abs(rawAmount),
+        amount: getSignFromCategoryName(categoryVal) * Math.abs(rawAmount),
         category: categoryVal,
         contractor_id: contractorVal ? parseInt(contractorVal) : null,
         comment: commentVal || null
@@ -1966,7 +1964,6 @@ function renderTransactions() {
             
             if (inlineEditingTxId === t.id && !t.isVirtual) {
                 // TRYB EDYCJI
-                const isExp = t.amount < 0;
                 row.className = 'bg-blue-50/50';
                 row.innerHTML = `
                     <td class="p-2 border-b border-blue-100">
@@ -1992,13 +1989,7 @@ function renderTransactions() {
                         }
                     </td>
                     <td class="p-2 border-b border-blue-100">
-                        <div class="flex gap-1 mb-1">
-                            <select id="edit-type-${t.id}" class="w-1/2 p-1.5 border border-blue-300 rounded outline-none text-xs bg-white">
-                                <option value="expense" ${isExp ? 'selected' : ''}>Wyd.</option>
-                                <option value="income" ${!isExp ? 'selected' : ''}>Przych.</option>
-                            </select>
-                            <input type="number" id="edit-amount-${t.id}" value="${Math.abs(t.amount).toFixed(2)}" step="0.01" min="0.01" ${isSplit ? 'readonly title="Kwota wynika z podziału"' : ''} class="w-1/2 p-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white ${isSplit ? 'bg-slate-100 text-slate-500' : ''}">
-                        </div>
+                        <input type="number" id="edit-amount-${t.id}" value="${Math.abs(t.amount).toFixed(2)}" step="0.01" min="0.01" ${isSplit ? 'readonly title="Kwota wynika z podziału"' : ''} class="w-full p-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white ${isSplit ? 'bg-slate-100 text-slate-500' : ''}">
                     </td>
                     <td class="p-2 border-b border-blue-100">
                         <input type="text" id="edit-comment-${t.id}" value="${escapeHtml(t.comment || '')}" maxlength="255" placeholder="Komentarz..." class="w-full p-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-white">

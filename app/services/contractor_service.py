@@ -3,7 +3,7 @@ from app.models import Contractor, Category
 
 def create_contractor(user_token, data):
     try:
-        category = db.session.query(Category).filter_by(name=data.get('category')).first() if data.get('category') else None
+        category = db.session.query(Category).filter_by(name=data.get('category'), is_active=True).first() if data.get('category') else None
         new_cont = Contractor(
             name=data['name'],
             mapping_rules=data.get('rules'),
@@ -26,7 +26,7 @@ def update_contractor(user_token, c_id, data):
         cont.mapping_rules = data.get('rules', cont.mapping_rules)
 
         cat_name = data.get('category')
-        category = db.session.query(Category).filter_by(name=cat_name).first() if cat_name else None
+        category = db.session.query(Category).filter_by(name=cat_name, is_active=True).first() if cat_name else None
         cont.default_category_id = category.id if category else None
 
         db.session.commit()

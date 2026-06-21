@@ -19,7 +19,8 @@ def init_data():
     categories_data = [{'id': c.id, 'name': c.name, 'type': c.type, 'is_system_category': c.is_system_category} for c in categories]
 
     contractors = db.session.query(Contractor).filter_by(user_token=user_token, is_active=True).order_by(Contractor.name).all()
-    contractors_data = [{'id': c.id, 'name': c.name, 'rules': c.mapping_rules, 'default_category_id': c.default_category_id, 'default_category_name': db.session.get(Category, c.default_category_id).name if c.default_category_id else ''} for c in contractors]
+    category_name_map = {c.id: c.name for c in db.session.query(Category).filter_by(is_active=True).all()}
+    contractors_data = [{'id': c.id, 'name': c.name, 'rules': c.mapping_rules, 'default_category_id': c.default_category_id, 'default_category_name': category_name_map.get(c.default_category_id, '')} for c in contractors]
 
     accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).order_by(Account.name).all()
     accounts_data = [{'id': a.id, 'name': a.name, 'bank_name': a.bank_name, 'account_number': a.account_number, 'balance': float(a.balance), 'is_default': getattr(a, 'is_default', False), 'owner': a.owner, 'co_owner': a.co_owner} for a in accounts]

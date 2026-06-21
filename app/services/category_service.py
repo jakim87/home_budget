@@ -3,7 +3,7 @@ from app.models import Category
 
 def create_category(data):
     try:
-        if db.session.query(Category).filter_by(name=data['name']).first():
+        if db.session.query(Category).filter_by(name=data['name'], is_active=True).first():
             raise ValueError('Kategoria o tej nazwie już istnieje')
             
         new_cat = Category(name=data['name'], type=data['type'])

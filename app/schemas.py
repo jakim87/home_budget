@@ -31,14 +31,14 @@ class ContractorSchema(ma.Schema):
     category = fields.String(load_default=None, allow_none=True)
 
 class SplitSchema(ma.Schema):
-    amount = fields.Float(required=True)
+    amount = fields.Decimal(required=True, as_string=False)
     desc = fields.String(load_default="")
     category = fields.String(required=True)
 
 class TransactionSchema(ma.Schema):
     title = fields.String(required=False)
     desc = fields.String(required=False)
-    amount = fields.Float(required=True)
+    amount = fields.Decimal(required=True, as_string=False)
     date = fields.String(required=True)
     category = fields.String(load_default=None, allow_none=True)
     contractor_id = fields.Integer(load_default=None, allow_none=True)

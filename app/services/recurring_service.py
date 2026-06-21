@@ -66,81 +66,93 @@ def _calculate_first_occurrence_date(start_date: date, frequency: Frequency, int
 
 def create_recurring_transaction(user_token, data):
     """Creates a new recurring transaction definition with improved clarity."""
-    next_run_date = _calculate_first_occurrence_date(
-        start_date=data['start_date'],
-        frequency=data['frequency'],
-        interval=data.get('interval', 1)
-    )
+    try:
+        next_run_date = _calculate_first_occurrence_date(
+            start_date=data['start_date'],
+            frequency=data['frequency'],
+            interval=data.get('interval', 1)
+        )
 
-    rec_tx = RecurringTransaction(
-        user_token=user_token,
-        account_id=data['account_id'],
-        category_id=data.get('category_id'),
-        contractor_id=data.get('contractor_id'),
-        title=data['title'],
-        amount=data['amount'],
-        frequency=data['frequency'],
-        interval=data.get('interval', 1),
-        day_of_week=data.get('day_of_week'),
-        day_of_month=data.get('day_of_month'),
-        start_date=data['start_date'],
-        end_date=data.get('end_date'),
-        next_run_date=next_run_date,
-        is_active=data.get('is_active', True)
-    )
-    db.session.add(rec_tx)
-    db.session.commit()
-    return rec_tx
+        rec_tx = RecurringTransaction(
+            user_token=user_token,
+            account_id=data['account_id'],
+            category_id=data.get('category_id'),
+            contractor_id=data.get('contractor_id'),
+            title=data['title'],
+            amount=data['amount'],
+            frequency=data['frequency'],
+            interval=data.get('interval', 1),
+            day_of_week=data.get('day_of_week'),
+            day_of_month=data.get('day_of_month'),
+            start_date=data['start_date'],
+            end_date=data.get('end_date'),
+            next_run_date=next_run_date,
+            is_active=data.get('is_active', True)
+        )
+        db.session.add(rec_tx)
+        db.session.commit()
+        return rec_tx
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(str(e))
 
 def get_all_recurring_transactions(user_token):
     return db.session.query(RecurringTransaction).filter_by(user_token=user_token, is_active=True).all()
 
 def update_recurring_transaction(user_token, rec_tx_id, data):
-    rec_tx = db.session.get(RecurringTransaction, rec_tx_id)
+    try:
+        rec_tx = db.session.get(RecurringTransaction, rec_tx_id)
 
-    if not rec_tx or rec_tx.user_token != user_token:
-        raise ValueError("Recurring transaction not found or access denied.")
+        if not rec_tx or rec_tx.user_token != user_token:
+            raise ValueError("Recurring transaction not found or access denied.")
 
-    rec_tx.title = data.get('title', rec_tx.title)
-    rec_tx.amount = data.get('amount', rec_tx.amount)
-    rec_tx.account_id = data.get('account_id', rec_tx.account_id)
-    rec_tx.category_id = data.get('category_id', rec_tx.category_id)
-    rec_tx.contractor_id = data.get('contractor_id', rec_tx.contractor_id)
-    rec_tx.is_active = data.get('is_active', rec_tx.is_active)
-    rec_tx.end_date = data.get('end_date', rec_tx.end_date)
+        rec_tx.title = data.get('title', rec_tx.title)
+        rec_tx.amount = data.get('amount', rec_tx.amount)
+        rec_tx.account_id = data.get('account_id', rec_tx.account_id)
+        rec_tx.category_id = data.get('category_id', rec_tx.category_id)
+        rec_tx.contractor_id = data.get('contractor_id', rec_tx.contractor_id)
+        rec_tx.is_active = data.get('is_active', rec_tx.is_active)
+        rec_tx.end_date = data.get('end_date', rec_tx.end_date)
 
-    recalculate_date = False
-    if 'start_date' in data and data['start_date'] != rec_tx.start_date:
-        rec_tx.start_date = data['start_date']
-        recalculate_date = True
-    if 'frequency' in data and data['frequency'] != rec_tx.frequency:
-        rec_tx.frequency = data['frequency']
-        recalculate_date = True
-    if 'interval' in data and data['interval'] != rec_tx.interval:
-        rec_tx.interval = data['interval']
-        recalculate_date = True
+        recalculate_date = False
+        if 'start_date' in data and data['start_date'] != rec_tx.start_date:
+            rec_tx.start_date = data['start_date']
+            recalculate_date = True
+        if 'frequency' in data and data['frequency'] != rec_tx.frequency:
+            rec_tx.frequency = data['frequency']
+            recalculate_date = True
+        if 'interval' in data and data['interval'] != rec_tx.interval:
+            rec_tx.interval = data['interval']
+            recalculate_date = True
 
-    if 'day_of_week' in data:
-        rec_tx.day_of_week = data['day_of_week']
-    if 'day_of_month' in data:
-        rec_tx.day_of_month = data['day_of_month']
+        if 'day_of_week' in data:
+            rec_tx.day_of_week = data['day_of_week']
+        if 'day_of_month' in data:
+            rec_tx.day_of_month = data['day_of_month']
 
-    if recalculate_date:
-        rec_tx.next_run_date = _calculate_first_occurrence_date(
-            start_date=rec_tx.start_date,
-            frequency=rec_tx.frequency,
-            interval=rec_tx.interval
-        )
+        if recalculate_date:
+            rec_tx.next_run_date = _calculate_first_occurrence_date(
+                start_date=rec_tx.start_date,
+                frequency=rec_tx.frequency,
+                interval=rec_tx.interval
+            )
 
-    db.session.commit()
-    return rec_tx
+        db.session.commit()
+        return rec_tx
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(str(e))
 
 def delete_recurring_transaction(user_token, rec_tx_id):
-    rec_tx = db.session.query(RecurringTransaction).filter_by(id=rec_tx_id, user_token=user_token).first()
-    if not rec_tx:
-        raise ValueError("Recurring transaction not found.")
-    db.session.delete(rec_tx)
-    db.session.commit()
+    try:
+        rec_tx = db.session.query(RecurringTransaction).filter_by(id=rec_tx_id, user_token=user_token).first()
+        if not rec_tx:
+            raise ValueError("Recurring transaction not found.")
+        db.session.delete(rec_tx)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(str(e))
 
 def process_recurring_transactions():
     """

@@ -1,104 +1,184 @@
-# Home Budget App
+# Aplikacja Budżetu Domowego
 
-A web application for managing a home budget, analyzing expenses, importing bank transactions, and monitoring net worth.
+Aplikacja webowa do zarządzania budżetem domowym: śledzenie sald kont bankowych, import transakcji z wyciągów CSV, kategoryzacja wydatków, transakcje cykliczne i zaplanowane, transfery wewnętrzne, raporty z wykresami oraz monitorowanie wartości netto (Net Worth).
 
-In the future, the application will also be available on mobile platforms (iOS and Android) and will feature receipt scanning.
+Projekt jest budowany jako aplikacja edukacyjna, rozwijana krok po kroku z wykorzystaniem Pythona, Flaska i PostgreSQL.
 
-This project is built as an educational application, developed step-by-step using Python, Flask, and PostgreSQL.
+## Cele projektu
 
-## Architektura edycji danych (Audit Trail)
+- Import transakcji z plików eksportowanych przez banki
+- Analiza wydatków i przychodów
+- Kategoryzacja transakcji z automatycznym dopasowywaniem kontrahentów
+- Planowanie budżetu miesięcznego
+- Monitorowanie sald kont
+- Obsługa wielu banków i walut
+- Śledzenie wartości netto (Net Worth)
+- Obsługa kredytów (traktowanych jako zobowiązania / wartość ujemna)
+- Ręczne wprowadzanie salda gotówkowego
+- Uwierzytelnianie użytkownika (logowanie)
+- W przyszłości: skanowanie paragonów, aplikacja mobilna (iOS i Android)
 
-W przypadku edycji istniejących wpisów aplikacja celowo nie przechowuje pełnej historii zmian (tzw. Audit Trail) w osobnych tabelach historycznych. Dla aplikacji domowego budżetu byłoby to zjawiskiem overengineeringu. Zamiast tego modyfikacje po prostu nadpisują istniejące dane w bazie, a zaktualizowany zostaje jedynie znacznik czasu (`updated_at`). 
-Wyjątkiem jest usuwanie transakcji – aby zabezpieczyć użytkownika przed utratą danych, usunięte wpisy trafiają wpierw do tabeli `TransactionArchive` (tzw. Shadow Table).
+## Obsługiwane źródła danych
+
+Aktualnie obsługiwane:
+- **ING Bank Śląski** (import z plików CSV w formacie UTF-8-sig / Windows-1250)
+
+Docelowo planowana obsługa:
+- Millennium
+- mBank
+- Pekao
+- Revolut
+- Ręczne wpisy gotówkowe
+
+## Stack technologiczny
+
+- **Backend:** Python 3.12+, Flask 3.1, SQLAlchemy 2.0 (składnia `Mapped`), Flask-Migrate (Alembic)
+- **Baza danych:** PostgreSQL (produkcja), SQLite in-memory (testy)
+- **Uwierzytelnianie:** Flask-Login
+- **Serializacja:** Marshmallow + flask-marshmallow
+- **Frontend:** Jinja2, Tailwind CSS (CDN), HTMX, Chart.js (CDN)
+- **Testy:** pytest
+
+## Wymagane narzędzia
+
+Do uruchomienia i pracy z projektem potrzebne są:
+
+- Python 3.12+
+- Git
+- PostgreSQL
+- pgAdmin 4 (opcjonalnie)
+- Visual Studio Code lub inny edytor
+
+## Uruchamianie projektu
+
+```bash
+# Utwórz i aktywuj środowisko wirtualne
+python -m venv venv
+venv\Scripts\activate          # Windows
+# source venv/bin/activate     # Linux / macOS
+
+# Zainstaluj zależności
+pip install -r requirements.txt
+
+# Skonfiguruj zmienne środowiskowe (.env)
+# DATABASE_URL=postgresql://postgres:HASLO@localhost:5432/budget_db
+# SECRET_KEY=twoj-tajny-klucz
+
+# Zastosuj migracje bazy danych
+flask db upgrade
+
+# Załaduj dane testowe (opcjonalnie)
+flask seed
+
+# Uruchom serwer deweloperski
+python run.py
+```
+
+Aplikacja dostępna pod adresem: `http://localhost:5000`
+
+Domyślne dane logowania po `flask seed`: **default_user / password**
+
+## Komendy CLI
+
+```bash
+# Migracje bazy danych
+flask db migrate -m "opis zmian"   # Wygeneruj nową migrację po zmianie modeli
+flask db upgrade                    # Zastosuj oczekujące migracje
+flask db downgrade                  # Cofnij ostatnią migrację (tylko development)
+
+# Zadania cykliczne
+flask process-scheduled             # Wykonaj zaplanowane i cykliczne transakcje
+flask cleanup-archive               # Usuń zarchiwizowane transakcje starsze niż 60 dni
+
+# Testy
+pytest                              # Uruchom wszystkie testy
+pytest tests/test_plik.py           # Pojedynczy plik
+pytest tests/test_plik.py::test_nazwa -vv --tb=long   # Pojedynczy test, tryb szczegółowy
+
+# Diagnostyka
+python test_db.py                   # Sprawdź połączenie z bazą danych
+```
+
+## Architektura aplikacji
+
+Trójwarstwowy projekt: **Modele → Serwisy → Blueprinty**
+
+```
+app/
+├── models.py           # Modele ORM (SQLAlchemy): User, Account, Transaction,
+│                       #   Category, Contractor, TransactionSplit,
+│                       #   TransactionStaging, TransactionArchive,
+│                       #   RecurringTransaction, PlannedTransaction
+├── schemas.py          # Serializatory Marshmallow (walidacja żądań i odpowiedzi)
+├── cli.py              # Komendy Flask CLI
+├── services/           # Logika biznesowa — oddzielona od warstwy HTTP
+│   ├── budget_service.py             # Główne CRUD, import CSV, uzgadnianie salda
+│   ├── transaction_service.py        # Archiwizacja i czyszczenie transakcji
+│   ├── recurring_service.py          # Wykonywanie transakcji cyklicznych
+│   ├── planned_transaction_service.py
+│   └── *.py                          # Serwisy kategorii, kontrahentów, kont, auth
+├── blueprints/         # Warstwa HTTP — obsługuje żądania, wywołuje serwisy
+│   ├── home_bp.py      # Strona główna + endpoint /api/init
+│   ├── import_bp.py    # Import CSV → flow zatwierdzania ze stagingu
+│   ├── transactions_bp.py
+│   └── *.py            # auth, accounts, categories, contractors, recurring, planned
+└── templates/
+    └── base.html       # Główny szablon Jinja2 (SPA z zakładkami)
+```
+
+### Kontrakt warstwy serwisów
+
+- Przyjmują proste typy danych (`int`, `dict`, `Decimal`); zwracają obiekty modeli lub rzucają `ValueError`
+- Zarządzają własną transakcją bazodanową: `db.session.commit()` przy sukcesie, `db.session.rollback()` przy błędzie
+- Blueprinty przechwytują `ValueError` i zwracają odpowiednie kody HTTP
 
 ## Architektura importu danych
 
 Import transakcji z plików bankowych odbywa się w bezpieczny, dwuetapowy sposób:
 
-1.  **Staging (Poczekalnia):** Wgrane transakcje nie trafiają od razu do głównego rejestru. Zamiast tego są zapisywane w tabeli tymczasowej (`transaction_staging`).
-2.  **Analiza i propozycja:** W tle uruchamiany jest algorytm, który analizuje każdą transakcję (na podstawie słów kluczowych i numerów kont) i próbuje automatycznie dopasować kontrahenta oraz kategorię.
-3.  **Weryfikacja przez użytkownika:** Użytkownik widzi zaimportowane transakcje w specjalnej zakładce "Do weryfikacji", gdzie może zaakceptować propozycje systemu, wprowadzić własne poprawki lub odrzucić błędne wpisy.
-4.  **Zatwierdzenie:** Dopiero po zatwierdzeniu przez użytkownika transakcja jest przenoszona z poczekalni do głównej tabeli `transactions`, a saldo powiązanego konta jest aktualizowane.
+1. **Staging (poczekalnia):** Zaimportowane transakcje trafiają najpierw do tabeli tymczasowej `transaction_staging`.
+2. **Analiza i propozycja:** Algorytm dopasowuje kontrahenta i kategorię na podstawie słów kluczowych i numerów kont. Wykrywa również transfery wewnętrzne.
+3. **Weryfikacja przez użytkownika:** Zakładka "Do weryfikacji" umożliwia akceptację propozycji systemu, ręczną korektę lub odrzucenie błędnych wpisów.
+4. **Zatwierdzenie:** Po zatwierdzeniu transakcja trafia do głównej tabeli `transactions`, a saldo powiązanego konta jest aktualizowane.
 
-Taki proces zapewnia pełną kontrolę nad danymi i zapobiega zaśmiecaniu budżetu niepoprawnymi lub zduplikowanymi wpisami.
+## Architektura edycji danych (Audit Trail)
 
-## Main Project Goals
+Aplikacja celowo nie przechowuje pełnej historii zmian (Audit Trail) w osobnych tabelach historycznych — dla budżetu domowego byłoby to nadmierną inżynierią. Modyfikacje nadpisują istniejące dane, aktualizując jedynie znacznik czasu (`updated_at`).
 
-- Import transactions from bank export files
-- Expense analysis
-- Transaction categorization
-- Monthly budget planning
-- Account balance monitoring
-- Multi-bank and multi-currency support
-- Net worth tracking
-- Mortgage handling (treated as a negative value/liability)
-- Manual cash balance entry
-- User authentication (login)
-- Receipt scanning
-- Future availability on iOS and Android
+Wyjątkiem jest **usuwanie transakcji** — usunięte wpisy trafiają najpierw do tabeli `TransactionArchive` (Shadow Table), co zabezpiecza przed przypadkową utratą danych.
 
-## Supported Data Sources
+## Struktura projektu
 
-Currently supported:
-- **ING Bank Śląski** (import z plików CSV)
-
-Ultimately, the application aims to support:
-
-- Millennium
-- mBank
-- Pekao
-- Revolut
-- Manual cash entries
-
-## Tech Stack
-
-Planned technologies:
-
-- Python
-- Flask
-- PostgreSQL
-- SQLAlchemy
-- Flask-Migrate
-- HTML
-- Bootstrap
-- HTMX
-- Chart.js
-- pytest (for testing imports and logic)
-
-## Required Tools
-
-To run and work on this project, you will need:
-
-- Python 3.12+
-- Git
-- PostgreSQL
-- pgAdmin 4
-- Visual Studio Code
-
-## Current Project Structure
-
-```text
-home-budget-app/
+```
+budget/
 ├── app/
-│   ├── services/
-│   │   ├── README.md             # Instrukcje dla modułu usług
-│   │   └── budget_service.py     # Logika biznesowa i operacje na bazie
-│   ├── blueprints/               # Podział endpointów (Routing)
+│   ├── blueprints/
 │   │   └── README.md             # Instrukcje tworzenia nowych blueprintów
+│   ├── services/
+│   │   └── README.md             # Instrukcje warstwy serwisów
+│   ├── static/
+│   │   ├── main.js               # Cała logika frontend (SPA)
+│   │   └── style.css             # Style uzupełniające Tailwind
 │   ├── templates/
-│   │   └── base.html             # Główny szablon (Tailwind + JS)
-│   ├── __init__.py               # Inicjalizacja Flask i SQLAlchemy (App Factory)
-│   └── models.py                 # Modele tabel bazy danych
-├── local_data/                   # Ignored by git (keep your bank CSVs here!)
-├── migrations/                   # Flask-Migrate (Alembic) versions
-│   └── README.md             # Instrukcje dla migracji
+│   │   └── base.html             # Główny szablon HTML
+│   ├── __init__.py               # Fabryka aplikacji Flask
+│   ├── models.py                 # Modele tabel bazy danych
+│   ├── schemas.py                # Schematy Marshmallow
+│   └── cli.py                    # Komendy CLI
+├── local_data/                   # Ignorowany przez git (pliki CSV z banku)
+├── migrations/
+│   ├── README.md                 # Instrukcje migracji
+│   └── versions/                 # Skrypty migracyjne Alembic
 ├── tests/
-│   ├── README.md             # Dokumentacja i zasady testowania
-│   └── ...                   # Pliki z testami
-├── .env
+│   ├── README.md                 # Dokumentacja i zasady testowania
+│   ├── conftest.py               # Fixture pytest (SQLite in-memory)
+│   └── test_*.py                 # Pliki z testami
+├── .env                          # Zmienne środowiskowe (ignorowany przez git)
+├── .flaskenv                     # Konfiguracja Flask (FLASK_DEBUG=1)
 ├── .gitignore
-├── config.py
+├── config.py                     # Klasy Config i TestConfig
 ├── requirements.txt
-├── run.py
-├── test_db.py                    # Skrypt weryfikujący połączenie z DB
-└── README.md
+├── run.py                        # Punkt wejścia aplikacji
+├── test_db.py                    # Skrypt weryfikujący połączenie z bazą
+└── README.MD
+```

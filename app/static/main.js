@@ -401,29 +401,65 @@ window.approveStaging = async function(id) {
 }
 
 window.approveAllStaging = async function() {
-    // Filtrujemy tylko te transakcje, które mają uzupełnionego i kontrahenta, i kategorię (tzw. "zielone")
     const mapped = pendingStaging.filter(t => t.proposed_category && t.proposed_contractor_id);
-    
+
     if (mapped.length === 0) {
         showToast('Brak w pełni zmapowanych transakcji (posiadających kategorię i kontrahenta).', 'info');
         return;
     }
-    
+
     if (!confirm(`Czy na pewno chcesz zatwierdzić ${mapped.length} zmapowanych transakcji?`)) return;
-    
-    let successCount = 0;
-    // Wysyłamy prośby sekwencyjnie (błyskawiczne API Flaska to obsłuży bez zatykania bazy)
-    for (const t of mapped) {
-        const res = await fetch(`/api/staging/${t.id}/approve`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ category: t.proposed_category, contractor_id: parseInt(t.proposed_contractor_id, 10) })
-        });
-        if (res.ok) successCount++;
+
+    const progressBar   = document.getElementById('staging-progress-bar');
+    const progressFill  = document.getElementById('staging-progress-fill');
+    const progressText  = document.getElementById('staging-progress-text');
+    const approveBtn    = document.getElementById('approve-all-btn');
+
+    // Pokaż pasek postępu i zablokuj przycisk
+    progressFill.style.width = '0%';
+    progressText.textContent = `0 / ${mapped.length}`;
+    progressBar.classList.remove('hidden');
+    if (approveBtn) {
+        approveBtn.disabled = true;
+        approveBtn.innerHTML = `<svg class="animate-spin inline h-3 w-3 mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>Zatwierdzanie…`;
     }
-    
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < mapped.length; i++) {
+        const t = mapped[i];
+        try {
+            const res = await fetch(`/api/staging/${t.id}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category: t.proposed_category, contractor_id: parseInt(t.proposed_contractor_id, 10) })
+            });
+            if (res.ok) successCount++;
+            else errorCount++;
+        } catch (_) { errorCount++; }
+
+        // Aktualizuj pasek po każdej transakcji
+        const pct = Math.round(((i + 1) / mapped.length) * 100);
+        progressFill.style.width = `${pct}%`;
+        progressText.textContent = `${i + 1} / ${mapped.length}`;
+    }
+
+    // Przywróć przycisk
+    if (approveBtn) {
+        approveBtn.disabled = false;
+        approveBtn.textContent = 'Zatwierdź zmapowane';
+    }
+
+    const msg = errorCount === 0
+        ? `Zatwierdzono ${successCount} transakcji!`
+        : `Zatwierdzono ${successCount}, błędy: ${errorCount}.`;
+    showToast(msg, errorCount === 0 ? 'success' : 'error');
+
+    // Ukryj pasek po chwili (widoczne 100% przez 1.2 s)
+    setTimeout(() => { progressBar.classList.add('hidden'); }, 1200);
+
     if (successCount > 0) {
-        showToast(`Pomyślnie zatwierdzono ${successCount} transakcji!`, 'success');
         fetchPendingStaging();
         fetchInitialData();
     }

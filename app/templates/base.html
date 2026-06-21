@@ -12,6 +12,22 @@
 <body class="text-slate-800 antialiased pb-20">
     <div id="toast-container"></div>
 
+    <!-- Pasek postępu zatwierdzania (widoczny z każdej zakładki) -->
+    <div id="staging-progress-bar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 z-50 min-w-[340px]">
+        <div class="flex items-center gap-3 mb-2.5">
+            <svg class="animate-spin h-4 w-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <span class="text-sm font-medium text-slate-700">Zatwierdzanie transakcji…</span>
+            <span id="staging-progress-text" class="text-sm font-bold text-blue-600 ml-auto tabular-nums">0 / 0</span>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <div id="staging-progress-fill" class="bg-blue-600 h-2 rounded-full transition-[width] duration-200 ease-out" style="width:0%"></div>
+        </div>
+        <p id="staging-progress-label" class="text-xs text-slate-400 mt-1.5 text-center">Możesz przejść do innej zakładki — operacja trwa w tle.</p>
+    </div>
+
     <div id="main-container" class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         <header class="mb-8 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>

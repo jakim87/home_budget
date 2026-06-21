@@ -1510,11 +1510,7 @@ window.openQuickContractorModal = function(prefillName = '', suggestionStagingId
     document.getElementById('quick-cont-existing-notice').classList.add('hidden');
 
     const qCatSelect = document.getElementById('quick-cont-cat-select');
-    let catHtml = `<option value="">Brak domyślnej kategorii</option>`;
-    categories.filter(c=>c.type==='expense').forEach(c => catHtml += `<option value="${c.name}">${c.name}</option>`);
-    categories.filter(c=>c.type==='income').forEach(c => catHtml += `<option value="${c.name}">${c.name}</option>`);
-    catHtml += `<option value="__NEW_CATEGORY__" class="font-bold text-blue-600">➕ Dodaj nową kategorię...</option>`;
-    qCatSelect.innerHTML = catHtml;
+    qCatSelect.innerHTML = `<option value="">Brak domyślnej kategorii</option>` + getCategoryOptionsHtml(null, false);
 
     document.getElementById('quick-contractor-modal').classList.remove('hidden');
     document.getElementById('quick-contractor-modal').classList.add('flex');
@@ -1560,11 +1556,7 @@ document.getElementById('quick-category-form').addEventListener('submit', async 
 
             if (selectId === 'quick-cont-cat-select') {
                 const qCatSelect = document.getElementById('quick-cont-cat-select');
-                let catHtml = `<option value="">Brak domyślnej kategorii</option>`;
-                categories.filter(c=>c.type==='expense').forEach(c => catHtml += `<option value="${c.name}">${c.name}</option>`);
-                categories.filter(c=>c.type==='income').forEach(c => catHtml += `<option value="${c.name}">${c.name}</option>`);
-                catHtml += `<option value="__NEW_CATEGORY__" class="font-bold text-blue-600">➕ Dodaj nową kategorię...</option>`;
-                qCatSelect.innerHTML = catHtml;
+                qCatSelect.innerHTML = `<option value="">Brak domyślnej kategorii</option>` + getCategoryOptionsHtml(null, false);
                 qCatSelect.value = saved.name;
             } else if (selectId) {
                 const el = document.getElementById(selectId);

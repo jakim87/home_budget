@@ -1,5 +1,6 @@
 from app import db
 from app.models import RecurringTransaction, Transaction, Account, Category, Contractor, User, Frequency
+from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from dateutil.relativedelta import relativedelta
@@ -63,6 +64,45 @@ def _calculate_first_occurrence_date(start_date: date, frequency: Frequency, int
             return today
 
     return next_run
+
+def get_recurring_preview(user_token, year: int, month: int) -> list:
+    """
+    Zwraca wirtualne wystąpienia aktywnych transakcji cyklicznych
+    dla podanego roku i miesiąca. Nie modyfikuje bazy danych.
+    """
+    month_start = date(year, month, 1)
+    month_end = date(year, month, monthrange(year, month)[1])
+
+    result = []
+    rts = get_all_recurring_transactions(user_token)
+
+    for rt in rts:
+        if rt.next_run_date is None:
+            continue
+        if rt.end_date and rt.end_date < month_start:
+            continue
+
+        candidate = rt.next_run_date
+        while candidate <= month_end:
+            if candidate >= month_start:
+                result.append({
+                    'id': f'virt-{rt.id}-{candidate.strftime("%Y%m%d")}',
+                    'title': rt.title,
+                    'amount': str(rt.amount),
+                    'date': candidate.isoformat(),
+                    'category_id': rt.category_id,
+                    'account_id': rt.account_id,
+                    'contractor_id': rt.contractor_id,
+                    'isVirtual': True,
+                    'recurring_id': rt.id,
+                    'frequency': rt.frequency.value if rt.frequency else None,
+                })
+            candidate = _calculate_next_run_date_for_recurring(rt, candidate)
+            if rt.end_date and candidate > rt.end_date:
+                break
+
+    return result
+
 
 def create_recurring_transaction(user_token, data):
     """Creates a new recurring transaction definition with improved clarity."""

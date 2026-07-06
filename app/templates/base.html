@@ -607,9 +607,10 @@
                 <form id="importForm">
                     <div class="mb-5">
                         <label class="block text-sm font-medium text-slate-700 mb-2">
-                            Konto, którego dotyczy wyciąg
+                            Konto (wymagane dla wyciągu z jednym kontem)
                         </label>
-                        <select id="import-account-select" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-4"></select>
+                        <p class="text-xs text-slate-500 mb-2">Dla pliku wielokontowego konta zostaną wykryte automatycznie na podstawie nagłówka CSV.</p>
+                        <select id="import-account-select" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-4"></select>
                         <label for="csvFileInput" class="block text-sm font-medium text-slate-700 mb-2 mt-4">
                             Wybierz plik z historią (.csv)
                         </label>
@@ -796,6 +797,7 @@
                                 <tr>
                                     <th class="p-3 font-semibold text-slate-600">Opis / Kategoria</th>
                                     <th class="p-3 font-semibold text-slate-600">Cykl</th>
+                                    <th class="p-3 font-semibold text-slate-600">Następne wykonanie</th>
                                     <th class="p-3 font-semibold text-slate-600 text-right">Kwota</th>
                                     <th class="p-3 font-semibold text-slate-600 text-center w-12">Akcje</th>
                                 </tr>

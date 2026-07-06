@@ -15,6 +15,7 @@ let inlineEditingTxId = null;
 // Stan transakcji cyklicznych
 let recurringTransactions = [];
 let plannedTransactions = [];
+let virtualTransactions = [];
 
 // Stan okna rozbijania
 let splitTxId = null;
@@ -65,12 +66,8 @@ importModal.addEventListener('click', (e) => {
 importForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     importErrorMsg.classList.add('hidden');
-    
+
     const accId = document.getElementById('import-account-select').value;
-    if (!accId) {
-        showImportError('Proszę najpierw wybrać konto, którego dotyczy wyciąg.');
-        return;
-    }
 
     const file = fileInput.files[0];
     if (!file) {
@@ -85,7 +82,7 @@ importForm.addEventListener('submit', async (e) => {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('account_id', accId);
+    if (accId) formData.append('account_id', accId);
 
     setImportLoadingState(true);
 
@@ -94,9 +91,17 @@ importForm.addEventListener('submit', async (e) => {
         const result = await response.json();
 
         if (response.ok) {
-            showToast(`Sukces! ${result.message}`, 'success');
+            let msg = result.message;
+            if (result.csv_accounts && result.csv_accounts.length > 0) {
+                const matched = result.csv_accounts.filter(a => a.matched).map(a => a.account_name);
+                const unknown = result.csv_accounts.filter(a => !a.matched).map(a => a.csv_name);
+                if (matched.length) msg += ` Wykryte konta: ${matched.join(', ')}.`;
+                if (unknown.length) msg += ` Nieznane konta (pominięte): ${unknown.join(', ')}.`;
+            }
+            if (result.skipped_count) msg += ` Pominięto ${result.skipped_count} transakcji z innych kont.`;
+            showToast(`Sukces! ${msg}`, 'success');
             closeImportModal();
-            fetchPendingStaging(); // Odśwież listę do weryfikacji po udanym imporcie
+            fetchPendingStaging();
         } else {
             showImportError(result.error || 'Wystąpił błąd serwera podczas importu pliku.');
         }
@@ -329,6 +334,11 @@ function renderStaging() {
                     ${badgeHtml}
                 </div>
                 ${t.contractor ? `<div class="text-xs text-slate-500 font-normal mt-0.5 break-all">${t.contractor}</div>` : ''}
+                ${t.transfer_from ? `<div class="flex items-center gap-1 mt-1 text-xs text-sky-700 font-medium">
+                    <span>Z: ${t.transfer_from.name}${t.transfer_from.abbrev ? ` <span class="text-sky-500 font-normal">(${t.transfer_from.abbrev})</span>` : ''}</span>
+                    <span class="text-sky-400">→</span>
+                    <span>Na: ${t.transfer_to.name}${t.transfer_to.abbrev ? ` <span class="text-sky-500 font-normal">(${t.transfer_to.abbrev})</span>` : ''}</span>
+                </div>` : ''}
             </td>
             <td class="p-3 border-b border-slate-100">
                 ${hasSuggestion ? `
@@ -514,8 +524,9 @@ function isSameMonthAndYear(dateString, targetDateObj) {
     return parseInt(month, 10) - 1 === targetDateObj.getMonth() && parseInt(year, 10) === targetDateObj.getFullYear();
 }
 
-function changeMonth(offset) {
+async function changeMonth(offset) {
     viewDate.setMonth(viewDate.getMonth() + offset);
+    await fetchRecurringPreview(viewDate.getFullYear(), viewDate.getMonth() + 1);
     renderTransactions();
     if (!document.getElementById('tab-summary').classList.contains('tab-hidden')) {
         // Reset filtrów niestandardowych przy strzałkach
@@ -555,6 +566,15 @@ async function fetchPlannedTransactions() {
     }
 }
 
+async function fetchRecurringPreview(year, month) {
+    try {
+        const res = await fetch(`/api/recurring-transactions/preview?year=${year}&month=${month}`);
+        if (!res.ok) return;
+        virtualTransactions = await res.json();
+    } catch (e) {
+        virtualTransactions = [];
+    }
+}
 
 function generateVirtualTransactions(targetYear, targetMonth, startLimit, endLimit) { // Ta funkcja pozostaje, ale teraz operuje na danych z backendu
     let virtualTx = [];
@@ -627,9 +647,20 @@ function getFullTransactionsList(monthFilter, startFilter, endFilter) {
         year = viewDate.getFullYear();
         month = viewDate.getMonth();
     }
-    const virtuals = generateVirtualTransactions(year, month, startFilter, endFilter);
-    let combined = [...transactions, ...virtuals];
-    
+
+    let filteredVirtuals;
+    if (startFilter || endFilter) {
+        const periodStart = startFilter ? new Date(startFilter) : new Date(2000, 0, 1);
+        const periodEnd = endFilter ? new Date(endFilter) : new Date(2100, 11, 31);
+        filteredVirtuals = virtualTransactions.filter(t => {
+            const d = new Date(t.date);
+            return d >= periodStart && d <= periodEnd;
+        });
+    } else {
+        filteredVirtuals = virtualTransactions.filter(t => isSameMonthAndYear(t.date, new Date(year, month)));
+    }
+
+    let combined = [...transactions, ...filteredVirtuals];
     if (globalAccountFilter) {
         combined = combined.filter(t => t.account_id == globalAccountFilter);
     }
@@ -709,6 +740,7 @@ window.submitEndRecurring = async function() {
             showToast('Data zakończenia cyklu została ustawiona.', 'success');
             closeEndRecurringModal();
             await fetchRecurringTransactions();
+            await fetchRecurringPreview(viewDate.getFullYear(), viewDate.getMonth() + 1);
             renderTransactions();
         } else {
             const err = await response.json();
@@ -749,12 +781,14 @@ function renderRecurringList() {
             const isExp = rt.amount < 0;
             const cat = categories.find(c => c.id === rt.category_id);
             let freqText = '';
-            if (rt.frequency === 'once') freqText = `Jednorazowo`;
-            else if (rt.frequency === 'monthly') freqText = `Co ${rt.interval} mies. (dzień: ${rt.day_of_month})`;
+            if (rt.frequency === 'monthly') freqText = `Co ${rt.interval} mies. (dzień: ${rt.day_of_month})`;
             else if (rt.frequency === 'daily') freqText = `Co ${rt.interval} dni`;
             else if (rt.frequency === 'weekly') freqText = `Co ${rt.interval} tyg. (dzień tyg: ${rt.day_of_week})`;
             else if (rt.frequency === 'yearly') freqText = `Co ${rt.interval} lat`;
             const endText = rt.end_date ? `Do ${rt.end_date}` : 'Bezterminowo';
+            const nextRunFormatted = rt.next_run_date
+                ? rt.next_run_date.split('-').reverse().join('.')
+                : '—';
 
             const row = document.createElement('tr');
             row.className = 'hover:bg-slate-50 transition-colors group';
@@ -766,6 +800,9 @@ function renderRecurringList() {
                 <td class="p-3 border-b border-slate-100 text-sm">
                     <div class="text-indigo-600 font-medium">${freqText}</div>
                     <div class="text-xs text-slate-500">Od ${rt.start_date} | ${endText}</div>
+                </td>
+                <td class="p-3 border-b border-slate-100 text-sm text-slate-700">
+                    ${nextRunFormatted}
                 </td>
                 <td class="p-3 border-b border-slate-100 font-bold text-right ${isExp ? 'text-rose-600' : 'text-emerald-600'}">
                     ${isExp ? '' : '+'}${parseFloat(rt.amount).toFixed(2)} PLN
@@ -865,9 +902,6 @@ document.getElementById('recurring-form').addEventListener('submit', async funct
     } else if (payload.frequency === 'weekly') {
         payload.day_of_week = parseInt(document.getElementById('rec-day-of-week').value);
         // Można dodać pole interwału dla tygodni, jeśli potrzebne
-    } else if (payload.frequency === 'once') {
-        // Dla 'once', data startu jest jedyną potrzebną datą
-        payload.end_date = startDate; // Ustawiamy datę końca na tę samą co startu
     }
 
     try {
@@ -883,6 +917,7 @@ document.getElementById('recurring-form').addEventListener('submit', async funct
             document.getElementById('rec-start-date').value = startDate;
             toggleRecEndDate(); toggleRecFreqInputs();
             await fetchRecurringTransactions();
+            await fetchRecurringPreview(viewDate.getFullYear(), viewDate.getMonth() + 1);
             renderTransactions();
             if (!document.getElementById('tab-summary').classList.contains('tab-hidden')) renderSummary();
         } else {
@@ -2648,6 +2683,8 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
         renderDashboard();
         await fetchPlannedTransactions();
         await fetchRecurringTransactions();
+        await fetchRecurringPreview(viewDate.getFullYear(), viewDate.getMonth() + 1);
+        renderTransactions();
         if (!skipStagingRefresh) {
             await fetchPendingStaging(); // Po załadowaniu categories/contractors, żeby badge i dropdown były poprawne
         }

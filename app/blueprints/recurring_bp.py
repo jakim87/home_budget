@@ -6,6 +6,7 @@ from app.schemas import RecurringTransactionSchema
 from app.services.recurring_service import (
     create_recurring_transaction,
     get_all_recurring_transactions,
+    get_recurring_preview,
     update_recurring_transaction,
 )
 
@@ -40,6 +41,21 @@ def edit_recurring_transaction(rec_tx_id):
         return RecurringTransactionSchema().dump(updated_tx), 200
     except ValueError as err:
         return jsonify({'error': str(err)}), 404
+
+@recurring_bp.route('/preview', methods=['GET'])
+@login_required
+def preview_recurring_transactions():
+    try:
+        year = int(request.args['year'])
+        month = int(request.args['month'])
+        if not (1 <= month <= 12):
+            raise ValueError('month must be between 1 and 12')
+    except (KeyError, ValueError):
+        return jsonify({'error': 'Wymagane parametry: year (int) i month (int, 1-12)'}), 400
+
+    result = get_recurring_preview(current_user.token, year, month)
+    return jsonify(result), 200
+
 
 @recurring_bp.route('/<int:rec_tx_id>', methods=['DELETE'])
 @login_required

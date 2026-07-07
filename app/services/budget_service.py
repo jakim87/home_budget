@@ -245,7 +245,7 @@ def parse_ing_csv_row(row_data: str, header_map: dict, key_map: dict) -> Optiona
         except ValueError:
             raise ValueError(f"Nieznany format daty: {date_str}")
 
-    return {
+    result = {
         'date': tx_date,
         'contractor': contractor,
         'title': title,
@@ -253,14 +253,96 @@ def parse_ing_csv_row(row_data: str, header_map: dict, key_map: dict) -> Optiona
         'counterparty_account': counterparty_account
     }
 
-def parse_ing_csv(file_content: str, user_token: str, main_account_id: int) -> list[dict]:
+    src_col = key_map.get('source_account')
+    if src_col and src_col in header_map:
+        try:
+            result['source_account'] = parts[header_map[src_col]].strip() or None
+        except IndexError:
+            result['source_account'] = None
+
+    return result
+
+def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
     """
-    Parsuje plik CSV z ING, używając podanego konta głównego jako kontekstu.
+    Parsuje plik CSV z ING.
+
+    Plik wielokontowy (ma sekcję 'Wybrane rachunki' i kolumnę 'Konto'):
+      — automatycznie wykrywa konto źródłowe każdej transakcji na podstawie kolumny 'Konto'.
+      — transakcje z kont nieznanych aplikacji (brak account_number) są pomijane.
+
+    Plik jednokontowy: wszystkie transakcje trafiają na main_account_id.
+
+    Zwraca słownik:
+        transactions  — lista sparsowanych transakcji z ustawionym account_id
+        csv_accounts  — lista kont z nagłówka CSV [{csv_name, iban, account_id, account_name, matched}]
+        skipped_count — liczba transakcji pominiętych z powodu nierozpoznanego konta
     """
     lines = file_content.strip().splitlines()
 
-    header_map = {}
-    tx_lines = []
+    # 1. Parsuj sekcję "Wybrane rachunki" — nazwy i numery IBAN kont w pliku
+    csv_accounts_entries: list[tuple[str, str]] = []  # (clean_name, normalized_iban)
+    in_accounts_section = False
+    for line in lines:
+        if 'Wybrane rachunki' in line:
+            in_accounts_section = True
+            continue
+        if in_accounts_section:
+            if not line.strip():
+                in_accounts_section = False
+                continue
+            try:
+                parts = next(csv.reader(io.StringIO(line), delimiter=';'))
+                parts = [p.strip().strip('"') for p in parts]
+                # parts[0] = nazwa konta (np. "Smart Saver (PLN)"), parts[2] = IBAN
+                if len(parts) >= 3 and parts[2].strip():
+                    clean_name = re.sub(r'\s*\([^)]*\)\s*$', '', parts[0]).strip()
+                    iban = _normalize_acc_num(parts[2])
+                    if iban:
+                        csv_accounts_entries.append((clean_name, iban))
+            except (StopIteration, IndexError):
+                pass
+
+    # Zbuduj słownik (pierwszy wpis wygrywa przy duplikatach nazw) i zbiór wszystkich IBAN
+    csv_accounts_raw: dict[str, str] = {}
+    csv_ibans_set: set[str] = set()
+    for name, iban in csv_accounts_entries:
+        if name not in csv_accounts_raw:
+            csv_accounts_raw[name] = iban
+        csv_ibans_set.add(iban)
+
+    # 2. Dopasuj konta z CSV do kont w bazie danych (po numerze IBAN)
+    db_accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+    iban_to_account = {_normalize_acc_num(a.account_number): a for a in db_accounts if a.account_number}
+
+    csv_accounts_info: list[dict] = []
+    csv_name_to_account_id: dict[str, Optional[int]] = {}
+
+    for csv_name, iban in csv_accounts_entries:
+        db_acc = iban_to_account.get(iban)
+        csv_accounts_info.append({
+            'csv_name': csv_name,
+            'iban': iban,
+            'account_id': db_acc.id if db_acc else None,
+            'account_name': db_acc.name if db_acc else None,
+            'matched': db_acc is not None,
+        })
+        # Przy duplikatach nazw zachowujemy pierwsze dopasowanie;
+        # reszta jest obsługiwana przez fallback po nazwie konta w DB.
+        if csv_name not in csv_name_to_account_id:
+            csv_name_to_account_id[csv_name] = db_acc.id if db_acc else None
+
+    # Fallback: własne nazwy kont z aplikacji (np. "Fundusz remontowy", "Wakacje").
+    # ING wyświetla je w kolumnie "Konto", lecz w "Wybrane rachunki" używa nazw produktów
+    # (np. "Otwarte Konto Oszczędnościowe"). Dopasowujemy case-insensitive po nazwie w DB.
+    db_name_to_account_id: dict[str, int] = {
+        acc.name.lower(): acc.id
+        for acc in db_accounts
+        if acc.account_number and _normalize_acc_num(acc.account_number) in csv_ibans_set
+    }
+
+    # 3. Znajdź nagłówek transakcji i zbierz wiersze danych
+    header_map: dict[str, int] = {}
+    tx_lines: list[str] = []
     in_tx_section = False
     for line in lines:
         if line.startswith('Data transakcji') or line.startswith('"Data transakcji"'):
@@ -277,23 +359,77 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: int) -> l
     if not header_map:
         raise ValueError("Nie znaleziono nagłówka transakcji ('Data transakcji') w pliku CSV.")
 
+    # Tryb wielokontowy: plik zawiera sekcję "Wybrane rachunki" ORAZ kolumnę "Konto"
+    is_multi_account = 'Konto' in header_map and bool(csv_accounts_raw)
+
     key_map = {
         'date': 'Data transakcji',
         'contractor': 'Dane kontrahenta',
         'title': 'Tytuł',
         'counterparty_account': 'Nr rachunku',
+        'source_account': 'Konto' if is_multi_account else None,
         'amount': next((k for k in ['Kwota transakcji (waluta rachunku)', 'Kwota transakcji'] if k in header_map), None)
     }
     if not key_map['amount']:
         raise ValueError("Nie znaleziono kolumny z kwotą transakcji ('Kwota transakcji' lub 'Kwota transakcji (waluta rachunku)').")
 
-    transactions = []
+    if not is_multi_account and main_account_id is None:
+        raise ValueError("Plik CSV zawiera jedno konto — proszę wybrać konto docelowe przed importem.")
+
+    # 4. Parsuj wiersze transakcji i przypisz właściwe account_id
+    transactions: list[dict] = []
+    skipped_count = 0
+
     for line in tx_lines:
         try:
             parsed_row = parse_ing_csv_row(line, header_map, key_map)
             if parsed_row is None:
                 continue
-            parsed_row['account_id'] = main_account_id
+
+            if is_multi_account:
+                konto_raw = parsed_row.pop('source_account', None) or ''
+                konto_clean = re.sub(r'\s*\([^)]*\)\s*$', '', konto_raw).strip()
+
+                matched_id: Optional[int] = None
+                in_csv_accounts = False
+
+                # 1. Dopasowanie po nazwie produktowej z "Wybrane rachunki"
+                for lookup_key in [konto_raw, konto_clean]:
+                    if lookup_key in csv_name_to_account_id:
+                        in_csv_accounts = True
+                        matched_id = csv_name_to_account_id[lookup_key]
+                        break
+
+                # 2. Fallback: własna nazwa konta w aplikacji (case-insensitive)
+                if not in_csv_accounts:
+                    fallback_id = db_name_to_account_id.get(konto_clean.lower())
+                    if fallback_id is not None:
+                        in_csv_accounts = True
+                        matched_id = fallback_id
+
+                if not in_csv_accounts:
+                    # Podkonto / cel oszczędnościowy (np. "iPad 3k") — pomiń
+                    skipped_count += 1
+                    continue
+                if matched_id is None:
+                    # Konto z CSV nie istnieje w aplikacji — pomiń
+                    skipped_count += 1
+                    continue
+
+                # Pomiń stronę "wpływu" (+) przelewu wewnętrznego między śledzonymi kontami.
+                # Lustro zostanie automatycznie utworzone przy zatwierdzaniu strony "wypływu" (-).
+                counterparty_iban = _normalize_acc_num(parsed_row.get('counterparty_account') or '')
+                if (parsed_row['amount'] > 0
+                        and counterparty_iban
+                        and counterparty_iban in csv_ibans_set
+                        and counterparty_iban in iban_to_account):
+                    skipped_count += 1
+                    continue
+
+                parsed_row['account_id'] = matched_id
+            else:
+                parsed_row['account_id'] = main_account_id
+
             transactions.append(parsed_row)
         except (ValueError, StopIteration, IndexError) as e:
             if line.strip() and line.strip()[0].isdigit():
@@ -301,7 +437,11 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: int) -> l
                 print(f"[Parser] Powód: {e}")
             continue
 
-    return transactions
+    return {
+        'transactions': transactions,
+        'csv_accounts': csv_accounts_info,
+        'skipped_count': skipped_count,
+    }
 
 def analyze_transaction_data(
     title: str,

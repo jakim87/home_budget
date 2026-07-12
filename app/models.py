@@ -116,6 +116,8 @@ class Account(db.Model):
     # Miękkie usuwanie ze słownika
     is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
     is_default: Mapped[bool] = mapped_column(default=False, server_default='false', nullable=False)
+    # Kolejność wyświetlania w UI (ustawiana ręcznie przez użytkownika) — nie ma wpływu na logikę aplikacji.
+    sort_order: Mapped[int] = mapped_column(default=0, server_default='0', nullable=False)
     user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
 
     # Relacja do użytkownika

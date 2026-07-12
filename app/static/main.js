@@ -1268,7 +1268,7 @@ function formatAccountNumber(num) {
 function renderAccounts() {
     const list = document.getElementById('account-list');
     list.innerHTML = '';
-    accounts.forEach(a => {
+    accounts.forEach((a, idx) => {
         const li = document.createElement('li');
         li.className = 'py-3 px-3 flex justify-between items-center group';
         li.innerHTML = `
@@ -1280,7 +1280,15 @@ function renderAccounts() {
                 ${a.account_number ? `<span class="text-xs text-slate-500 block break-all font-mono mt-0.5">${formatAccountNumber(a.account_number)}</span>` : ''}
                 ${(a.owner || a.co_owner) ? `<span class="text-xs text-slate-400 block mt-0.5">${[a.owner, a.co_owner].filter(Boolean).join(' / ')}</span>` : ''}
             </div>
-            <div class="flex gap-1">
+            <div class="flex gap-1 items-center">
+                <div class="flex flex-col opacity-0 group-hover:opacity-100">
+                    <button onclick="moveAccount(${a.id}, -1)" ${idx === 0 ? 'disabled' : ''} class="text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 p-0.5 rounded-md hover:bg-indigo-50 transition-colors" title="Przesuń wyżej">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                    </button>
+                    <button onclick="moveAccount(${a.id}, 1)" ${idx === accounts.length - 1 ? 'disabled' : ''} class="text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 p-0.5 rounded-md hover:bg-indigo-50 transition-colors" title="Przesuń niżej">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                </div>
                 <button onclick="editAccount(${a.id})" class="text-slate-400 hover:text-indigo-600 p-1.5 rounded-md hover:bg-indigo-50 transition-colors opacity-0 group-hover:opacity-100" title="Edytuj konto">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                 </button>
@@ -1295,6 +1303,35 @@ function renderAccounts() {
         list.appendChild(li);
     });
 }
+
+window.moveAccount = async function(id, direction) {
+    const idx = accounts.findIndex(a => a.id === id);
+    const newIdx = idx + direction;
+    if (idx === -1 || newIdx < 0 || newIdx >= accounts.length) return;
+
+    // Optymistyczna zmiana w UI, przed potwierdzeniem z serwera.
+    [accounts[idx], accounts[newIdx]] = [accounts[newIdx], accounts[idx]];
+    renderAccounts();
+    updateAccountSelects();
+
+    try {
+        const response = await fetch('/api/accounts/reorder', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ordered_ids: accounts.map(a => a.id) })
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'Nie udało się zapisać kolejności kont.');
+        }
+    } catch (e) {
+        // Cofnij zmianę lokalnie, jeśli zapis się nie powiódł.
+        [accounts[idx], accounts[newIdx]] = [accounts[newIdx], accounts[idx]];
+        renderAccounts();
+        updateAccountSelects();
+        showToast(e.message || 'Nie udało się zapisać kolejności kont.', 'error');
+    }
+};
 
 window.editAccount = function(id) {
     const a = accounts.find(acc => acc.id === id);

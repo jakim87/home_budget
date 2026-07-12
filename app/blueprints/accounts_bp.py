@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from marshmallow import ValidationError
 from flask_login import login_required, current_user
 from app.schemas import AccountSchema
-from app.services.account_service import create_account, update_account, soft_delete_account
+from app.services.account_service import create_account, update_account, soft_delete_account, reorder_accounts
 from app.services.budget_service import reconcile_account_balance
 from decimal import Decimal, InvalidOperation
 
@@ -33,6 +33,28 @@ def edit_account(a_id):
         return jsonify({'error': err.messages}), 400
     except ValueError as err:
         return jsonify({'error': str(err)}), 404
+
+@accounts_bp.route('/reorder', methods=['PUT'])
+@login_required
+def reorder_accounts_endpoint():
+    """
+    Zapisuje kolejność wyświetlania kont ustaloną ręcznie przez użytkownika w UI.
+    Nie ma wpływu na logikę aplikacji (dopasowywanie, salda itd.) — tylko na kolejność listy.
+    """
+    data = request.get_json() or {}
+    ordered_ids = data.get('ordered_ids')
+    if not isinstance(ordered_ids, list) or not ordered_ids:
+        return jsonify({'error': 'Pole "ordered_ids" musi być niepustą listą ID kont.'}), 400
+    try:
+        ordered_ids = [int(i) for i in ordered_ids]
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Pole "ordered_ids" musi zawierać wyłącznie liczby całkowite.'}), 400
+
+    try:
+        reorder_accounts(current_user.token, ordered_ids)
+        return jsonify({'message': 'Kolejność kont zapisana.'}), 200
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
 
 @accounts_bp.route('/<int:a_id>', methods=['DELETE'])
 @login_required

@@ -25,6 +25,9 @@ dist/
 *.sqlite3
 local_data/
 
+# Logi aplikacji
+logs/
+
 # System files
 .DS_Store
 Thumbs.db

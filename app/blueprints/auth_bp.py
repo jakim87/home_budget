@@ -1,3 +1,4 @@
+import logging
 from flask import Blueprint, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from marshmallow import ValidationError
@@ -5,6 +6,8 @@ from app.schemas import RegisterSchema, LoginSchema
 from app.services.auth_service import register_user, authenticate_user
 from app import db
 from app.models import User
+
+logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -27,13 +30,16 @@ def login():
         user = authenticate_user(identifier, data['password'])
         if user:
             login_user(user)
+            logger.info("Zalogowano: %s (IP=%s)", user.username, request.remote_addr)
             return jsonify({'message': 'Zalogowano pomyślnie'}), 200
+        logger.warning("Nieudana próba logowania: '%s' (IP=%s)", identifier, request.remote_addr)
         return jsonify({'error': 'Nieprawidłowe dane logowania'}), 401
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
 
 @auth_bp.route('/api/logout', methods=['POST'])
 def logout():
+    logger.info("Wylogowano: %s", current_user.username if current_user.is_authenticated else '-')
     logout_user()
     return jsonify({'message': 'Wylogowano pomyślnie'}), 200
 

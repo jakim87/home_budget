@@ -8,6 +8,11 @@ from difflib import SequenceMatcher
 import csv
 import io
 import re
+import logging
+
+# logging.getLogger(__name__) -> logger dostaje nazwę "app.services.budget_service".
+# Dzięki temu w pliku logów widać dokładnie, KTÓRY moduł zapisał daną linię.
+logger = logging.getLogger(__name__)
 
 _LEGAL_SUFFIXES = re.compile(
     r'\bSP(?:ÓŁKA)?\s+Z\s+O\.?O\.?\b'
@@ -433,10 +438,13 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
             transactions.append(parsed_row)
         except (ValueError, StopIteration, IndexError) as e:
             if line.strip() and line.strip()[0].isdigit():
-                print(f"[Parser] Odrzucono potencjalną transakcję: {line}")
-                print(f"[Parser] Powód: {e}")
+                logger.warning("Odrzucono wiersz CSV przy imporcie (user_token=%s): %s | powód: %s", user_token, line, e)
             continue
 
+    logger.info(
+        "Import CSV zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
+        user_token, len(transactions), skipped_count
+    )
     return {
         'transactions': transactions,
         'csv_accounts': csv_accounts_info,
@@ -530,9 +538,14 @@ def save_transactions_to_staging(
             staging_records.append(staging_tx)
 
         db.session.commit()
+        logger.info(
+            "Zapisano %d transakcji do stagingu (user_token=%s)",
+            len(staging_records), user_token
+        )
         return staging_records
     except Exception as e:
         db.session.rollback()
+        logger.error("Błąd zapisu transakcji do stagingu (user_token=%s): %s", user_token, e)
         raise ValueError(str(e))
 
 def reanalyze_all_staging(user_token: str) -> int:
@@ -626,7 +639,12 @@ def approve_staging_record(user_token, stg_id, data):
         )
         db.session.delete(stg_tx)
         db.session.commit()
+        logger.info(
+            "Zatwierdzono transakcję ze stagingu #%s -> transaction #%s (user_token=%s, kwota=%s)",
+            stg_id, new_tx.id, user_token, new_tx.amount
+        )
         return new_tx
     except Exception as e:
         db.session.rollback()
+        logger.error("Błąd zatwierdzania stagingu #%s (user_token=%s): %s", stg_id, user_token, e)
         raise ValueError(str(e))

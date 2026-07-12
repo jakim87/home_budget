@@ -5,6 +5,9 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 from app.services.budget_service import create_transaction as create_standard_transaction
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _calculate_next_run_date_for_recurring(rec_tx: RecurringTransaction, current_run_date: date) -> date:
     """
@@ -229,8 +232,9 @@ def process_recurring_transactions():
             db.session.commit()
 
         except Exception as e:
-            print(f"Error processing recurring transaction ID {rec_tx.id}: {e}")
+            logger.error("Błąd przetwarzania transakcji cyklicznej ID %s: %s", rec_tx.id, e)
             db.session.rollback()
             continue
 
+    logger.info("Przetwarzanie transakcji cyklicznych: utworzono %d nowych transakcji", created_count)
     return created_count

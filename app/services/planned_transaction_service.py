@@ -2,6 +2,9 @@ from app import db
 from app.models import PlannedTransaction
 from app.services.budget_service import create_transaction as create_standard_transaction
 from datetime import date
+import logging
+
+logger = logging.getLogger(__name__)
 
 def create_planned_transaction(user_token, data):
     """Tworzy nową definicję zaplanowanej transakcji."""
@@ -57,8 +60,9 @@ def process_planned_transactions():
             db.session.commit()
             created_count += 1
         except Exception as e:
-            print(f"Błąd podczas przetwarzania zaplanowanej transakcji ID {pt.id}: {e}")
+            logger.error("Błąd podczas przetwarzania zaplanowanej transakcji ID %s: %s", pt.id, e)
             db.session.rollback()
             continue
 
+    logger.info("Przetwarzanie zaplanowanych transakcji: utworzono %d nowych transakcji", created_count)
     return created_count

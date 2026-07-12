@@ -1,10 +1,13 @@
-from flask import Flask, jsonify
+import time
+from flask import Flask, jsonify, request, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from config import Config
 from sqlalchemy.orm import DeclarativeBase
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from flask_marshmallow import Marshmallow
+from werkzeug.exceptions import HTTPException
+from app.logging_config import configure_logging
 
 class Base(DeclarativeBase):
     pass
@@ -29,7 +32,8 @@ def unauthorized():
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
-    
+    configure_logging(app)
+
     db.init_app(app)
     migrate.init_app(app, db)
     ma.init_app(app)
@@ -117,5 +121,41 @@ def create_app(config_class=Config):
         deleted = db.session.query(TransactionArchive).filter(TransactionArchive.deleted_at < cutoff).delete()
         db.session.commit()
         print(f"Pomyślnie usunięto {deleted} przestarzałych wpisów z archiwum.")
+
+    # --- Logowanie żądań HTTP ---
+    # before_request/after_request to "haki", które Flask wywołuje odpowiednio
+    # przed i po obsłużeniu KAŻDEGO żądania — niezależnie od blueprinta/route'a.
+    # `g` to obiekt-"schowek" ważny tylko dla jednego żądania (odpowiednik
+    # zmiennej lokalnej dla całego requestu), używamy go do przekazania
+    # czasu startu z before_request do after_request.
+    @app.before_request
+    def _log_request_start():
+        g._start_time = time.time()
+
+    @app.after_request
+    def _log_request_end(response):
+        duration_ms = (time.time() - g.get('_start_time', time.time())) * 1000
+        user = current_user.username if current_user.is_authenticated else '-'
+        app.logger.info(
+            "%s %s -> %s (%.1f ms) user=%s",
+            request.method, request.path, response.status_code, duration_ms, user
+        )
+        return response
+
+    # --- Globalny handler nieobsłużonych wyjątków ---
+    # Odpowiednik ogólnego "CATCH" na końcu procedury składowanej: łapie
+    # KAŻDY wyjątek, który nie został obsłużony wcześniej w blueprintach
+    # (te zwykle łapią ValueError/ValidationError i zwracają czytelny JSON).
+    # Tutaj zapisujemy pełny traceback do logu i zwracamy użytkownikowi
+    # ogólny komunikat 500, zamiast zrzucać mu surowy błąd Pythona.
+    @app.errorhandler(Exception)
+    def _handle_unexpected_error(e):
+        if isinstance(e, HTTPException):
+            # Standardowe błędy HTTP (404, 401 itd.) — zostaw domyślną obsługę Flaska.
+            return e
+        app.logger.exception(
+            "Nieobsłużony wyjątek podczas %s %s", request.method, request.path
+        )
+        return jsonify({'error': 'Wystąpił nieoczekiwany błąd serwera.'}), 500
 
     return app

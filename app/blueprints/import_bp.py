@@ -98,6 +98,7 @@ def get_pending_staging_transactions():
             'title': tx.title,
             'contractor': tx.contractor or '',
             'status': tx.status,
+            'account_id': tx.account_id,
             'proposed_category': cat.name if cat else '',
             'proposed_contractor_id': tx.proposed_contractor_id,
             'proposed_contractor_name': cont.name if cont else '',

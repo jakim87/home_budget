@@ -165,12 +165,33 @@ async function fetchPendingStaging() {
     }
 }
 
+function resolveStagingDestAccountId(t) {
+    // Konto docelowe może pochodzić z lokalnego wyboru w tej sesji (_dest_account_id)
+    // albo, dla wierszy już rozpoznanych automatycznie po numerze konta, z nazwy
+    // istniejącego kontrahenta "Moje konto: {nazwa}" — ta sama konwencja co po
+    // stronie serwera w _resolve_destination_account (budget_service.py).
+    if (t._dest_account_id) return String(t._dest_account_id);
+    if (t.proposed_contractor_id) {
+        const cont = contractors.find(c => c.id == t.proposed_contractor_id);
+        if (cont && cont.name.startsWith('Moje konto: ')) {
+            const destAcc = accounts.find(a => a.name === cont.name.slice('Moje konto: '.length));
+            if (destAcc) return String(destAcc.id);
+        }
+    }
+    return '';
+}
+
 function getStagingStatus(t) {
-    const hasSuggestion = !!(t.suggested_contractor_name && !t.proposed_contractor_id);
-    const isFullyMapped = !!(t.proposed_category && t.proposed_contractor_id);
-    const isPartiallyMapped = !hasSuggestion && !isFullyMapped && !!(t.proposed_category || t.proposed_contractor_id);
+    const cat = categories.find(c => c.name === t.proposed_category);
+    const isTransfer = !!(cat && cat.type === 'transfer');
+    const destResolved = isTransfer ? resolveStagingDestAccountId(t) : '';
+    const hasSuggestion = !isTransfer && !!(t.suggested_contractor_name && !t.proposed_contractor_id);
+    const isFullyMapped = isTransfer
+        ? !!(t.proposed_category && destResolved)
+        : !!(t.proposed_category && t.proposed_contractor_id);
+    const isPartiallyMapped = !hasSuggestion && !isFullyMapped && !!(t.proposed_category || t.proposed_contractor_id || destResolved);
     const isUnmapped = !hasSuggestion && !isFullyMapped && !isPartiallyMapped;
-    return { hasSuggestion, isFullyMapped, isPartiallyMapped, isUnmapped };
+    return { hasSuggestion, isFullyMapped, isPartiallyMapped, isUnmapped, isTransfer };
 }
 
 window.setStagingFilter = function(filter) {
@@ -295,10 +316,7 @@ function renderStaging() {
         const amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
         const amountText = `${isPositive ? '+' : ''}${t.amount.toFixed(2)} PLN`;
 
-        const { hasSuggestion, isFullyMapped, isPartiallyMapped } = getStagingStatus(t);
-
-        const catObj = categories.find(c => c.name === t.proposed_category);
-        const isTransfer = catObj && catObj.type === 'transfer';
+        const { hasSuggestion, isFullyMapped, isPartiallyMapped, isTransfer } = getStagingStatus(t);
 
         let rowBg = 'hover:bg-slate-50';
         let badgeHtml = '';
@@ -347,10 +365,15 @@ function renderStaging() {
                     <input type="text" id="suggested-name-${t.id}" value="${t.suggested_contractor_name}" class="flex-1 text-xs p-1 border border-amber-300 rounded focus:ring-1 focus:ring-amber-400 outline-none min-w-0">
                     <button onclick="acceptSuggestedContractor(${t.id})" class="shrink-0 text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded font-medium transition-colors whitespace-nowrap">Akceptuj</button>
                 </div>` : ''}
+                ${isTransfer ? `
+                <select id="staging-dest-${t.id}" onchange="updateStagingLocalState(${t.id}, '_dest_account_id', this.value)" class="w-full p-1.5 border border-sky-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none text-sm bg-white cursor-pointer mb-1.5">
+                    <option value="">Wybierz konto docelowe...</option>
+                    ${getDestAccountOptionsHtml(t.account_id, resolveStagingDestAccountId(t))}
+                </select>` : `
                 <select id="staging-cont-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_contractor_id', this.value)" class="w-full p-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-1.5">
                     <option value="">Wybierz kontrahenta...</option>
                     ${getContractorOptionsHtml(t.proposed_contractor_id)}
-                </select>
+                </select>`}
                 <select id="staging-cat-${t.id}" onchange="updateStagingLocalState(${t.id}, 'proposed_category', this.value)" class="w-full p-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
                     <option value="">Wybierz kategorię...</option>
                     ${getCategoryOptionsHtml(t.proposed_category)}
@@ -358,7 +381,7 @@ function renderStaging() {
             </td>
             <td class="p-3 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
             <td class="p-3 border-b border-slate-100 text-center">
-                <button onclick="approveStaging(${t.id})" ${btnDisabled ? 'disabled title="Uzupełnij kategorię i kontrahenta, aby zatwierdzić"' : ''} class="px-3 py-2 ${btnClass} text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 whitespace-nowrap w-full ${btnDisabled ? '' : 'text-white'}">
+                <button onclick="approveStaging(${t.id})" ${btnDisabled ? `disabled title="${isTransfer ? 'Uzupełnij kategorię i konto docelowe, aby zatwierdzić' : 'Uzupełnij kategorię i kontrahenta, aby zatwierdzić'}"` : ''} class="px-3 py-2 ${btnClass} text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 whitespace-nowrap w-full ${btnDisabled ? '' : 'text-white'}">
                     Zatwierdź
                 </button>
             </td>
@@ -387,20 +410,43 @@ window.acceptSuggestedContractor = function(stg_id) {
 
 window.approveStaging = async function(id) {
     const catSelect = document.getElementById(`staging-cat-${id}`);
-    const contSelect = document.getElementById(`staging-cont-${id}`);
     const category = catSelect.value;
-    const contractor_id = contSelect.value;
-    
-    if (!category || !contractor_id) {
-        showToast('Błąd: wybierz kontrahenta i kategorię przed zatwierdzeniem.', 'error');
+    const cat = categories.find(c => c.name === category);
+    const isTransfer = cat && cat.type === 'transfer';
+
+    if (!category) {
+        showToast('Błąd: wybierz kategorię przed zatwierdzeniem.', 'error');
         return;
+    }
+
+    let contractor_id;
+    if (isTransfer) {
+        const destSelect = document.getElementById(`staging-dest-${id}`);
+        const destAccId = destSelect ? destSelect.value : '';
+        if (!destAccId) {
+            showToast('Wybierz konto docelowe przelewu.', 'error');
+            return;
+        }
+        try {
+            contractor_id = await resolveOrCreateTransferContractorId(destAccId);
+        } catch (err) {
+            showToast(err.message, 'error');
+            return;
+        }
+    } else {
+        const contSelect = document.getElementById(`staging-cont-${id}`);
+        if (!contSelect.value) {
+            showToast('Błąd: wybierz kontrahenta przed zatwierdzeniem.', 'error');
+            return;
+        }
+        contractor_id = parseInt(contSelect.value, 10);
     }
 
     try {
         const response = await fetch(`/api/staging/${id}/approve`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ category: category, contractor_id: parseInt(contractor_id, 10) })
+            body: JSON.stringify({ category: category, contractor_id: contractor_id })
         });
         
         if (response.ok) {
@@ -421,7 +467,7 @@ window.approveStaging = async function(id) {
 }
 
 window.approveAllStaging = async function() {
-    const mapped = pendingStaging.filter(t => t.proposed_category && t.proposed_contractor_id);
+    const mapped = pendingStaging.filter(t => getStagingStatus(t).isFullyMapped);
 
     if (mapped.length === 0) {
         showToast('Brak w pełni zmapowanych transakcji (posiadających kategorię i kontrahenta).', 'info');
@@ -450,10 +496,14 @@ window.approveAllStaging = async function() {
     for (let i = 0; i < mapped.length; i++) {
         const t = mapped[i];
         try {
+            const status = getStagingStatus(t);
+            const contractor_id = status.isTransfer
+                ? await resolveOrCreateTransferContractorId(resolveStagingDestAccountId(t))
+                : parseInt(t.proposed_contractor_id, 10);
             const res = await fetch(`/api/staging/${t.id}/approve`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ category: t.proposed_category, contractor_id: parseInt(t.proposed_contractor_id, 10) })
+                body: JSON.stringify({ category: t.proposed_category, contractor_id: contractor_id })
             });
             if (res.ok) successCount++;
             else errorCount++;
@@ -1052,11 +1102,34 @@ function updateDestAccountOptions() {
     const sourceAccId = document.getElementById('tx-account').value;
     const destSelect = document.getElementById('tx-dest-account');
     const prevVal = destSelect.value;
-    destSelect.innerHTML = '<option value="">Wybierz konto docelowe...</option>';
-    accounts.filter(a => String(a.id) !== String(sourceAccId)).forEach(a => {
-        const sel = String(a.id) === prevVal ? 'selected' : '';
-        destSelect.innerHTML += `<option value="${a.id}" ${sel}>${a.name}</option>`;
+    destSelect.innerHTML = '<option value="">Wybierz konto docelowe...</option>' + getDestAccountOptionsHtml(sourceAccId, prevVal);
+}
+
+function getDestAccountOptionsHtml(sourceAccountId, selectedId = null) {
+    let html = '';
+    accounts.filter(a => String(a.id) !== String(sourceAccountId)).forEach(a => {
+        const sel = String(a.id) === String(selectedId) ? 'selected' : '';
+        html += `<option value="${a.id}" ${sel}>${a.name}</option>`;
     });
+    return html;
+}
+
+async function resolveOrCreateTransferContractorId(destAccId) {
+    const destAcc = accounts.find(a => a.id == destAccId);
+    if (!destAcc) throw new Error('Nie znaleziono konta docelowego.');
+    const contName = 'Moje konto: ' + destAcc.name;
+    let cont = contractors.find(c => c.name === contName);
+    if (!cont) {
+        const r = await fetch('/api/contractors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: contName, rules: '', category: null })
+        });
+        if (!r.ok) throw new Error('Błąd podczas tworzenia kontrahenta przelewu.');
+        cont = await r.json();
+        contractors.push(cont);
+    }
+    return cont.id;
 }
 
 function getContractorOptionsHtml(selectedId = null) {
@@ -1876,20 +1949,12 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
             showToast('Wybierz konto docelowe przelewu.', 'error');
             return;
         }
-        const destAcc = accounts.find(a => a.id == destAccId);
-        const contName = 'Moje konto: ' + destAcc.name;
-        let cont = contractors.find(c => c.name === contName);
-        if (!cont) {
-            const r = await fetch('/api/contractors', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: contName, rules: null, category: null })
-            });
-            if (!r.ok) { showToast('Błąd podczas tworzenia kontrahenta przelewu.', 'error'); return; }
-            cont = await r.json();
-            contractors.push(cont);
+        try {
+            contractorId = await resolveOrCreateTransferContractorId(destAccId);
+        } catch (err) {
+            showToast(err.message, 'error');
+            return;
         }
-        contractorId = cont.id;
     } else {
         const rawContractor = document.getElementById('tx-contractor').value;
         contractorId = rawContractor ? parseInt(rawContractor) : null;

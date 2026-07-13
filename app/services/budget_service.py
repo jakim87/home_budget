@@ -85,18 +85,27 @@ def create_transaction(
     contractor: Optional[str] = None,
     contractor_id: Optional[int] = None,
     splits_data: Optional[list] = None,
-    comment: Optional[str] = None
+    comment: Optional[str] = None,
+    source_recurring_id: Optional[int] = None,
+    source_planned_id: Optional[int] = None,
+    commit: bool = True
 ) -> Transaction:
     """
     Tworzy nową transakcję i automatycznie aktualizuje saldo powiązanego konta.
+
+    commit=False pozwala wywołującemu (np. zatwierdzanie stagingu, przetwarzanie
+    harmonogramu) domknąć transakcję jednym wspólnym commitem — dzięki temu utworzenie
+    transakcji i powiązana operacja (usunięcie stagingu, przesunięcie next_run_date)
+    są atomowe (albo obie się udają, albo obie cofają). Zapobiega to podwójnym
+    księgowaniom po awarii między dwoma osobnymi commitami.
     """
     try:
         if not isinstance(amount, Decimal):
             amount = Decimal(str(amount))
 
-        account = db.session.query(Account).filter_by(id=account_id, user_token=user_token).first()
+        account = db.session.query(Account).filter_by(id=account_id, user_token=user_token, is_active=True).first()
         if not account:
-            raise ValueError(f"Konto o ID {account_id} nie istnieje lub brak uprawnień.")
+            raise ValueError(f"Konto o ID {account_id} nie istnieje, jest nieaktywne lub brak uprawnień.")
 
         new_transaction = Transaction(
             user_token=user_token,
@@ -107,7 +116,9 @@ def create_transaction(
             category_id=category_id,
             contractor=contractor,
             contractor_id=contractor_id,
-            comment=comment or None
+            comment=comment or None,
+            source_recurring_id=source_recurring_id,
+            source_planned_id=source_planned_id
         )
 
         account.balance = Decimal(account.balance) + amount
@@ -117,9 +128,9 @@ def create_transaction(
         if splits_data:
             for split in splits_data:
                 cat_name = split.get('category')
-                split_cat = db.session.query(Category).filter_by(name=cat_name).first() if cat_name else None
+                split_cat = db.session.query(Category).filter_by(name=cat_name, is_active=True).first() if cat_name else None
                 new_split = TransactionSplit(
-                    amount=split.get('amount', 0),
+                    amount=Decimal(str(split.get('amount', 0))),
                     desc=split.get('desc', ''),
                     category_id=split_cat.id if split_cat else None
                 )
@@ -129,49 +140,129 @@ def create_transaction(
         if category_id and contractor_id:
             category = db.session.get(Category, category_id)
             if category and category.type == 'transfer':
-                contractor_obj = db.session.get(Contractor, contractor_id)
-                if not (contractor_obj and contractor_obj.name.startswith("Moje konto: ")):
-                    db.session.commit()
-                    return new_transaction
+                contractor_obj = db.session.query(Contractor).filter_by(
+                    id=contractor_id, user_token=user_token, is_active=True
+                ).first()
+                if contractor_obj and contractor_obj.name.startswith("Moje konto: "):
+                    _create_internal_transfer_mirror(
+                        user_token, account, new_transaction, contractor_obj,
+                        amount, title, transaction_date, category_id
+                    )
 
-                outflow_amount = -abs(amount)
-                inflow_amount = abs(amount)
-
-                if amount != outflow_amount:
-                    correction = outflow_amount - amount
-                    account.balance += correction
-                    new_transaction.amount = outflow_amount
-
-                dest_account_name = contractor_obj.name.replace("Moje konto: ", "")
-                dest_account = db.session.query(Account).filter_by(user_token=user_token, name=dest_account_name, is_active=True).first()
-
-                if not (dest_account and dest_account.id != account_id):
-                    db.session.commit()
-                    return new_transaction
-
-                existing_mirror = db.session.query(Transaction).filter_by(user_token=user_token, account_id=dest_account.id, amount=inflow_amount, date=transaction_date).first()
-                if not existing_mirror:
-                    source_cont_name = f"Moje konto: {account.name}"
-                    source_contractor = db.session.query(Contractor).filter_by(user_token=user_token, name=source_cont_name).first()
-                    if not source_contractor:
-                        source_contractor = Contractor(name=source_cont_name, user_token=user_token, default_category_id=category_id)
-                        db.session.add(source_contractor)
-                        db.session.flush()
-
-                    mirror_tx = Transaction(user_token=user_token, account_id=dest_account.id, amount=inflow_amount, title=title, date=transaction_date, category_id=category_id, contractor=source_contractor.name, contractor_id=source_contractor.id)
-                    dest_account.balance = Decimal(dest_account.balance) + inflow_amount
-                    db.session.add(mirror_tx)
-
-                matching_staging = db.session.query(TransactionStaging).filter_by(user_token=user_token, account_id=dest_account.id, amount=inflow_amount, date=transaction_date, status='pending').first()
-                if matching_staging:
-                    db.session.delete(matching_staging)
-
-        db.session.commit()
+        if commit:
+            db.session.commit()
 
         return new_transaction
     except Exception as e:
         db.session.rollback()
         raise ValueError(str(e))
+
+
+def _resolve_destination_account(user_token: str, contractor_obj: Contractor) -> Optional[Account]:
+    """Wyznacza konto docelowe przelewu wewnętrznego dla kontrahenta 'Moje konto: {nazwa}'.
+
+    Najpierw po twardym powiązaniu (linked_account_id) — odporne na zmianę nazwy i
+    duplikaty. Dopiero w razie braku powiązania (stare dane) wraca do dopasowania po nazwie.
+    """
+    if contractor_obj.linked_account_id:
+        acc = db.session.query(Account).filter_by(
+            id=contractor_obj.linked_account_id, user_token=user_token, is_active=True
+        ).first()
+        if acc:
+            return acc
+
+    dest_account_name = contractor_obj.name.replace("Moje konto: ", "")
+    matches = db.session.query(Account).filter_by(
+        user_token=user_token, name=dest_account_name, is_active=True
+    ).all()
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        # Niejednoznaczna nazwa konta — nie zgadujemy, na które konto trafiają pieniądze.
+        logger.warning(
+            "Przelew wewnętrzny: nazwa konta '%s' jest niejednoznaczna (%d dopasowań, user_token=%s) — pomijam lustro.",
+            dest_account_name, len(matches), user_token
+        )
+    return None
+
+
+def _create_internal_transfer_mirror(
+    user_token: str, account: Account, new_transaction: Transaction,
+    contractor_obj: Contractor, amount: Decimal, title: str,
+    transaction_date: date, category_id: int
+) -> None:
+    """Tworzy lustrzaną transakcję na koncie docelowym przelewu wewnętrznego i wiąże obie strony."""
+    outflow_amount = -abs(amount)
+    inflow_amount = abs(amount)
+
+    # Strona źródłowa zawsze jest wypływem (-).
+    if new_transaction.amount != outflow_amount:
+        account.balance += (outflow_amount - new_transaction.amount)
+        new_transaction.amount = outflow_amount
+
+    dest_account = _resolve_destination_account(user_token, contractor_obj)
+    if not dest_account or dest_account.id == account.id:
+        return
+
+    db.session.flush()  # nadaj ID nowej transakcji, by móc powiązać lustro
+
+    # Kontrahent reprezentujący konto źródłowe (widoczny na transakcji docelowej).
+    source_cont_name = f"Moje konto: {account.name}"
+    source_contractor = db.session.query(Contractor).filter_by(
+        user_token=user_token, linked_account_id=account.id
+    ).first()
+    if not source_contractor:
+        source_contractor = db.session.query(Contractor).filter_by(
+            user_token=user_token, name=source_cont_name, is_active=True
+        ).first()
+    if not source_contractor:
+        source_contractor = Contractor(
+            name=source_cont_name, user_token=user_token,
+            default_category_id=category_id, linked_account_id=account.id
+        )
+        db.session.add(source_contractor)
+        db.session.flush()
+    elif source_contractor.linked_account_id is None:
+        source_contractor.linked_account_id = account.id
+
+    # Precyzyjna deduplikacja: szukamy istniejącego, jeszcze niepowiązanego lustra —
+    # wpływu na koncie docelowym o tej kwocie/dacie, którego kontrahent wskazuje NA
+    # konto źródłowe. Zwykły wpływ zewnętrzny nie ma takiego kontrahenta, więc nie
+    # zostanie błędnie potraktowany jako lustro.
+    existing_mirror = (
+        db.session.query(Transaction)
+        .filter_by(
+            user_token=user_token, account_id=dest_account.id,
+            amount=inflow_amount, date=transaction_date,
+            contractor_id=source_contractor.id, linked_transaction_id=None
+        )
+        .first()
+    )
+    if existing_mirror:
+        existing_mirror.linked_transaction_id = new_transaction.id
+        new_transaction.linked_transaction_id = existing_mirror.id
+        return
+
+    mirror_tx = Transaction(
+        user_token=user_token, account_id=dest_account.id, amount=inflow_amount,
+        title=title, date=transaction_date, category_id=category_id,
+        contractor=source_contractor.name, contractor_id=source_contractor.id,
+        linked_transaction_id=new_transaction.id
+    )
+    dest_account.balance = Decimal(dest_account.balance) + inflow_amount
+    db.session.add(mirror_tx)
+    db.session.flush()
+    new_transaction.linked_transaction_id = mirror_tx.id
+
+    # Usuń oczekujący wiersz stagingu odpowiadający TEJ stronie wpływu — ale tylko
+    # jeśli jego proponowany kontrahent to lustro naszego konta źródłowego. Dzięki
+    # temu nie kasujemy przypadkiem niepowiązanego wpływu o zbieżnej kwocie i dacie.
+    matching_staging = db.session.query(TransactionStaging).filter_by(
+        user_token=user_token, account_id=dest_account.id, amount=inflow_amount,
+        date=transaction_date, status='pending', proposed_contractor_id=source_contractor.id
+    ).first()
+    if matching_staging:
+        db.session.delete(matching_staging)
 
 def reconcile_account_balance(user_token: str, account_id: int, new_balance: Decimal, comment: Optional[str] = None) -> Transaction:
     """
@@ -455,35 +546,47 @@ def analyze_transaction_data(
     title: str,
     raw_contractor: Optional[str],
     user_token: str,
-    counterparty_account: Optional[str] = None
+    counterparty_account: Optional[str] = None,
+    accounts: Optional[list] = None,
+    contractors: Optional[list] = None
 ) -> tuple[Optional[int], Optional[int], Optional[str]]:
     """
     Analizuje dane transakcji i próbuje dopasować kontrahenta ze słownika.
     Zwraca (category_id, contractor_id, suggested_name).
     suggested_name jest ustawiony tylko gdy nie znaleziono dopasowania.
+
+    accounts / contractors można podać z zewnątrz (wczytane raz przed pętlą importu),
+    aby uniknąć zapytania do bazy o pełny słownik przy każdym wierszu (problem N+1).
     """
     # 1. Sprawdzenie przelewu wewnętrznego (po numerze konta)
     if counterparty_account:
         norm_csv_acc = _normalize_acc_num(counterparty_account)
         if norm_csv_acc:
-            accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+            if accounts is None:
+                accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
             for acc in accounts:
                 if acc.account_number and _normalize_acc_num(acc.account_number) == norm_csv_acc:
-                    transfer_cat = db.session.query(Category).filter_by(name="Przelew wewnętrzny").first()
+                    transfer_cat = db.session.query(Category).filter_by(name="Przelew wewnętrzny", is_active=True).first()
                     if not transfer_cat:
                         transfer_cat = Category(name="Przelew wewnętrzny", type="transfer")
                         db.session.add(transfer_cat)
-                        db.session.commit()
-                    cont_name = f"Moje konto: {acc.name}"
-                    transfer_cont = db.session.query(Contractor).filter_by(user_token=user_token, name=cont_name).first()
+                        db.session.flush()
+                    transfer_cont = db.session.query(Contractor).filter_by(
+                        user_token=user_token, linked_account_id=acc.id
+                    ).first()
                     if not transfer_cont:
-                        transfer_cont = Contractor(name=cont_name, user_token=user_token, default_category_id=transfer_cat.id)
+                        cont_name = f"Moje konto: {acc.name}"
+                        transfer_cont = Contractor(
+                            name=cont_name, user_token=user_token,
+                            default_category_id=transfer_cat.id, linked_account_id=acc.id
+                        )
                         db.session.add(transfer_cont)
-                        db.session.commit()
+                        db.session.flush()
                     return transfer_cat.id, transfer_cont.id, None
 
     # 2. Dopasowanie po nazwie i regułach mapowania
-    contractors = db.session.query(Contractor).filter_by(user_token=user_token, is_active=True).all()
+    if contractors is None:
+        contractors = db.session.query(Contractor).filter_by(user_token=user_token, is_active=True).all()
     search_text = f"{title} {raw_contractor or ''}".lower()
 
     for contractor in contractors:
@@ -506,21 +609,60 @@ def analyze_transaction_data(
     suggested = normalize_contractor_name(raw_contractor or '') or normalize_contractor_name(title or '')
     return None, None, suggested or None
 
+def _existing_import_keys(user_token: str) -> set:
+    """Zbiera klucze (data, kwota, tytuł, konto) już istniejących transakcji i wierszy
+    stagingu użytkownika — do wykrywania duplikatów przy ponownym wgraniu tego samego pliku."""
+    keys: set = set()
+    for tx in db.session.query(
+        Transaction.date, Transaction.amount, Transaction.title, Transaction.account_id
+    ).filter(Transaction.user_token == user_token).all():
+        keys.add((tx.date, tx.amount, tx.title, tx.account_id))
+    for stg in db.session.query(
+        TransactionStaging.date, TransactionStaging.amount,
+        TransactionStaging.title, TransactionStaging.account_id
+    ).filter(TransactionStaging.user_token == user_token, TransactionStaging.status == 'pending').all():
+        keys.add((stg.date, stg.amount, stg.title, stg.account_id))
+    return keys
+
+
 def save_transactions_to_staging(
     parsed_transactions: list[dict],
     user_token: Optional[str] = None
 ) -> list[TransactionStaging]:
-    """Zapisuje sparsowaną listę transakcji do tabeli tymczasowej (stagingowej)."""
+    """Zapisuje sparsowaną listę transakcji do tabeli tymczasowej (stagingowej).
+
+    Pomija wiersze będące duplikatami transakcji lub oczekujących wierszy stagingu
+    (ta sama data, kwota, tytuł i konto), aby ponowne wgranie tego samego wyciągu
+    nie tworzyło podwójnych zapisów.
+    """
     try:
+        # Wczytaj słowniki RAZ — analyze_transaction_data operuje na nich w pamięci
+        # zamiast odpytywać bazę przy każdym wierszu (unikamy N+1).
+        accounts = contractors = None
+        seen_keys: set = set()
+        if user_token:
+            accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+            contractors = db.session.query(Contractor).filter_by(user_token=user_token, is_active=True).all()
+            seen_keys = _existing_import_keys(user_token)
+
         staging_records = []
+        skipped_duplicates = 0
         for tx_data in parsed_transactions:
+            key = (tx_data['date'], tx_data['amount'], tx_data['title'], tx_data.get('account_id'))
+            if user_token and key in seen_keys:
+                skipped_duplicates += 1
+                continue
+            seen_keys.add(key)
+
             prop_cat_id, prop_contractor_id, suggested_name = None, None, None
             if user_token:
                 prop_cat_id, prop_contractor_id, suggested_name = analyze_transaction_data(
                     title=tx_data['title'],
                     raw_contractor=tx_data.get('contractor'),
                     user_token=user_token,
-                    counterparty_account=tx_data.get('counterparty_account')
+                    counterparty_account=tx_data.get('counterparty_account'),
+                    accounts=accounts,
+                    contractors=contractors
                 )
 
             staging_tx = TransactionStaging(
@@ -539,8 +681,8 @@ def save_transactions_to_staging(
 
         db.session.commit()
         logger.info(
-            "Zapisano %d transakcji do stagingu (user_token=%s)",
-            len(staging_records), user_token
+            "Zapisano %d transakcji do stagingu (user_token=%s, pominięto duplikatów: %d)",
+            len(staging_records), user_token, skipped_duplicates
         )
         return staging_records
     except Exception as e:
@@ -551,9 +693,14 @@ def save_transactions_to_staging(
 def reanalyze_all_staging(user_token: str) -> int:
     """Ponownie uruchamia autokategoryzację na wszystkich pending rekordach stagingu."""
     try:
+        accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+        contractors = db.session.query(Contractor).filter_by(user_token=user_token, is_active=True).all()
         rows = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending').all()
         for row in rows:
-            cat_id, cont_id, suggested = analyze_transaction_data(row.title, row.contractor, user_token)
+            cat_id, cont_id, suggested = analyze_transaction_data(
+                row.title, row.contractor, user_token,
+                accounts=accounts, contractors=contractors
+            )
             row.proposed_category_id = cat_id
             row.proposed_contractor_id = cont_id
             row.suggested_contractor_name = suggested
@@ -627,6 +774,9 @@ def approve_staging_record(user_token, stg_id, data):
         if not contractor:
             raise ValueError(f"Kontrahent o ID {contractor_id} nie istnieje lub jest nieaktywny.")
 
+        # commit=False → utworzenie transakcji i usunięcie wiersza stagingu są jedną
+        # atomową operacją. Bez tego awaria między dwoma commitami zostawiłaby wiersz
+        # w stanie 'pending', a ponowne kliknięcie "zatwierdź" zdublowałoby transakcję.
         new_tx = create_transaction(
             user_token=stg_tx.user_token,
             account_id=stg_tx.account_id,
@@ -635,7 +785,8 @@ def approve_staging_record(user_token, stg_id, data):
             transaction_date=stg_tx.date,
             category_id=category.id,
             contractor=stg_tx.contractor,
-            contractor_id=contractor.id
+            contractor_id=contractor.id,
+            commit=False
         )
         db.session.delete(stg_tx)
         db.session.commit()

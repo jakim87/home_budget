@@ -25,9 +25,15 @@ def update_contractor(user_token, c_id, data):
         cont.name = data.get('name', cont.name)
         cont.mapping_rules = data.get('rules', cont.mapping_rules)
 
-        cat_name = data.get('category')
-        category = db.session.query(Category).filter_by(name=cat_name, is_active=True).first() if cat_name else None
-        cont.default_category_id = category.id if category else None
+        # Kategorię zmieniamy TYLKO gdy klucz jest obecny w żądaniu. Inaczej częściowa
+        # edycja (PUT bez pola 'category') cicho kasowałaby domyślną kategorię kontrahenta.
+        category = None
+        if 'category' in data:
+            cat_name = data.get('category')
+            category = db.session.query(Category).filter_by(name=cat_name, is_active=True).first() if cat_name else None
+            cont.default_category_id = category.id if category else None
+        elif cont.default_category_id:
+            category = db.session.get(Category, cont.default_category_id)
 
         db.session.commit()
         return cont, category

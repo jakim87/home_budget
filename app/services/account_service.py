@@ -61,11 +61,13 @@ def update_account(user_token, a_id, data):
 def soft_delete_account(user_token, a_id):
     try:
         acc = db.session.query(Account).filter_by(id=a_id, user_token=user_token).first()
-        if acc:
-            acc.is_active = False
-            db.session.commit()
-    except Exception:
+        if not acc:
+            raise ValueError('Nie znaleziono konta lub brak uprawnień.')
+        acc.is_active = False
+        db.session.commit()
+    except Exception as e:
         db.session.rollback()
+        raise ValueError(str(e))
 
 def reorder_accounts(user_token, ordered_ids):
     """Zapisuje kolejność wyświetlania kont wg listy ID podanej przez użytkownika (tylko UI, bez wpływu na logikę)."""

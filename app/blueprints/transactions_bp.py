@@ -25,7 +25,7 @@ def add_transaction():
         tx_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else datetime.today().date()
 
         category_name = data.get('category')
-        category = db.session.query(Category).filter_by(name=category_name).first()
+        category = db.session.query(Category).filter_by(name=category_name, is_active=True).first()
         contractor_id = data.get('contractor_id')
         splits_data = data.get('splits', [])
         comment = data.get('comment') or None
@@ -47,7 +47,12 @@ def add_transaction():
                 'category': s.category.name if s.category else 'Inne'
             })
 
-        return jsonify({'id': new_tx.id, 'desc': new_tx.title, 'amount': float(new_tx.amount), 'date': new_tx.date.strftime('%Y-%m-%d'), 'category': category.name if category else 'Inne', 'contractor_id': new_tx.contractor_id, 'contractor_name': db.session.get(Contractor, new_tx.contractor_id).name if new_tx.contractor_id else None, 'splits': return_splits}), 201
+        contractor_name = None
+        if new_tx.contractor_id:
+            cont = db.session.query(Contractor).filter_by(id=new_tx.contractor_id, user_token=current_user.token).first()
+            contractor_name = cont.name if cont else None
+
+        return jsonify({'id': new_tx.id, 'desc': new_tx.title, 'amount': float(new_tx.amount), 'date': new_tx.date.strftime('%Y-%m-%d'), 'category': category.name if category else 'Inne', 'contractor_id': new_tx.contractor_id, 'contractor_name': contractor_name, 'splits': return_splits}), 201
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
     except ValueError as err:

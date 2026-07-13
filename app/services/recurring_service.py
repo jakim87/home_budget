@@ -107,9 +107,26 @@ def get_recurring_preview(user_token, year: int, month: int) -> list:
     return result
 
 
+def _validate_refs(user_token, account_id, contractor_id):
+    """Sprawdza, że konto i (opcjonalnie) kontrahent należą do użytkownika i są aktywne.
+    Bez tego błędne ID ujawniłoby się dopiero w nocnym przetwarzaniu jako wieczny błąd w logach."""
+    account = db.session.query(Account).filter_by(
+        id=account_id, user_token=user_token, is_active=True
+    ).first()
+    if not account:
+        raise ValueError("Konto nie istnieje, jest nieaktywne lub brak uprawnień.")
+    if contractor_id is not None:
+        contractor = db.session.query(Contractor).filter_by(
+            id=contractor_id, user_token=user_token, is_active=True
+        ).first()
+        if not contractor:
+            raise ValueError("Kontrahent nie istnieje, jest nieaktywny lub brak uprawnień.")
+
+
 def create_recurring_transaction(user_token, data):
     """Creates a new recurring transaction definition with improved clarity."""
     try:
+        _validate_refs(user_token, data['account_id'], data.get('contractor_id'))
         next_run_date = _calculate_first_occurrence_date(
             start_date=data['start_date'],
             frequency=data['frequency'],
@@ -148,6 +165,13 @@ def update_recurring_transaction(user_token, rec_tx_id, data):
 
         if not rec_tx or rec_tx.user_token != user_token:
             raise ValueError("Recurring transaction not found or access denied.")
+
+        if 'account_id' in data or 'contractor_id' in data:
+            _validate_refs(
+                user_token,
+                data.get('account_id', rec_tx.account_id),
+                data.get('contractor_id', rec_tx.contractor_id)
+            )
 
         rec_tx.title = data.get('title', rec_tx.title)
         rec_tx.amount = data.get('amount', rec_tx.amount)
@@ -200,14 +224,24 @@ def delete_recurring_transaction(user_token, rec_tx_id):
 def process_recurring_transactions():
     """
     Processes all due recurring transactions and creates standard transactions.
+
+    Idempotentne i bezpieczne przy wielokrotnym/współbieżnym uruchomieniu:
+    - blokada wierszy (FOR UPDATE SKIP LOCKED na PostgreSQL) zapobiega równoległemu
+      przetworzeniu tej samej definicji przez dwa procesy;
+    - strażnik po source_recurring_id + data wykrywa transakcję już utworzoną
+      (np. po awarii przed przesunięciem next_run_date) i nie tworzy jej ponownie;
+    - utworzenie transakcji i przesunięcie next_run_date domykane są JEDNYM commitem.
     """
     created_count = 0
     today = date.today()
 
-    due_recurring_transactions = db.session.query(RecurringTransaction).filter(
+    query = db.session.query(RecurringTransaction).filter(
         RecurringTransaction.next_run_date <= today,
         RecurringTransaction.is_active == True
-    ).all()
+    )
+    if db.session.get_bind().dialect.name == 'postgresql':
+        query = query.with_for_update(skip_locked=True)
+    due_recurring_transactions = query.all()
 
     for rec_tx in due_recurring_transactions:
         if rec_tx.end_date and rec_tx.next_run_date > rec_tx.end_date:
@@ -216,16 +250,23 @@ def process_recurring_transactions():
             continue
 
         try:
-            create_standard_transaction(
-                user_token=rec_tx.user_token,
-                account_id=rec_tx.account_id,
-                amount=rec_tx.amount,
-                title=rec_tx.title,
-                transaction_date=rec_tx.next_run_date,
-                category_id=rec_tx.category_id,
-                contractor_id=rec_tx.contractor_id
-            )
-            created_count += 1
+            already_created = db.session.query(Transaction).filter_by(
+                source_recurring_id=rec_tx.id, date=rec_tx.next_run_date
+            ).first()
+
+            if not already_created:
+                create_standard_transaction(
+                    user_token=rec_tx.user_token,
+                    account_id=rec_tx.account_id,
+                    amount=rec_tx.amount,
+                    title=rec_tx.title,
+                    transaction_date=rec_tx.next_run_date,
+                    category_id=rec_tx.category_id,
+                    contractor_id=rec_tx.contractor_id,
+                    source_recurring_id=rec_tx.id,
+                    commit=False
+                )
+                created_count += 1
 
             rec_tx.next_run_date = _calculate_next_run_date_for_recurring(rec_tx, rec_tx.next_run_date)
             rec_tx.updated_at = datetime.now(timezone.utc)

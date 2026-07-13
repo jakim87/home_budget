@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Numeric, Date, ForeignKey, Enum as SQLAlchemyEnum
+from sqlalchemy import String, Text, Numeric, Date, ForeignKey, Enum as SQLAlchemyEnum
 from datetime import date
 from typing import Optional, List
 from app import db
@@ -81,7 +81,12 @@ class TransactionArchive(db.Model):
     contractor_id: Mapped[Optional[int]] = mapped_column()
     category_id: Mapped[Optional[int]] = mapped_column()
     user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
-    
+
+    # Pełny ślad audytowy usuniętej transakcji (wcześniej ginęły przy usuwaniu).
+    comment: Mapped[Optional[str]] = mapped_column(String(255))
+    contractor_raw: Mapped[Optional[str]] = mapped_column(String(255))  # surowy tekst kontrahenta z banku
+    splits_json: Mapped[Optional[str]] = mapped_column(Text)  # zserializowane podziały (JSON jako tekst — zgodne z SQLite)
+
     # Znacznik czasu operacji usunięcia
     deleted_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), nullable=False)
 
@@ -118,6 +123,12 @@ class Account(db.Model):
     is_default: Mapped[bool] = mapped_column(default=False, server_default='false', nullable=False)
     # Kolejność wyświetlania w UI (ustawiana ręcznie przez użytkownika) — nie ma wpływu na logikę aplikacji.
     sort_order: Mapped[int] = mapped_column(default=0, server_default='0', nullable=False)
+    # Data dodania konta do słownika — istotna dla raportowania i rozstrzygania kolejności
+    # (np. przy duplikatach nazw). Dla kont istniejących przed migracją ustawiona na czas
+    # migracji (brak historycznej daty utworzenia).
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc), server_default=db.func.now(), nullable=False
+    )
     user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
 
     # Relacja do użytkownika
@@ -144,6 +155,9 @@ class Contractor(db.Model):
     user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
     # NOWE POLE: Miękkie usuwanie
     is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
+    # Dla kontrahentów typu "Moje konto: {nazwa}" — twarde powiązanie z kontem docelowym.
+    # Dzięki temu przelewy wewnętrzne są odporne na zmianę nazwy konta i duplikaty nazw.
+    linked_account_id: Mapped[Optional[int]] = mapped_column(ForeignKey('accounts.id'), nullable=True)
 
 class TransactionSplit(db.Model):
     __tablename__ = 'transaction_splits'
@@ -172,6 +186,20 @@ class Transaction(db.Model):
     category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
     user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
     comment: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # Powiązanie dwóch stron przelewu wewnętrznego (samoodwołanie).
+    # Zastępuje kruchą heurystykę dopasowania po (konto, kwota, data).
+    linked_transaction_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey('transactions.id', ondelete='SET NULL'), nullable=True
+    )
+    # Ślad pochodzenia — z jakiej definicji harmonogramu powstała transakcja.
+    # Umożliwia idempotentne przetwarzanie (brak podwójnego wykonania).
+    source_recurring_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey('recurring_transactions.id', ondelete='SET NULL'), nullable=True
+    )
+    source_planned_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey('planned_transactions.id', ondelete='SET NULL'), nullable=True
+    )
 
     # Właściwości relacyjne (wymagane m.in. dla eager loadingu w zapytaniach)
     account: Mapped['Account'] = relationship()

@@ -16,9 +16,11 @@ def create_category(data):
 
 def soft_delete_category(cat_name):
     try:
-        category = db.session.query(Category).filter_by(name=cat_name).first()
-        if category:
-            category.is_active = False
-            db.session.commit()
-    except Exception:
+        category = db.session.query(Category).filter_by(name=cat_name, is_active=True).first()
+        if not category:
+            raise ValueError('Nie znaleziono aktywnej kategorii o tej nazwie.')
+        category.is_active = False
+        db.session.commit()
+    except Exception as e:
         db.session.rollback()
+        raise ValueError(str(e))

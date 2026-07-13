@@ -23,7 +23,7 @@ def init_data():
     contractors_data = [{'id': c.id, 'name': c.name, 'rules': c.mapping_rules, 'default_category_id': c.default_category_id, 'default_category_name': category_name_map.get(c.default_category_id, '')} for c in contractors]
 
     accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).order_by(Account.sort_order, Account.name).all()
-    accounts_data = [{'id': a.id, 'name': a.name, 'bank_name': a.bank_name, 'account_number': a.account_number, 'balance': float(a.balance), 'is_default': getattr(a, 'is_default', False), 'owner': a.owner, 'co_owner': a.co_owner} for a in accounts]
+    accounts_data = [{'id': a.id, 'name': a.name, 'bank_name': a.bank_name, 'account_number': a.account_number, 'balance': float(a.balance), 'is_default': getattr(a, 'is_default', False), 'owner': a.owner, 'co_owner': a.co_owner, 'created_at': a.created_at.strftime('%Y-%m-%d') if a.created_at else None} for a in accounts]
 
     transactions = db.session.query(Transaction).options(
         joinedload(Transaction.category),

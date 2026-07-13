@@ -32,7 +32,10 @@ def import_ing_csv():
         file_content = file.read().decode('utf-8-sig')
     except UnicodeDecodeError:
         file.seek(0)
-        file_content = file.read().decode('windows-1250')
+        try:
+            file_content = file.read().decode('windows-1250')
+        except UnicodeDecodeError:
+            return jsonify({'error': 'Nieobsługiwane kodowanie pliku. Oczekiwano UTF-8 lub Windows-1250 (eksport z ING).'}), 400
 
     account_id = request.form.get('account_id')
 

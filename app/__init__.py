@@ -1,3 +1,4 @@
+import os
 import time
 from flask import Flask, jsonify, request, g
 from flask_sqlalchemy import SQLAlchemy
@@ -63,7 +64,10 @@ def create_app(config_class=Config):
     app.register_blueprint(recurring_bp) # NEW
     app.register_blueprint(planned_bp) # NEW
     app.register_blueprint(import_bp)
-    app.register_blueprint(dev_bp)
+    # dev_bp zawiera destrukcyjny endpoint resetu danych — rejestrujemy go tylko
+    # w trybie debug/testów lub gdy jawnie włączony zmienną ENABLE_DEV_RESET.
+    if app.debug or app.testing or os.getenv('ENABLE_DEV_RESET') == '1':
+        app.register_blueprint(dev_bp)
 
     @app.cli.command("seed")
     def seed_db():

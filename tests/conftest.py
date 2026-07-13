@@ -13,7 +13,12 @@ from werkzeug.security import generate_password_hash
 
 class TestConfig(Config):
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    # Domyślnie in-memory SQLite (szybkie uruchomienia lokalne). Ustawienie zmiennej
+    # środowiskowej TEST_DATABASE_URL (np. w CI) uruchamia TEN SAM pakiet testów na
+    # PostgreSQL — wykrywa rozjazdy zachowań SQLite vs Postgres (constraints, typy).
+    # UWAGA: TEST_DATABASE_URL musi wskazywać na osobną bazę testową (tabele są
+    # tworzone i KASOWANE przy każdym teście) — nigdy na produkcyjną budget_db!
+    SQLALCHEMY_DATABASE_URI = os.getenv('TEST_DATABASE_URL', 'sqlite:///:memory:')
 
 @pytest.fixture
 def app():
@@ -29,19 +34,41 @@ def client(app):
     return app.test_client()
 
 @pytest.fixture
-def test_user_id(app):
-    """Fixture zwracający ID użytkownika testowego (potrzebne do Flask-Login)."""
-    with app.app_context():
-        user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
-        db.session.add(user)
-        db.session.commit()
-        return user.id
+def test_user(app):
+    """Użytkownik testowy (testuser / password). Wspólne źródło dla test_user_id
+    i test_user_token — dzięki temu można ich używać razem w jednym teście."""
+    user = User(username="testuser", email="test@test.com",
+                password_hash=generate_password_hash("password"))
+    db.session.add(user)
+    db.session.commit()
+    return user
 
 @pytest.fixture
-def test_user_token(app):
-    """Fixture zwracający token użytkownika testowego (do filtrowania danych finansowych)."""
-    with app.app_context():
-        user = User(username="testuser", email="test@test.com", password_hash=generate_password_hash("password"))
-        db.session.add(user)
-        db.session.commit()
-        return user.token
+def test_user_id(test_user):
+    """ID użytkownika testowego (potrzebne do Flask-Login)."""
+    return test_user.id
+
+@pytest.fixture
+def test_user_token(test_user):
+    """Token użytkownika testowego (do filtrowania danych finansowych)."""
+    return test_user.token
+
+@pytest.fixture
+def other_user(app):
+    """Drugi użytkownik — do testów autoryzacji (próby dostępu do cudzych zasobów)."""
+    user = User(username="intruz", email="intruz@test.com",
+                password_hash=generate_password_hash("password"))
+    db.session.add(user)
+    db.session.commit()
+    return user
+
+@pytest.fixture
+def logged_in_client(client, test_user):
+    """Klient HTTP zalogowany jako testuser — zastępuje kopiowany login_user_helper."""
+    client.post('/api/login', json={'username': 'testuser', 'password': 'password'})
+    return client
+
+def login_as(client, username, password="password"):
+    """Pomocnik: przelogowanie klienta na innego użytkownika (testy autoryzacji)."""
+    client.post('/api/logout')
+    return client.post('/api/login', json={'username': username, 'password': password})

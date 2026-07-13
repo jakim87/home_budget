@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from app import db
 from app.models import User, Account, Category, Transaction, TransactionStaging, Contractor
 from app.services.budget_service import save_transactions_to_staging
@@ -20,7 +21,7 @@ def test_create_transaction(app):
     db.session.add(user)
     db.session.commit()
 
-    account = Account(name="Konto Bieżące", bank_name="ING", balance=1500.0, user_token=user.token)
+    account = Account(name="Konto Bieżące", bank_name="ING", balance=Decimal("1500.00"), user_token=user.token)
     category = Category(name="Wypłata", type="income")
     db.session.add_all([account, category])
     db.session.commit()
@@ -29,7 +30,7 @@ def test_create_transaction(app):
     tx = Transaction(
         date=date(2023, 10, 1),
         title="Premia",
-        amount=500.0,
+        amount=Decimal("500.00"),
         category_id=category.id,
         account_id=account.id,
         user_token=user.token
@@ -39,7 +40,7 @@ def test_create_transaction(app):
 
     # Assert
     assert tx.id is not None
-    assert tx.amount == 500.0
+    assert tx.amount == Decimal("500.00")
 
 def test_create_transaction_staging(app):
     """Testuje zapisywanie surowych danych do tabeli stagingowej."""
@@ -47,7 +48,7 @@ def test_create_transaction_staging(app):
     staging_tx = TransactionStaging(
         date=date(2023, 10, 25),
         title="Wypłata z testu",
-        amount=12500.50,
+        amount=Decimal("12500.50"),
         contractor="Firma X"
     )
     db.session.add(staging_tx)
@@ -76,13 +77,13 @@ def test_save_transactions_to_staging(app):
         {
             'date': date(2023, 10, 25),
             'title': 'Zakupy Biedronka Warszawa',
-            'amount': 12500.50,
+            'amount': Decimal("12500.50"),
             'contractor': 'Jeronimo Martins'
         },
         {
             'date': date(2023, 10, 28),
             'title': 'Opłata',
-            'amount': -7.00,
+            'amount': Decimal("-7.00"),
             'contractor': None
         }
     ]

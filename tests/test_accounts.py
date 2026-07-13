@@ -1,4 +1,5 @@
 import pytest
+from decimal import Decimal
 from app import db
 from app.models import User, Account
 from sqlalchemy.exc import IntegrityError
@@ -11,7 +12,7 @@ def test_create_account_success(app):
     db.session.commit()
 
     # Action
-    account = Account(name="Konto Osobiste", bank_name="mBank", balance=500.0, user_token=user.token)
+    account = Account(name="Konto Osobiste", bank_name="mBank", balance=Decimal("500.00"), user_token=user.token)
     db.session.add(account)
     db.session.commit()
 
@@ -19,7 +20,7 @@ def test_create_account_success(app):
     assert account.id is not None
     assert account.name == "Konto Osobiste"
     assert account.bank_name == "mBank"
-    assert float(account.balance) == 500.0
+    assert account.balance == Decimal("500.00")
 
 def test_create_account_missing_bank_name_raises_error(app):
     # Setup

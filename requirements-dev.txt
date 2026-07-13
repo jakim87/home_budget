@@ -1,0 +1,3 @@
+# Zależności deweloperskie (testy) — instalacja: pip install -r requirements-dev.txt
+# pytest jest też w requirements.txt; tu dodatkowo pomiar pokrycia.
+pytest-cov==7.1.0

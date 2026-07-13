@@ -109,7 +109,9 @@ app/
 
 ### Testing
 
-Tests use in-memory SQLite defined in `tests/conftest.py` (fixtures: `app`, `client`, `test_user_id`). SQLite behavior differs from PostgreSQL — notably no JSON column support and relaxed constraints.
+Tests use in-memory SQLite by default, defined in `tests/conftest.py` (fixtures: `app`, `client`, `test_user`, `test_user_id`, `test_user_token`, `other_user`, `logged_in_client`, helper `login_as`). Setting env var `TEST_DATABASE_URL` runs the **same suite on PostgreSQL** (CI does this via `.github/workflows/tests.yml` — jobs: SQLite + coverage, PostgreSQL). SQLite behavior differs from PostgreSQL — notably no JSON column support and relaxed constraints.
+
+Test conventions: amounts as `Decimal("...")` (never float; exception: assertions on JSON API responses), API-mutating tests assert both HTTP status **and** DB state, every endpoint with an ID gets an IDOR test in `tests/test_authorization.py`.
 
 TDD workflow: RED (write failing test) → GREEN (minimal implementation) → REFACTOR.
 

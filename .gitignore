@@ -39,3 +39,7 @@ Thumbs.db
 
 # Inne
 tempCodeRunnerFile.py
+
+# Artefakty pytest-cov
+.coverage
+htmlcov/

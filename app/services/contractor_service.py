@@ -44,9 +44,10 @@ def update_contractor(user_token, c_id, data):
 def soft_delete_contractor(user_token, c_id):
     try:
         cont = db.session.query(Contractor).filter_by(id=c_id, user_token=user_token).first()
-        if cont:
-            cont.is_active = False
-            db.session.commit()
+        if not cont:
+            raise ValueError('Nie znaleziono kontrahenta lub brak uprawnień.')
+        cont.is_active = False
+        db.session.commit()
     except Exception as e:
         db.session.rollback()
         raise ValueError(str(e))

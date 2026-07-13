@@ -123,6 +123,12 @@ class Account(db.Model):
     is_default: Mapped[bool] = mapped_column(default=False, server_default='false', nullable=False)
     # Kolejność wyświetlania w UI (ustawiana ręcznie przez użytkownika) — nie ma wpływu na logikę aplikacji.
     sort_order: Mapped[int] = mapped_column(default=0, server_default='0', nullable=False)
+    # Data dodania konta do słownika — istotna dla raportowania i rozstrzygania kolejności
+    # (np. przy duplikatach nazw). Dla kont istniejących przed migracją ustawiona na czas
+    # migracji (brak historycznej daty utworzenia).
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc), server_default=db.func.now(), nullable=False
+    )
     user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
 
     # Relacja do użytkownika

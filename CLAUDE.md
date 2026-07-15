@@ -6,6 +6,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Home Budget App** — Flask + PostgreSQL web app for personal finance management. Features: bank account tracking, CSV import from ING Bank Śląski, transaction categorization, recurring/planned transactions, internal transfers, dashboard z Net Worth i wykresami Chart.js. Codebase and UI are in **Polish**.
 
+## Zasady pracy nad tym repo
+
+Wytyczne behawioralne ograniczające typowe błędy przy zmianach w kodzie. Nastawione na ostrożność kosztem szybkości — dla trywialnych zadań (literówka, jednolinijkowa zmiana) użyj zdrowego rozsądku, nie trzeba całej ceremonii.
+
+### Myśl, zanim zaczniesz kodować
+
+- Nazwij założenia wprost. Jeśli istnieje kilka interpretacji — przedstaw je, nie wybieraj po cichu.
+- Jeśli istnieje prostsze rozwiązanie — powiedz to. Kontruj, gdy jest ku temu powód.
+- Jeśli coś jest niejasne — zatrzymaj się i zapytaj, zamiast zgadywać. Dotyczy to zwłaszcza kwot, przypisania kont i przelewów wewnętrznych — złe założenie tutaj oznacza błędne dane finansowe, nie tylko brzydki kod.
+
+### Zmiany chirurgiczne
+
+- Dotykaj tylko tego, co konieczne. Każda zmieniona linia powinna wynikać wprost z zadania.
+- Nie „poprawiaj” sąsiedniego kodu, komentarzy ani formatowania przy okazji. Trzymaj się istniejącego stylu i granic warstw (Models → Services → Blueprints, patrz Services Layer Contract).
+- Zauważony niepowiązany martwy kod — zgłoś, nie usuwaj. Wyjątek: importy/zmienne/funkcje osierocone przez Twoje własne zmiany usuń.
+
+### Cel z kryterium weryfikacji
+
+Przed wieloetapowym zadaniem podaj krótki plan z jawnym sprawdzeniem każdego kroku:
+
+```
+1. [krok] → weryfikacja: [jak sprawdzę, że działa]
+2. [krok] → weryfikacja: [jak sprawdzę, że działa]
+```
+
+Przekładaj polecenia na weryfikowalne cele: „napraw bug” → „napisz test odtwarzający błąd, potem spraw, by przechodził”. Jest to spójne z workflow TDD (RED → GREEN → REFACTOR) opisanym w sekcji Testing.
+
+### Test prostoty
+
+Zanim uznasz zmianę za gotową, zadaj sobie pytanie: „Czy senior powiedziałby, że to przekombinowane?”. Jeśli tak — uprość. Bez spekulacyjnych abstrakcji, konfigurowalności, której nikt nie zamawiał, ani obsługi scenariuszy, które nie mogą wystąpić.
+
 ## Commands
 
 ```bash
@@ -23,7 +54,7 @@ flask process-scheduled          # Execute due recurring & planned transactions
 flask cleanup-archive            # Remove archived transactions older than 60 days
 
 # Tests
-pytest                           # Run all tests
+pytest                           # Run all tests (~9 min for full suite, ~90 tests — nie mylić z zawieszeniem)
 pytest tests/test_file.py        # Single file
 pytest tests/test_file.py::test_name -vv --tb=long  # Single test, verbose
 
@@ -37,6 +68,9 @@ python test_db.py
 python -m venv venv && venv\Scripts\activate
 pip install -r requirements.txt
 # Edit .env: DATABASE_URL=postgresql://postgres:PASSWORD@localhost:5432/budget_db
+#            SECRET_KEY=...           (opcjonalny; fallback 'dev-key-123' w config.py)
+#            LOG_LEVEL=DEBUG|INFO|... (opcjonalny; domyślnie INFO — patrz Logging & Diagnostyka)
+#            ENABLE_DEV_RESET=1       (opcjonalny; włącza destrukcyjny endpoint /api/dev/reset poza debug/test)
 flask db upgrade
 flask seed
 ```
@@ -64,7 +98,7 @@ Three-layer design: **Models → Services → Blueprints**
 app/
 ├── models.py          # SQLAlchemy ORM: User, Account, Transaction, Category, Contractor,
 │                      #   TransactionSplit, TransactionStaging, TransactionArchive,
-│                      #   RecurringTransaction, PlannedTransaction
+│                      #   RecurringTransaction, PlannedTransaction, Budget
 ├── schemas.py         # Marshmallow serializers (request/response validation)
 ├── cli.py             # Flask CLI commands
 ├── services/          # Business logic — decoupled from HTTP/Flask
@@ -107,6 +141,10 @@ app/
 
 **Contractor Combobox**: Pole kontrahenta w formularzu transakcji to combobox (nie `<select>`): `#tx-contractor-input` (text, widoczny) + `#tx-contractor` (hidden, przechowuje ID). Inicjalizacja: `initContractorCombobox()`. Pozostałe miejsca (inline edit w tabeli, staging, formularze cykliczne) nadal używają `<select>`.
 
+**Frontend = globalny stan z `/api/init`**: `home_bp.py` jednym zapytaniem ładuje `transactions`, `categories`, `contractors`, `accounts` do zmiennych globalnych w `main.js`; cały rendering i przeliczenia dzieją się po stronie klienta (brak osobnych endpointów read). Po mutacji (POST/PUT/DELETE) front woła `fetchInitialData()`, by odświeżyć globalny stan. `main.js` jest dużym monolitem — szukaj funkcji `render*()` / `update*()`.
+
+**Dev Reset** (tylko dev/test): `app/blueprints/dev_bp.py` → `POST /api/dev/reset` (przycisk „Wyczyść wszystkie dane testowe") kasuje dane WYŁĄCZNIE bieżącego użytkownika i zeruje salda kont; kategorie są globalne, więc ich nie usuwa. Blueprint rejestrowany tylko gdy `app.debug`/`app.testing` lub `ENABLE_DEV_RESET=1`. Operacja destrukcyjna — nie wołać w trakcie zwykłej pracy.
+
 ### Testing
 
 Tests use in-memory SQLite by default, defined in `tests/conftest.py` (fixtures: `app`, `client`, `test_user`, `test_user_id`, `test_user_token`, `other_user`, `logged_in_client`, helper `login_as`). Setting env var `TEST_DATABASE_URL` runs the **same suite on PostgreSQL** (CI does this via `.github/workflows/tests.yml` — jobs: SQLite + coverage, PostgreSQL). SQLite behavior differs from PostgreSQL — notably no JSON column support and relaxed constraints.
@@ -122,6 +160,16 @@ TDD workflow: RED (write failing test) → GREEN (minimal implementation) → RE
 3. **Blueprint**: Add route to existing or new `app/blueprints/` file → register in `app/__init__.py`
 4. **Test**: Add `tests/test_feature.py` using conftest fixtures
 
+## Logging & Diagnostyka
+
+Konfiguracja w `app/logging_config.py` (`configure_logging()`, wołane raz w `create_app()`). **Główny kanał diagnostyki — sprawdzaj go zamiast zgadywać.**
+
+- **Plik**: `logs/app.log` (gitignored). `RotatingFileHandler`: rotacja przy 2 MB, 5 kopii (`app.log.1` … `app.log.5`). Plik bywa duży — czytaj przez `tail`/`offset`, nie w całości.
+- **Format**: `%(asctime)s %(levelname)s [%(name)s] %(message)s`. Nazwa loggera = ścieżka modułu (np. `app.services.budget_service`).
+- **Poziom**: sterowany `LOG_LEVEL` z `.env` (domyślnie `INFO`; `DEBUG` dla szczegółów). Root logger zostaje na `WARNING`, żeby biblioteki (SQLAlchemy itp.) nie zaśmiecały pliku.
+- **Logi HTTP**: hooki `before_request`/`after_request` w `app/__init__.py` logują każde żądanie jako `METHOD path -> status (czas ms) user=...`. Globalny `@app.errorhandler(Exception)` zapisuje pełny traceback i zwraca 500. `werkzeug` wyciszony do `WARNING` (bez zdublowanych, kolorowanych ANSI wpisów).
+- **Konwencja w kodzie**: każdy moduł ma `logger = logging.getLogger(__name__)`; serwisy logują `logger.info(...)` na sukces i `logger.error(...)`/`logger.exception(...)` w `except`.
+
 ## Important Files
 
 | File                     | Purpose                                                           |
@@ -129,7 +177,7 @@ TDD workflow: RED (write failing test) → GREEN (minimal implementation) → RE
 | `app/__init__.py`      | App factory, blueprint + CLI registration                         |
 | `config.py`            | `Config` (prod) and `TestConfig` classes                      |
 | `run.py`               | Entry point                                                       |
-| `.env`                 | Secrets — gitignored; contains `DATABASE_URL`, `SECRET_KEY/` |
+| `.env`                 | Secrets — gitignored; contains `DATABASE_URL`, `SECRET_KEY`, `LOG_LEVEL` |
 | `.flaskenv`            | Public Flask env (`FLASK_DEBUG=1`)                              |
 | `migrations/versions/` | Alembic migration scripts — always review before committing      |
 

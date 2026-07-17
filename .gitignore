@@ -25,6 +25,9 @@ dist/
 *.sqlite3
 local_data/
 
+# Prywatny notatnik na pomysły i klasyfikację premium/basic — repo jest publiczne
+IDEAS.md
+
 # Logi aplikacji
 logs/
 

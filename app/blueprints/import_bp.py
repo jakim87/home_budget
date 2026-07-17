@@ -5,9 +5,18 @@ from app import db
 from app.models import TransactionStaging, Category, Contractor, Account
 from typing import Optional
 from app.schemas import StagingApproveSchema
-from app.services.budget_service import parse_ing_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor
+from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor
 
 import_bp = Blueprint('import', __name__)
+
+# Rejestr parserów wyciągów wg banku. Każdy parser ma tę samą sygnaturę
+# (file_content, user_token, main_account_id) i zwraca ten sam kształt wyniku,
+# dzięki czemu dalszy przepływ (save_transactions_to_staging) jest bank-agnostyczny.
+# Dodanie kolejnego banku = dopisanie jednej pozycji tutaj + parser w budget_service.
+CSV_PARSERS = {
+    'ing': parse_ing_csv,
+    'mbank': parse_mbank_csv,
+}
 
 
 def _abbrev_account(number: Optional[str]) -> str:
@@ -17,10 +26,14 @@ def _abbrev_account(number: Optional[str]) -> str:
     n = number.replace(' ', '').replace('-', '')
     return f"{n[:2]}....{n[-4:]}" if len(n) >= 6 else n
 
-@import_bp.route('/api/import/ing', methods=['POST'])
+@import_bp.route('/api/import/<bank>', methods=['POST'])
 @login_required
-def import_ing_csv():
+def import_csv(bank):
     user_token = current_user.token
+
+    parser = CSV_PARSERS.get(bank.lower())
+    if parser is None:
+        return jsonify({'error': f"Nieobsługiwany bank: '{bank}'. Dostępne: {', '.join(sorted(CSV_PARSERS))}."}), 400
 
     if 'file' not in request.files:
         return jsonify({'error': 'Brak pliku w żądaniu.'}), 400
@@ -35,12 +48,12 @@ def import_ing_csv():
         try:
             file_content = file.read().decode('windows-1250')
         except UnicodeDecodeError:
-            return jsonify({'error': 'Nieobsługiwane kodowanie pliku. Oczekiwano UTF-8 lub Windows-1250 (eksport z ING).'}), 400
+            return jsonify({'error': 'Nieobsługiwane kodowanie pliku. Oczekiwano UTF-8 lub Windows-1250 (eksport z banku).'}), 400
 
     account_id = request.form.get('account_id')
 
     try:
-        result = parse_ing_csv(
+        result = parser(
             file_content,
             user_token=user_token,
             main_account_id=int(account_id) if account_id else None

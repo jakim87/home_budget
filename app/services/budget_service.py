@@ -542,6 +542,114 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
         'skipped_count': skipped_count,
     }
 
+# Numer rachunku kontrahenta w mBanku to ciąg dokładnie 26 cyfr (NRB bez prefiksu PL),
+# zaszyty w blobie opisu operacji. (?<!\d)/(?!\d) zapobiega złapaniu fragmentu dłuższego ciągu.
+_MBANK_ACCOUNT_RE = re.compile(r'(?<!\d)\d{26}(?!\d)')
+
+def parse_mbank_csv(file_content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
+    """
+    Parsuje plik CSV z mBanku (jednokontowy — jeden rachunek na plik).
+
+    Wszystkie transakcje trafiają na main_account_id (wybrane przez użytkownika).
+    Format różni się od ING: śmieciowy nagłówek (dane banku, klient, okres, saldo),
+    kolumny '#Data operacji;#Opis operacji;#Rachunek;#Kategoria;#Kwota', kwota
+    z sufiksem ' PLN' i przecinkiem dziesiętnym, brak osobnej kolumny kontrahenta
+    (opis to jeden blob), numer konta kontrahenta zaszyty w opisie jako ciąg 26 cyfr.
+
+    Zwraca ten sam kształt co parse_ing_csv (transactions/csv_accounts/skipped_count),
+    dzięki czemu dalszy przepływ (save_transactions_to_staging) jest bank-agnostyczny.
+    """
+    if main_account_id is None:
+        raise ValueError("Plik CSV z mBanku dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+
+    lines = file_content.splitlines()
+
+    # Nagłówek transakcji: pierwsza linia zaczynająca się od '#Data operacji'.
+    header_idx = None
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith('#Data operacji'):
+            header_idx = i
+            break
+    if header_idx is None:
+        raise ValueError("Nie znaleziono nagłówka transakcji ('#Data operacji') w pliku CSV z mBanku.")
+
+    header_cells = next(csv.reader(io.StringIO(lines[header_idx]), delimiter=';'))
+    header_map = {cell.strip().lstrip('#').strip(): idx for idx, cell in enumerate(header_cells)}
+    try:
+        date_col = header_map['Data operacji']
+        desc_col = header_map['Opis operacji']
+        amount_col = header_map['Kwota']
+    except KeyError as e:
+        raise ValueError(f"Brak oczekiwanej kolumny w pliku CSV z mBanku: {e}")
+
+    transactions: list[dict] = []
+    skipped_count = 0
+
+    for line in lines[header_idx + 1:]:
+        if not line.strip():
+            continue
+        try:
+            parts = next(csv.reader(io.StringIO(line), delimiter=';'))
+        except StopIteration:
+            continue
+        # Wiersz transakcji zaczyna się od daty (cyfra) — pomijamy stopki/śmieci.
+        if date_col >= len(parts) or not parts[date_col].strip()[:1].isdigit():
+            continue
+
+        date_str = parts[date_col].strip()
+        raw_desc = parts[desc_col].strip() if desc_col < len(parts) else ''
+        amount_str = parts[amount_col].strip() if amount_col < len(parts) else ''
+
+        # Kwota: usuń sufiks 'PLN', spacje tysięczne (zwykłe i twarde), przecinek → kropka.
+        amount_clean = (amount_str
+                        .replace('PLN', '')
+                        .replace('\xa0', '')
+                        .replace(' ', '')
+                        .replace(',', '.'))
+        if not amount_clean:
+            continue
+        try:
+            amount = Decimal(amount_clean)
+        except InvalidOperation:
+            logger.warning("Odrzucono wiersz mBank — nieprawidłowa kwota '%s' (user_token=%s)", amount_str, user_token)
+            skipped_count += 1
+            continue
+
+        try:
+            tx_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            try:
+                tx_date = datetime.strptime(date_str, '%d.%m.%Y').date()
+            except ValueError:
+                logger.warning("Odrzucono wiersz mBank — nieznany format daty '%s' (user_token=%s)", date_str, user_token)
+                skipped_count += 1
+                continue
+
+        # Opis mBanku wypełniony jest wieloma spacjami — zwijamy do pojedynczych, by tytuł był czytelny.
+        title = re.sub(r'\s+', ' ', raw_desc).strip()
+
+        acc_match = _MBANK_ACCOUNT_RE.search(raw_desc)
+        counterparty_account = acc_match.group(0) if acc_match else None
+
+        transactions.append({
+            'date': tx_date,
+            'contractor': None,
+            'title': title,
+            'amount': amount,
+            'counterparty_account': counterparty_account,
+            'account_id': main_account_id,
+        })
+
+    logger.info(
+        "Import CSV mBank zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
+        user_token, len(transactions), skipped_count
+    )
+    return {
+        'transactions': transactions,
+        'csv_accounts': [],
+        'skipped_count': skipped_count,
+    }
+
 def analyze_transaction_data(
     title: str,
     raw_contractor: Optional[str],

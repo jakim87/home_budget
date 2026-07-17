@@ -23,10 +23,33 @@ def import_account(app, test_user):
     return account
 
 
-def _upload(client, account_id, payload: bytes, filename="wyciag.csv"):
-    return client.post('/api/import/ing',
+def _upload(client, account_id, payload: bytes, filename="wyciag.csv", bank="ing"):
+    return client.post(f'/api/import/{bank}',
                        data={'file': (io.BytesIO(payload), filename), 'account_id': account_id},
                        content_type='multipart/form-data')
+
+
+MBANK_CSV = """mBank S.A. Bankowość Detaliczna;
+
+#Data operacji;#Opis operacji;#Rachunek;#Kategoria;#Kwota;
+2026-06-30;"SKLEP TESTOWY   PŁATNOŚĆ KARTĄ   ";"Konto 1111 ... 1111";"Zakupy";-49,99 PLN;;
+"""
+
+
+def test_import_dispatch_mbank_bank_param(logged_in_client, app, import_account):
+    """Endpoint /api/import/mbank routuje do parsera mBank i zapisuje transakcję do stagingu."""
+    resp = _upload(logged_in_client, import_account.id, MBANK_CSV.encode('utf-8'), bank="mbank")
+    assert resp.status_code == 201
+    assert db.session.query(TransactionStaging).count() == 1
+    stg = db.session.query(TransactionStaging).first()
+    assert stg.amount == Decimal("-49.99")
+
+
+def test_import_unknown_bank_returns_400(logged_in_client, app, import_account):
+    """Nieobsługiwany bank w URL → 400, brak wpisów w stagingu."""
+    resp = _upload(logged_in_client, import_account.id, CSV_PL.encode('utf-8'), bank="pekao")
+    assert resp.status_code == 400
+    assert db.session.query(TransactionStaging).count() == 0
 
 
 def test_reimport_same_parsed_rows_skips_duplicates(app, test_user, import_account):

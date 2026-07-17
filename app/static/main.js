@@ -80,6 +80,8 @@ importForm.addEventListener('submit', async (e) => {
         return;
     }
 
+    const bank = document.getElementById('import-bank-select').value || 'ing';
+
     const formData = new FormData();
     formData.append('file', file);
     if (accId) formData.append('account_id', accId);
@@ -87,7 +89,7 @@ importForm.addEventListener('submit', async (e) => {
     setImportLoadingState(true);
 
     try {
-        const response = await fetch('/api/import/ing', { method: 'POST', body: formData });
+        const response = await fetch(`/api/import/${bank}`, { method: 'POST', body: formData });
         const result = await response.json();
 
         if (response.ok) {

@@ -598,7 +598,7 @@
     <div id="import-modal" class="fixed inset-0 bg-slate-900/50 hidden flex-col items-center justify-center z-50 px-4 backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 class="text-lg font-bold text-slate-800">Import transakcji (ING)</h3>
+                <h3 class="text-lg font-bold text-slate-800">Import transakcji</h3>
                 <button id="closeImportModalBtn" class="text-slate-400 hover:text-slate-600 focus:outline-none transition-colors rounded-lg">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
@@ -606,6 +606,13 @@
             <div class="p-6">
                 <form id="importForm">
                     <div class="mb-5">
+                        <label for="import-bank-select" class="block text-sm font-medium text-slate-700 mb-2">
+                            Bank (format wyciągu)
+                        </label>
+                        <select id="import-bank-select" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-4">
+                            <option value="ing">ING Bank Śląski (CSV)</option>
+                            <option value="mbank">mBank (CSV)</option>
+                        </select>
                         <label class="block text-sm font-medium text-slate-700 mb-2">
                             Konto (wymagane dla wyciągu z jednym kontem)
                         </label>

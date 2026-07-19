@@ -609,19 +609,21 @@
                         <label for="import-bank-select" class="block text-sm font-medium text-slate-700 mb-2">
                             Bank (format wyciągu)
                         </label>
-                        <select id="import-bank-select" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-4">
+                        <select id="import-bank-select" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-1">
+                            <option value="auto" selected>Wykryj automatycznie (zalecane)</option>
                             <option value="ing">ING Bank Śląski (CSV)</option>
                             <option value="mbank">mBank (CSV)</option>
                         </select>
+                        <p class="text-xs text-slate-500 mb-4">Obsługiwane: ING (CSV), mBank (CSV, HTML, PDF). Wskazówka: dla mBanku najlepszym formatem jest <span class="font-medium">HTML</span> („Zestawienie operacji") — ma najczytelniejsze opisy transakcji.</p>
                         <label class="block text-sm font-medium text-slate-700 mb-2">
                             Konto (wymagane dla wyciągu z jednym kontem)
                         </label>
                         <p class="text-xs text-slate-500 mb-2">Dla pliku wielokontowego konta zostaną wykryte automatycznie na podstawie nagłówka CSV.</p>
                         <select id="import-account-select" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-4"></select>
                         <label for="csvFileInput" class="block text-sm font-medium text-slate-700 mb-2 mt-4">
-                            Wybierz plik z historią (.csv)
+                            Wybierz plik z historią (.csv, .html, .pdf)
                         </label>
-                        <input type="file" id="csvFileInput" accept=".csv" required class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <input type="file" id="csvFileInput" accept=".csv,.html,.htm,.pdf" required class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                         <p id="importError" class="text-rose-500 text-sm mt-2 hidden"></p>
                     </div>
                     

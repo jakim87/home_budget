@@ -75,12 +75,13 @@ importForm.addEventListener('submit', async (e) => {
         return;
     }
 
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-        showImportError('Nieprawidłowy format. Wybrany plik musi mieć rozszerzenie .csv');
+    const fname = file.name.toLowerCase();
+    if (!['.csv', '.html', '.htm', '.pdf'].some(ext => fname.endsWith(ext))) {
+        showImportError('Nieprawidłowy format. Obsługiwane rozszerzenia: .csv, .html, .pdf');
         return;
     }
 
-    const bank = document.getElementById('import-bank-select').value || 'ing';
+    const bank = document.getElementById('import-bank-select').value || 'auto';
 
     const formData = new FormData();
     formData.append('file', file);
@@ -94,6 +95,9 @@ importForm.addEventListener('submit', async (e) => {
 
         if (response.ok) {
             let msg = result.message;
+            if (result.detected) {
+                msg += ` Wykryto: ${result.detected.bank.toUpperCase()} (${result.detected.format.toUpperCase()}).`;
+            }
             if (result.csv_accounts && result.csv_accounts.length > 0) {
                 const matched = result.csv_accounts.filter(a => a.matched).map(a => a.account_name);
                 const unknown = result.csv_accounts.filter(a => !a.matched).map(a => a.csv_name);

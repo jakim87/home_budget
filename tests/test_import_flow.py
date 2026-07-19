@@ -52,6 +52,41 @@ def test_import_unknown_bank_returns_400(logged_in_client, app, import_account):
     assert db.session.query(TransactionStaging).count() == 0
 
 
+MBANK_HTML_MINI = '''<HTML xmlns:ns1="http://www.bre.pl"><BODY>
+<b>Lista operacji za okres od 2026-06-01 do 2026-06-30</b>
+<table>
+<tr class="head"><td>Data operacji</td><td>Opis operacji</td><td>Rachunek</td><td>Kategoria</td><td>Kwota</td></tr>
+<tr><td>2026-06-05</td><td>SKLEP TESTOWY<br>PŁATNOŚĆ KARTĄ</td><td>K 1 ... 1</td><td>Zakupy</td><td><nobr>-15,00 PLN</nobr></td></tr>
+</table></BODY></HTML>'''
+
+
+def test_import_auto_detects_mbank_html(logged_in_client, app, import_account):
+    """POST /api/import/auto: wykrywa mBank HTML, zapisuje do stagingu,
+    zwraca wykryty bank/format w odpowiedzi."""
+    resp = _upload(logged_in_client, import_account.id,
+                   MBANK_HTML_MINI.encode('utf-8'), filename="zestawienie.html", bank="auto")
+    assert resp.status_code == 201
+    body = resp.get_json()
+    assert body['detected'] == {'bank': 'mbank', 'format': 'html'}
+    assert db.session.query(TransactionStaging).count() == 1
+    assert db.session.query(TransactionStaging).first().amount == Decimal("-15.00")
+
+
+def test_import_auto_detects_ing_csv(logged_in_client, app, import_account):
+    """POST /api/import/auto: rozpoznaje istniejący format ING CSV bez wskazywania banku."""
+    resp = _upload(logged_in_client, import_account.id, CSV_PL.encode('utf-8'), bank="auto")
+    assert resp.status_code == 201
+    assert resp.get_json()['detected'] == {'bank': 'ing', 'format': 'csv'}
+    assert db.session.query(TransactionStaging).count() == 2
+
+
+def test_import_auto_unknown_content_returns_400(logged_in_client, app, import_account):
+    """Nierozpoznawalna zawartość → 400 z prośbą o ręczny wybór banku."""
+    resp = _upload(logged_in_client, import_account.id, b'przypadkowy tekst', bank="auto")
+    assert resp.status_code == 400
+    assert db.session.query(TransactionStaging).count() == 0
+
+
 def test_reimport_same_parsed_rows_skips_duplicates(app, test_user, import_account):
     """Serwis: ponowny zapis tych samych wierszy nie tworzy duplikatów w stagingu."""
     rows = [

@@ -616,14 +616,20 @@
                         </select>
                         <p class="text-xs text-slate-500 mb-4">Obsługiwane: ING (CSV), mBank (CSV, HTML, PDF). Wskazówka: dla mBanku najlepszym formatem jest <span class="font-medium">HTML</span> („Zestawienie operacji") — ma najczytelniejsze opisy transakcji.</p>
                         <label class="block text-sm font-medium text-slate-700 mb-2">
-                            Konto (wymagane dla wyciągu z jednym kontem)
+                            Konto (opcjonalne)
                         </label>
-                        <p class="text-xs text-slate-500 mb-2">Dla pliku wielokontowego konta zostaną wykryte automatycznie na podstawie nagłówka CSV.</p>
+                        <p class="text-xs text-slate-500 mb-2">Konto jest rozpoznawane automatycznie po numerze rachunku z wyciągu. Wybierz ręcznie tylko, gdy wyciąg nie zawiera numeru. Przy imporcie wielu plików wybór jest ignorowany — każdy plik trafia na swoje konto.</p>
                         <select id="import-account-select" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-4"></select>
                         <label for="csvFileInput" class="block text-sm font-medium text-slate-700 mb-2 mt-4">
-                            Wybierz plik z historią (.csv, .html, .pdf)
+                            Wybierz pliki z historią (.csv, .html, .pdf)
                         </label>
-                        <input type="file" id="csvFileInput" accept=".csv,.html,.htm,.pdf" required class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <input type="file" id="csvFileInput" accept=".csv,.html,.htm,.pdf" multiple class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <div class="flex items-center justify-between mt-2">
+                            <button type="button" id="pickFolderBtn" class="text-xs text-blue-600 hover:text-blue-800 font-medium underline underline-offset-2">…albo wybierz cały folder z wyciągami</button>
+                            <span id="pickedFilesInfo" class="text-xs text-slate-500"></span>
+                        </div>
+                        <input type="file" id="folderInput" webkitdirectory class="hidden">
+                        <div id="import-results" class="hidden mt-3 border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-48 overflow-y-auto text-sm"></div>
                         <p id="importError" class="text-rose-500 text-sm mt-2 hidden"></p>
                     </div>
                     

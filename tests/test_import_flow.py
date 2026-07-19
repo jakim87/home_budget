@@ -87,6 +87,58 @@ def test_import_auto_unknown_content_returns_400(logged_in_client, app, import_a
     assert db.session.query(TransactionStaging).count() == 0
 
 
+MBANK_HTML_WITH_IBAN = '''<HTML xmlns:ns1="http://www.bre.pl"><BODY>
+<b>Lista operacji za okres od 2026-06-01 do 2026-06-30</b>
+dla rachunków:
+<b>Kowalski - 22334455667788990011223344</b>
+<table>
+<tr class="head"><td>Data operacji</td><td>Opis operacji</td><td>Rachunek</td><td>Kategoria</td><td>Kwota</td></tr>
+<tr><td>2026-06-07</td><td>SKLEP IBAN TEST<br>PŁATNOŚĆ</td><td>K 1 ... 1</td><td>Zakupy</td><td><nobr>-9,99 PLN</nobr></td></tr>
+</table></BODY></HTML>'''
+
+
+@pytest.fixture
+def iban_account(app, test_user):
+    """Konto z numerem zgodnym z IBAN-em w MBANK_HTML_WITH_IBAN."""
+    account = Account(name="mBank IBAN", bank_name="mBank", user_token=test_user.token,
+                      account_number="22 3344 5566 7788 9900 1122 3344")
+    db.session.add(account)
+    db.session.commit()
+    return account
+
+
+def _upload_auto_no_account(client, payload: bytes, filename="plik.html"):
+    return client.post('/api/import/auto',
+                       data={'file': (io.BytesIO(payload), filename)},
+                       content_type='multipart/form-data')
+
+
+def test_import_auto_resolves_account_by_statement_iban(logged_in_client, app, iban_account):
+    """Bez account_id: konto rozpoznane po IBAN z nagłówka wyciągu."""
+    resp = _upload_auto_no_account(logged_in_client, MBANK_HTML_WITH_IBAN.encode('utf-8'))
+    assert resp.status_code == 201
+    body = resp.get_json()
+    assert body.get('resolved_account', {}).get('id') == iban_account.id
+    stg = db.session.query(TransactionStaging).first()
+    assert stg.account_id == iban_account.id
+
+
+def test_import_auto_no_account_and_unknown_iban_returns_400(logged_in_client, app, import_account):
+    """Bez account_id i bez pasującego konta w słowniku → czytelny 400, nic nie zapisane."""
+    resp = _upload_auto_no_account(logged_in_client, MBANK_HTML_WITH_IBAN.encode('utf-8'))
+    assert resp.status_code == 400
+    assert 'IBAN' in resp.get_json()['error'] or 'konta' in resp.get_json()['error']
+    assert db.session.query(TransactionStaging).count() == 0
+
+
+def test_import_auto_rejects_account_iban_mismatch(logged_in_client, app, import_account, iban_account):
+    """Wybrane konto ≠ IBAN wyciągu → 400 (ochrona przed importem na złe konto)."""
+    resp = _upload(logged_in_client, import_account.id,
+                   MBANK_HTML_WITH_IBAN.encode('utf-8'), filename="z.html", bank="auto")
+    assert resp.status_code == 400
+    assert db.session.query(TransactionStaging).count() == 0
+
+
 def test_reimport_same_parsed_rows_skips_duplicates(app, test_user, import_account):
     """Serwis: ponowny zapis tych samych wierszy nie tworzy duplikatów w stagingu."""
     rows = [

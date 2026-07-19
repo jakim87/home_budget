@@ -38,16 +38,55 @@ const closeImportModalBtnAlt = document.getElementById('closeImportModalBtnAlt')
 const importModal = document.getElementById('import-modal');
 const importForm = document.getElementById('importForm');
 const fileInput = document.getElementById('csvFileInput');
+const folderInput = document.getElementById('folderInput');
+const pickFolderBtn = document.getElementById('pickFolderBtn');
+const pickedFilesInfo = document.getElementById('pickedFilesInfo');
+const importResults = document.getElementById('import-results');
 const importErrorMsg = document.getElementById('importError');
 const importBtnText = document.getElementById('importBtnText');
 const importBtnLoader = document.getElementById('importBtnLoader');
 const submitImportBtn = document.getElementById('submitImportBtn');
 
+const IMPORT_EXTENSIONS = ['.csv', '.html', '.htm', '.pdf'];
+// Pliki wybrane przez picker folderu (fileInput ma własny stan w DOM)
+let folderPickedFiles = null;
+
+function _supportedFile(f) {
+    const n = f.name.toLowerCase();
+    return IMPORT_EXTENSIONS.some(ext => n.endsWith(ext));
+}
+
+function _selectedImportFiles() {
+    if (folderPickedFiles && folderPickedFiles.length) return folderPickedFiles;
+    return Array.from(fileInput.files).filter(_supportedFile);
+}
+
+pickFolderBtn.addEventListener('click', () => folderInput.click());
+
+folderInput.addEventListener('change', () => {
+    folderPickedFiles = Array.from(folderInput.files).filter(_supportedFile);
+    fileInput.value = '';
+    pickedFilesInfo.textContent = folderPickedFiles.length
+        ? `Wybrano ${folderPickedFiles.length} plików z folderu`
+        : 'Folder nie zawiera obsługiwanych plików';
+});
+
+fileInput.addEventListener('change', () => {
+    folderPickedFiles = null;
+    const n = fileInput.files.length;
+    pickedFilesInfo.textContent = n > 1 ? `Wybrano ${n} plików` : '';
+});
+
 function openImportModal() {
     importModal.classList.remove('hidden');
     importModal.classList.add('flex');
     importErrorMsg.classList.add('hidden');
+    importResults.classList.add('hidden');
+    importResults.innerHTML = '';
+    pickedFilesInfo.textContent = '';
+    folderPickedFiles = null;
     fileInput.value = '';
+    folderInput.value = '';
 }
 
 function closeImportModal() {
@@ -67,20 +106,20 @@ importForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     importErrorMsg.classList.add('hidden');
 
+    const files = _selectedImportFiles();
+    if (files.length === 0) {
+        showImportError('Proszę wybrać plik(i) lub folder z wyciągami.');
+        return;
+    }
+    if (files.length === 1) {
+        await importSingleFile(files[0]);
+    } else {
+        await importManyFiles(files);
+    }
+});
+
+async function importSingleFile(file) {
     const accId = document.getElementById('import-account-select').value;
-
-    const file = fileInput.files[0];
-    if (!file) {
-        showImportError('Proszę wybrać plik.');
-        return;
-    }
-
-    const fname = file.name.toLowerCase();
-    if (!['.csv', '.html', '.htm', '.pdf'].some(ext => fname.endsWith(ext))) {
-        showImportError('Nieprawidłowy format. Obsługiwane rozszerzenia: .csv, .html, .pdf');
-        return;
-    }
-
     const bank = document.getElementById('import-bank-select').value || 'auto';
 
     const formData = new FormData();
@@ -88,7 +127,6 @@ importForm.addEventListener('submit', async (e) => {
     if (accId) formData.append('account_id', accId);
 
     setImportLoadingState(true);
-
     try {
         const response = await fetch(`/api/import/${bank}`, { method: 'POST', body: formData });
         const result = await response.json();
@@ -97,6 +135,9 @@ importForm.addEventListener('submit', async (e) => {
             let msg = result.message;
             if (result.detected) {
                 msg += ` Wykryto: ${result.detected.bank.toUpperCase()} (${result.detected.format.toUpperCase()}).`;
+            }
+            if (result.resolved_account) {
+                msg += ` Konto: ${result.resolved_account.name}.`;
             }
             if (result.csv_accounts && result.csv_accounts.length > 0) {
                 const matched = result.csv_accounts.filter(a => a.matched).map(a => a.account_name);
@@ -116,7 +157,58 @@ importForm.addEventListener('submit', async (e) => {
     } finally {
         setImportLoadingState(false);
     }
-});
+}
+
+async function importManyFiles(files) {
+    // Wiele plików: zawsze auto-detekcja, konto rozpoznawane po IBAN z wyciągu
+    // po stronie serwera (wybór z dropdowna jest ignorowany — patrz opis w modalu).
+    importResults.innerHTML = '';
+    importResults.classList.remove('hidden');
+    setImportLoadingState(true);
+
+    let okCount = 0, errCount = 0;
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        importBtnText.textContent = `Importowanie… ${i + 1}/${files.length}`;
+
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-2 px-3 py-2';
+        row.innerHTML = `<span class="truncate text-slate-700">${file.name}</span><span class="shrink-0 text-slate-400">…</span>`;
+        importResults.appendChild(row);
+        const statusEl = row.lastElementChild;
+
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            const resp = await fetch('/api/import/auto', { method: 'POST', body: fd });
+            const result = await resp.json();
+            if (resp.ok) {
+                okCount++;
+                const det = result.detected ? `${result.detected.bank.toUpperCase()}/${result.detected.format.toUpperCase()}` : '';
+                const acc = result.resolved_account ? ` → ${result.resolved_account.name}` : '';
+                statusEl.className = 'shrink-0 text-emerald-600 text-xs font-medium';
+                statusEl.textContent = `✓ ${result.count} tx ${det}${acc}`;
+            } else {
+                errCount++;
+                statusEl.className = 'shrink-0 text-rose-600 text-xs font-medium max-w-[55%] text-right';
+                statusEl.textContent = `✗ ${result.error || 'błąd'}`;
+                statusEl.title = result.error || '';
+            }
+        } catch (_) {
+            errCount++;
+            statusEl.className = 'shrink-0 text-rose-600 text-xs font-medium';
+            statusEl.textContent = '✗ błąd połączenia';
+        }
+    }
+
+    setImportLoadingState(false);
+    showToast(errCount === 0
+        ? `Zaimportowano ${okCount} plików.`
+        : `Zaimportowano ${okCount}, błędy: ${errCount} — szczegóły na liście.`,
+        errCount === 0 ? 'success' : 'error');
+    fetchPendingStaging();
+    fetchInitialData({ skipStagingRefresh: true });
+}
 
 function showImportError(message) {
     importErrorMsg.textContent = message;

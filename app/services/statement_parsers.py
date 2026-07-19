@@ -84,6 +84,35 @@ def detect_bank_and_format(raw: bytes, filename: str = '') -> tuple[Optional[str
     return None, None
 
 
+def extract_statement_ibans(raw: bytes, bank: Optional[str], fmt: Optional[str]) -> list[str]:
+    """Lekka ekstrakcja numerów rachunków, których dotyczy wyciąg — bez pełnego
+    parsowania. Używane do automatycznego rozpoznania konta przy imporcie
+    (zanim parser dostanie main_account_id).
+
+    mBank: nagłówek 'dla rachunków: <nazwisko> - <26 cyfr>' występuje we
+    wszystkich trzech formatach PRZED pierwszą transakcją, więc pierwsze
+    wystąpienie 26-cyfrowego ciągu to rachunek wyciągu.
+    ING: pliki wielokontowe same przypisują konta (sekcja 'Wybrane rachunki'),
+    więc nie ma potrzeby rozpoznawania — zwracamy pustą listę.
+    """
+    if bank != 'mbank':
+        return []
+    if fmt == 'pdf':
+        try:
+            import fitz
+            with fitz.open(stream=raw, filetype='pdf') as doc:
+                text = doc[0].get_text() if len(doc) else ''
+        except Exception:
+            return []
+    else:
+        try:
+            text = decode_statement_bytes(raw)
+        except UnicodeDecodeError:
+            return []
+    m = _MBANK_ACCOUNT_RE.search(text)
+    return [m.group(0)] if m else []
+
+
 def _clean_amount(amount_str: str) -> Optional[Decimal]:
     """'1 210,00 PLN' → Decimal('1210.00'); None gdy nie-kwota."""
     cleaned = (amount_str

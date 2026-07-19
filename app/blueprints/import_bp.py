@@ -6,7 +6,8 @@ from app.models import TransactionStaging, Category, Contractor, Account
 from typing import Optional
 from app.schemas import StagingApproveSchema
 from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor
-from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, parse_mbank_html, parse_mbank_pdf
+from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf
+from app.services.budget_service import _normalize_acc_num
 
 import_bp = Blueprint('import', __name__)
 
@@ -103,7 +104,45 @@ def import_auto():
     else:
         payload = raw
 
+    # Rozpoznanie konta po numerze rachunku z NAGŁÓWKA wyciągu (mBank ma go
+    # w każdym formacie). Chroni przed importem na złe konto i pozwala
+    # importować wiele plików bez ręcznego wskazywania konta per plik.
     account_id = request.form.get('account_id')
+    resolved_account = None
+    statement_ibans = extract_statement_ibans(raw, bank, fmt)
+    if statement_ibans:
+        norm_iban = _normalize_acc_num(statement_ibans[0])
+        matched = next(
+            (a for a in db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+             if a.account_number and _normalize_acc_num(a.account_number) == norm_iban),
+            None
+        )
+        if account_id:
+            chosen = db.session.query(Account).filter_by(
+                id=int(account_id), user_token=user_token, is_active=True
+            ).first()
+            # Niezgodność: wybrane konto ma inny numer, ALBO rachunek z wyciągu
+            # pasuje do innego konta użytkownika niż wybrane.
+            chosen_num_differs = bool(chosen and chosen.account_number
+                                      and _normalize_acc_num(chosen.account_number) != norm_iban)
+            matched_is_other = bool(matched and chosen and matched.id != chosen.id)
+            if chosen_num_differs or matched_is_other:
+                masked = f"{norm_iban[:2]}...{norm_iban[-4:]}"
+                return jsonify({'error': (
+                    f"Wyciąg dotyczy rachunku {masked}, a wybrano konto '{chosen.name}' o innym numerze. "
+                    f"{'Rachunek z wyciągu pasuje do konta: ' + matched.name + '. ' if matched else ''}"
+                    "Wybierz właściwe konto lub pozostaw wybór automatyczny."
+                )}), 400
+        elif matched:
+            account_id = matched.id
+            resolved_account = {'id': matched.id, 'name': matched.name}
+        else:
+            masked = f"{norm_iban[:2]}...{norm_iban[-4:]}"
+            return jsonify({'error': (
+                f"Wyciąg dotyczy rachunku {masked}, który nie pasuje do żadnego konta w aplikacji. "
+                "Dodaj konto z tym numerem rachunku w Słownikach albo wybierz konto ręcznie."
+            )}), 400
+
     try:
         result = parser(
             payload,
@@ -113,7 +152,10 @@ def import_auto():
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
 
-    return _stage_and_respond(result, user_token, extra={'detected': {'bank': bank, 'format': fmt}})
+    extra = {'detected': {'bank': bank, 'format': fmt}}
+    if resolved_account:
+        extra['resolved_account'] = resolved_account
+    return _stage_and_respond(result, user_token, extra=extra)
 
 
 @import_bp.route('/api/import/<bank>', methods=['POST'])

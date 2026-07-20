@@ -8,6 +8,13 @@ from app.schemas import StagingApproveSchema
 from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor
 from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf
 from app.services.budget_service import _normalize_acc_num
+from app.services.import_history_service import (
+    build_overlap_warning,
+    find_overlapping_imports,
+    list_import_history,
+    record_statement_import,
+)
+import uuid
 
 import_bp = Blueprint('import', __name__)
 
@@ -48,8 +55,51 @@ def _read_upload():
     return file.read(), None
 
 
-def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None):
-    """Wspólne zakończenie importu: zapis do stagingu + budowa odpowiedzi."""
+def _record_history(result: dict, user_token: str, meta: dict) -> Optional[str]:
+    """Zapisuje historię importu (wiersz na każde pokryte konto) i zwraca
+    ewentualne ostrzeżenie o nakładających się zakresach.
+
+    Zakres wyznaczamy z min/max daty faktycznie zaimportowanych transakcji —
+    zawsze dostępny, niezależnie od tego, czy dany format deklaruje okres.
+    """
+    transactions = result['transactions']
+    batch_id = uuid.uuid4().hex
+
+    # Konta pokryte tym plikiem: dla wielokontowego ING bierzemy je z transakcji.
+    per_account: dict[Optional[int], list] = {}
+    for tx in transactions:
+        per_account.setdefault(tx.get('account_id'), []).append(tx)
+
+    warnings: list[str] = []
+    for account_id, rows in per_account.items():
+        dates = [r['date'] for r in rows if r.get('date')]
+        p_start, p_end = (min(dates), max(dates)) if dates else (None, None)
+
+        overlaps = find_overlapping_imports(user_token, account_id, p_start, p_end)
+        warning = build_overlap_warning(overlaps)
+        if warning:
+            warnings.append(warning)
+
+        record_statement_import(
+            user_token=user_token,
+            filename=meta.get('filename') or 'wyciąg',
+            bank=meta.get('bank') or 'nieznany',
+            file_format=meta.get('format') or 'nieznany',
+            account_id=account_id,
+            period_start=p_start,
+            period_end=p_end,
+            transaction_count=len(rows),
+            skipped_count=result.get('skipped_count', 0) if len(per_account) == 1 else 0,
+            batch_id=batch_id,
+            commit=False,
+        )
+    db.session.commit()
+    return ' '.join(warnings) if warnings else None
+
+
+def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None,
+                       meta: dict | None = None):
+    """Wspólne zakończenie importu: zapis do stagingu + historia + odpowiedź."""
     transactions = result['transactions']
     skipped_count = result['skipped_count']
 
@@ -60,6 +110,9 @@ def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None)
         return jsonify({'error': msg}), 400
 
     try:
+        # Ostrzeżenie o nakładaniu liczymy PRZED zapisem historii tego importu,
+        # inaczej nowy wpis nakładałby się sam na siebie.
+        overlap_warning = _record_history(result, user_token, meta or {})
         saved_records = save_transactions_to_staging(transactions, user_token=user_token)
         resp: dict = {
             'message': f'Udało się zaimportować {len(saved_records)} transakcji do weryfikacji.',
@@ -69,11 +122,21 @@ def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None)
             resp['csv_accounts'] = result['csv_accounts']
         if skipped_count:
             resp['skipped_count'] = skipped_count
+        if overlap_warning:
+            resp['overlap_warning'] = overlap_warning
         if extra:
             resp.update(extra)
         return jsonify(resp), 201
     except ValueError as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 400
+
+
+@import_bp.route('/api/import/history', methods=['GET'])
+@login_required
+def import_history():
+    """Historia wgranych wyciągów bieżącego użytkownika."""
+    return jsonify(list_import_history(current_user.token)), 200
 
 
 @import_bp.route('/api/import/auto', methods=['POST'])
@@ -155,7 +218,9 @@ def import_auto():
     extra = {'detected': {'bank': bank, 'format': fmt}}
     if resolved_account:
         extra['resolved_account'] = resolved_account
-    return _stage_and_respond(result, user_token, extra=extra)
+    return _stage_and_respond(result, user_token, extra=extra,
+                              meta={'filename': request.files['file'].filename,
+                                    'bank': bank, 'format': fmt})
 
 
 @import_bp.route('/api/import/<bank>', methods=['POST'])
@@ -187,7 +252,9 @@ def import_csv(bank):
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
 
-    return _stage_and_respond(result, user_token)
+    return _stage_and_respond(result, user_token,
+                              meta={'filename': request.files['file'].filename,
+                                    'bank': bank, 'format': 'csv'})
 
 @import_bp.route('/api/staging/pending', methods=['GET'])
 @login_required

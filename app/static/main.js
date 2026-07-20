@@ -146,7 +146,12 @@ async function importSingleFile(file) {
                 if (unknown.length) msg += ` Nieznane konta (pominięte): ${unknown.join(', ')}.`;
             }
             if (result.skipped_count) msg += ` Pominięto ${result.skipped_count} transakcji z innych kont.`;
-            showToast(`Sukces! ${msg}`, 'success');
+            if (result.overlap_warning) {
+                showToast(`Sukces! ${msg}`, 'success');
+                showToast(result.overlap_warning, 'info');
+            } else {
+                showToast(`Sukces! ${msg}`, 'success');
+            }
             closeImportModal();
             fetchPendingStaging();
         } else {
@@ -188,6 +193,11 @@ async function importManyFiles(files) {
                 const acc = result.resolved_account ? ` → ${result.resolved_account.name}` : '';
                 statusEl.className = 'shrink-0 text-emerald-600 text-xs font-medium';
                 statusEl.textContent = `✓ ${result.count} tx ${det}${acc}`;
+                if (result.overlap_warning) {
+                    statusEl.className = 'shrink-0 text-amber-600 text-xs font-medium';
+                    statusEl.textContent = `⚠ ${result.count} tx ${det}${acc}`;
+                    statusEl.title = result.overlap_warning;
+                }
             } else {
                 errCount++;
                 statusEl.className = 'shrink-0 text-rose-600 text-xs font-medium max-w-[55%] text-right';
@@ -208,6 +218,49 @@ async function importManyFiles(files) {
         errCount === 0 ? 'success' : 'error');
     fetchPendingStaging();
     fetchInitialData({ skipStagingRefresh: true });
+}
+
+const toggleImportHistoryBtn = document.getElementById('toggleImportHistoryBtn');
+const importHistoryBox = document.getElementById('import-history');
+const importHistoryChevron = document.getElementById('importHistoryChevron');
+
+toggleImportHistoryBtn.addEventListener('click', async () => {
+    const willShow = importHistoryBox.classList.contains('hidden');
+    importHistoryBox.classList.toggle('hidden', !willShow);
+    importHistoryChevron.style.transform = willShow ? 'rotate(90deg)' : '';
+    if (willShow) await renderImportHistory();
+});
+
+async function renderImportHistory() {
+    importHistoryBox.innerHTML = '<div class="px-3 py-2 text-slate-400">Wczytywanie…</div>';
+    try {
+        const resp = await fetch('/api/import/history');
+        if (!resp.ok) throw new Error('fetch failed');
+        const rows = await resp.json();
+        if (rows.length === 0) {
+            importHistoryBox.innerHTML = '<div class="px-3 py-2 text-slate-400">Brak zaimportowanych wyciągów.</div>';
+            return;
+        }
+        importHistoryBox.innerHTML = rows.map(r => {
+            const okres = (r.period_start && r.period_end)
+                ? `${r.period_start} – ${r.period_end}`
+                : 'brak zakresu';
+            const konto = r.account_name || 'konto nieznane';
+            return `<div class="px-3 py-2">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="font-medium text-slate-700 truncate">${konto}</span>
+                    <span class="shrink-0 text-slate-500">${r.transaction_count} tx</span>
+                </div>
+                <div class="flex items-center justify-between gap-2 mt-0.5 text-slate-500">
+                    <span class="truncate" title="${r.filename}">${r.filename}</span>
+                    <span class="shrink-0 uppercase text-[10px] tracking-wide text-slate-400">${r.bank}/${r.file_format}</span>
+                </div>
+                <div class="text-slate-400 mt-0.5">${okres} · wgrano ${r.imported_at || ''}</div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        importHistoryBox.innerHTML = '<div class="px-3 py-2 text-rose-500">Nie udało się wczytać historii.</div>';
+    }
 }
 
 function showImportError(message) {

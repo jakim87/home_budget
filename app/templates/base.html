@@ -631,6 +631,14 @@
                         <input type="file" id="folderInput" webkitdirectory class="hidden">
                         <div id="import-results" class="hidden mt-3 border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-48 overflow-y-auto text-sm"></div>
                         <p id="importError" class="text-rose-500 text-sm mt-2 hidden"></p>
+
+                        <div class="mt-4 pt-4 border-t border-slate-100">
+                            <button type="button" id="toggleImportHistoryBtn" class="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-800">
+                                <svg id="importHistoryChevron" class="w-3.5 h-3.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                Historia importów
+                            </button>
+                            <div id="import-history" class="hidden mt-2 border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto text-xs"></div>
+                        </div>
                     </div>
                     
                     <div class="flex justify-end gap-3 mt-6">

@@ -1,6 +1,7 @@
 from app import db
 from app.models import Transaction, Account, TransactionStaging, Contractor, Category, TransactionSplit
-from datetime import date
+from app.services.import_history_service import account_has_statement_imports
+from datetime import date, timedelta
 from typing import Optional
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
@@ -88,7 +89,8 @@ def create_transaction(
     comment: Optional[str] = None,
     source_recurring_id: Optional[int] = None,
     source_planned_id: Optional[int] = None,
-    commit: bool = True
+    commit: bool = True,
+    preserve_sign: bool = False
 ) -> Transaction:
     """
     Tworzy nową transakcję i automatycznie aktualizuje saldo powiązanego konta.
@@ -144,9 +146,9 @@ def create_transaction(
                     id=contractor_id, user_token=user_token, is_active=True
                 ).first()
                 if contractor_obj and contractor_obj.name.startswith("Moje konto: "):
-                    _create_internal_transfer_mirror(
+                    _handle_internal_transfer(
                         user_token, account, new_transaction, contractor_obj,
-                        amount, title, transaction_date, category_id
+                        amount, title, transaction_date, category_id, preserve_sign
                     )
 
         if commit:
@@ -186,25 +188,43 @@ def _resolve_destination_account(user_token: str, contractor_obj: Contractor) ->
     return None
 
 
-def _create_internal_transfer_mirror(
+# Tolerancja dat przy parowaniu nóg przelewu — ta sama operacja bywa księgowana
+# w różnych dniach po obu stronach (zwłaszcza między bankami).
+_TRANSFER_MATCH_WINDOW_DAYS = 4
+
+
+def _handle_internal_transfer(
     user_token: str, account: Account, new_transaction: Transaction,
     contractor_obj: Contractor, amount: Decimal, title: str,
-    transaction_date: date, category_id: int
+    transaction_date: date, category_id: int, preserve_sign: bool = False
 ) -> None:
-    """Tworzy lustrzaną transakcję na koncie docelowym przelewu wewnętrznego i wiąże obie strony."""
-    outflow_amount = -abs(amount)
-    inflow_amount = abs(amount)
+    """Obsługuje przelew wewnętrzny: parowanie z drugą nogą albo wygenerowanie lustra.
 
-    # Strona źródłowa zawsze jest wypływem (-).
-    if new_transaction.amount != outflow_amount:
-        account.balance += (outflow_amount - new_transaction.amount)
-        new_transaction.amount = outflow_amount
+    Kolejność decyzji:
+    1. Jeśli druga noga JUŻ istnieje (realna, z wyciągu drugiego konta) — wiążemy obie
+       i nic nie tworzymy.
+    2. Jeśli konto docelowe dostaje własne wyciągi — druga noga przyjdzie realnie,
+       więc lustra NIE generujemy (inaczej podwójne liczenie). Transakcja zostaje
+       niepowiązana (linked_transaction_id IS NULL) = widoczny "wiersz do zmapowania",
+       który domknie się sam, gdy tamta noga zostanie zatwierdzona.
+    3. Dopiero gdy konto docelowe nie ma własnych wyciągów (np. cel oszczędnościowy),
+       lustro jest jedynym źródłem drugiej strony — tworzymy je jak dotąd.
+
+    preserve_sign=True (import z wyciągu): znak kwoty pochodzi z banku i jest źródłem
+    prawdy — nie wymuszamy wypływu. Przy ręcznym dodawaniu (False) strona źródłowa
+    jest wypływem, bo formularz oznacza "wyślij z tego konta".
+    """
+    if not preserve_sign:
+        outflow_amount = -abs(amount)
+        if new_transaction.amount != outflow_amount:
+            account.balance += (outflow_amount - new_transaction.amount)
+            new_transaction.amount = outflow_amount
 
     dest_account = _resolve_destination_account(user_token, contractor_obj)
     if not dest_account or dest_account.id == account.id:
         return
 
-    db.session.flush()  # nadaj ID nowej transakcji, by móc powiązać lustro
+    db.session.flush()  # nadaj ID nowej transakcji, by móc powiązać drugą nogę
 
     # Kontrahent reprezentujący konto źródłowe (widoczny na transakcji docelowej).
     source_cont_name = f"Moje konto: {account.name}"
@@ -225,31 +245,51 @@ def _create_internal_transfer_mirror(
     elif source_contractor.linked_account_id is None:
         source_contractor.linked_account_id = account.id
 
-    # Precyzyjna deduplikacja: szukamy istniejącego, jeszcze niepowiązanego lustra —
-    # wpływu na koncie docelowym o tej kwocie/dacie, którego kontrahent wskazuje NA
-    # konto źródłowe. Zwykły wpływ zewnętrzny nie ma takiego kontrahenta, więc nie
-    # zostanie błędnie potraktowany jako lustro.
-    existing_mirror = (
+    # 1. Parowanie z istniejącą drugą nogą. Szukamy transakcji o PRZECIWNEJ kwocie na
+    # koncie docelowym, jeszcze niepowiązanej, której kontrahent wskazuje NA nasze konto.
+    # Zwykły wpływ zewnętrzny nie ma takiego kontrahenta, więc nie zostanie błędnie
+    # sparowany. Data z tolerancją — banki księgują obie strony w różnych dniach.
+    counter_amount = -new_transaction.amount
+    window_start = transaction_date - timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
+    window_end = transaction_date + timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
+    counterpart = (
         db.session.query(Transaction)
-        .filter_by(
-            user_token=user_token, account_id=dest_account.id,
-            amount=inflow_amount, date=transaction_date,
-            contractor_id=source_contractor.id, linked_transaction_id=None
+        .filter(
+            Transaction.user_token == user_token,
+            Transaction.account_id == dest_account.id,
+            Transaction.amount == counter_amount,
+            Transaction.contractor_id == source_contractor.id,
+            Transaction.linked_transaction_id.is_(None),
+            Transaction.id != new_transaction.id,
+            Transaction.date >= window_start,
+            Transaction.date <= window_end,
         )
+        .order_by(Transaction.date, Transaction.id)
         .first()
     )
-    if existing_mirror:
-        existing_mirror.linked_transaction_id = new_transaction.id
-        new_transaction.linked_transaction_id = existing_mirror.id
+    if counterpart:
+        counterpart.linked_transaction_id = new_transaction.id
+        new_transaction.linked_transaction_id = counterpart.id
         return
 
+    # 2. Konto docelowe ma własne wyciągi → jego noga przyjdzie realnie. Nie generujemy
+    # lustra; transakcja zostaje niepowiązana jako "do zmapowania".
+    if account_has_statement_imports(user_token, dest_account.id):
+        logger.info(
+            "Przelew wewnętrzny: konto docelowe '%s' ma własne wyciągi — pomijam lustro, "
+            "druga noga przyjdzie z importu (transaction_id=%s, user_token=%s)",
+            dest_account.name, new_transaction.id, user_token
+        )
+        return
+
+    # 3. Konto docelowe bez własnych wyciągów — lustro jest jedynym źródłem drugiej strony.
     mirror_tx = Transaction(
-        user_token=user_token, account_id=dest_account.id, amount=inflow_amount,
+        user_token=user_token, account_id=dest_account.id, amount=counter_amount,
         title=title, date=transaction_date, category_id=category_id,
         contractor=source_contractor.name, contractor_id=source_contractor.id,
         linked_transaction_id=new_transaction.id
     )
-    dest_account.balance = Decimal(dest_account.balance) + inflow_amount
+    dest_account.balance = Decimal(dest_account.balance) + counter_amount
     db.session.add(mirror_tx)
     db.session.flush()
     new_transaction.linked_transaction_id = mirror_tx.id
@@ -258,7 +298,7 @@ def _create_internal_transfer_mirror(
     # jeśli jego proponowany kontrahent to lustro naszego konta źródłowego. Dzięki
     # temu nie kasujemy przypadkiem niepowiązanego wpływu o zbieżnej kwocie i dacie.
     matching_staging = db.session.query(TransactionStaging).filter_by(
-        user_token=user_token, account_id=dest_account.id, amount=inflow_amount,
+        user_token=user_token, account_id=dest_account.id, amount=counter_amount,
         date=transaction_date, status='pending', proposed_contractor_id=source_contractor.id
     ).first()
     if matching_staging:
@@ -542,6 +582,114 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
         'skipped_count': skipped_count,
     }
 
+# Numer rachunku kontrahenta w mBanku to ciąg dokładnie 26 cyfr (NRB bez prefiksu PL),
+# zaszyty w blobie opisu operacji. (?<!\d)/(?!\d) zapobiega złapaniu fragmentu dłuższego ciągu.
+_MBANK_ACCOUNT_RE = re.compile(r'(?<!\d)\d{26}(?!\d)')
+
+def parse_mbank_csv(file_content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
+    """
+    Parsuje plik CSV z mBanku (jednokontowy — jeden rachunek na plik).
+
+    Wszystkie transakcje trafiają na main_account_id (wybrane przez użytkownika).
+    Format różni się od ING: śmieciowy nagłówek (dane banku, klient, okres, saldo),
+    kolumny '#Data operacji;#Opis operacji;#Rachunek;#Kategoria;#Kwota', kwota
+    z sufiksem ' PLN' i przecinkiem dziesiętnym, brak osobnej kolumny kontrahenta
+    (opis to jeden blob), numer konta kontrahenta zaszyty w opisie jako ciąg 26 cyfr.
+
+    Zwraca ten sam kształt co parse_ing_csv (transactions/csv_accounts/skipped_count),
+    dzięki czemu dalszy przepływ (save_transactions_to_staging) jest bank-agnostyczny.
+    """
+    if main_account_id is None:
+        raise ValueError("Plik CSV z mBanku dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+
+    lines = file_content.splitlines()
+
+    # Nagłówek transakcji: pierwsza linia zaczynająca się od '#Data operacji'.
+    header_idx = None
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith('#Data operacji'):
+            header_idx = i
+            break
+    if header_idx is None:
+        raise ValueError("Nie znaleziono nagłówka transakcji ('#Data operacji') w pliku CSV z mBanku.")
+
+    header_cells = next(csv.reader(io.StringIO(lines[header_idx]), delimiter=';'))
+    header_map = {cell.strip().lstrip('#').strip(): idx for idx, cell in enumerate(header_cells)}
+    try:
+        date_col = header_map['Data operacji']
+        desc_col = header_map['Opis operacji']
+        amount_col = header_map['Kwota']
+    except KeyError as e:
+        raise ValueError(f"Brak oczekiwanej kolumny w pliku CSV z mBanku: {e}")
+
+    transactions: list[dict] = []
+    skipped_count = 0
+
+    for line in lines[header_idx + 1:]:
+        if not line.strip():
+            continue
+        try:
+            parts = next(csv.reader(io.StringIO(line), delimiter=';'))
+        except StopIteration:
+            continue
+        # Wiersz transakcji zaczyna się od daty (cyfra) — pomijamy stopki/śmieci.
+        if date_col >= len(parts) or not parts[date_col].strip()[:1].isdigit():
+            continue
+
+        date_str = parts[date_col].strip()
+        raw_desc = parts[desc_col].strip() if desc_col < len(parts) else ''
+        amount_str = parts[amount_col].strip() if amount_col < len(parts) else ''
+
+        # Kwota: usuń sufiks 'PLN', spacje tysięczne (zwykłe i twarde), przecinek → kropka.
+        amount_clean = (amount_str
+                        .replace('PLN', '')
+                        .replace('\xa0', '')
+                        .replace(' ', '')
+                        .replace(',', '.'))
+        if not amount_clean:
+            continue
+        try:
+            amount = Decimal(amount_clean)
+        except InvalidOperation:
+            logger.warning("Odrzucono wiersz mBank — nieprawidłowa kwota '%s' (user_token=%s)", amount_str, user_token)
+            skipped_count += 1
+            continue
+
+        try:
+            tx_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            try:
+                tx_date = datetime.strptime(date_str, '%d.%m.%Y').date()
+            except ValueError:
+                logger.warning("Odrzucono wiersz mBank — nieznany format daty '%s' (user_token=%s)", date_str, user_token)
+                skipped_count += 1
+                continue
+
+        # Opis mBanku wypełniony jest wieloma spacjami — zwijamy do pojedynczych, by tytuł był czytelny.
+        title = re.sub(r'\s+', ' ', raw_desc).strip()
+
+        acc_match = _MBANK_ACCOUNT_RE.search(raw_desc)
+        counterparty_account = acc_match.group(0) if acc_match else None
+
+        transactions.append({
+            'date': tx_date,
+            'contractor': None,
+            'title': title,
+            'amount': amount,
+            'counterparty_account': counterparty_account,
+            'account_id': main_account_id,
+        })
+
+    logger.info(
+        "Import CSV mBank zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
+        user_token, len(transactions), skipped_count
+    )
+    return {
+        'transactions': transactions,
+        'csv_accounts': [],
+        'skipped_count': skipped_count,
+    }
+
 def analyze_transaction_data(
     title: str,
     raw_contractor: Optional[str],
@@ -786,7 +934,10 @@ def approve_staging_record(user_token, stg_id, data):
             category_id=category.id,
             contractor=stg_tx.contractor,
             contractor_id=contractor.id,
-            commit=False
+            commit=False,
+            # Dane pochodzą z wyciągu — znak kwoty jest źródłem prawdy i nie wolno
+            # wymuszać wypływu (noga wpływu przelewu wewnętrznego musi zostać dodatnia).
+            preserve_sign=True
         )
         db.session.delete(stg_tx)
         db.session.commit()

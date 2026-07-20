@@ -53,7 +53,12 @@ def init_data():
             'contractor_name': tx.contractor_details.name if tx.contractor_details else tx.contractor,
             'account_id': tx.account_id,
             'splits': splits_data,
-            'comment': tx.comment or ''
+            'comment': tx.comment or '',
+            # Przelew wewnętrzny bez powiązanej drugiej nogi — czeka na wyciąg
+            # drugiego konta ("do zmapowania"). Front pokazuje przy nim znacznik.
+            'transfer_unmatched': bool(
+                tx.category and tx.category.type == 'transfer' and tx.linked_transaction_id is None
+            )
         })
 
     return jsonify({

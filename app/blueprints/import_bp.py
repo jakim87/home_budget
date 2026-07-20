@@ -5,9 +5,37 @@ from app import db
 from app.models import TransactionStaging, Category, Contractor, Account
 from typing import Optional
 from app.schemas import StagingApproveSchema
-from app.services.budget_service import parse_ing_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor
+from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor
+from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf
+from app.services.budget_service import _normalize_acc_num
+from app.services.import_history_service import (
+    build_overlap_warning,
+    find_overlapping_imports,
+    list_import_history,
+    record_statement_import,
+)
+import uuid
 
 import_bp = Blueprint('import', __name__)
+
+# Rejestr parserów wyciągów wg banku (CSV, ścieżka /api/import/<bank>).
+# Każdy parser ma tę samą sygnaturę (file_content, user_token, main_account_id)
+# i zwraca ten sam kształt wyniku, dzięki czemu dalszy przepływ
+# (save_transactions_to_staging) jest bank-agnostyczny.
+CSV_PARSERS = {
+    'ing': parse_ing_csv,
+    'mbank': parse_mbank_csv,
+}
+
+# Pełny rejestr (bank, format) -> (parser, tryb_wejścia).
+# 'text' = parser przyjmuje zdekodowany str; 'bytes' = surowe bajty (PDF).
+# Dodanie parsera = jedna pozycja tutaj + funkcja w services.
+STATEMENT_PARSERS = {
+    ('ing', 'csv'): (parse_ing_csv, 'text'),
+    ('mbank', 'csv'): (parse_mbank_csv, 'text'),
+    ('mbank', 'html'): (parse_mbank_html, 'text'),
+    ('mbank', 'pdf'): (parse_mbank_pdf, 'bytes'),
+}
 
 
 def _abbrev_account(number: Optional[str]) -> str:
@@ -17,37 +45,61 @@ def _abbrev_account(number: Optional[str]) -> str:
     n = number.replace(' ', '').replace('-', '')
     return f"{n[:2]}....{n[-4:]}" if len(n) >= 6 else n
 
-@import_bp.route('/api/import/ing', methods=['POST'])
-@login_required
-def import_ing_csv():
-    user_token = current_user.token
-
+def _read_upload():
+    """Wspólna walidacja uploadu: zwraca (raw_bytes, error_response)."""
     if 'file' not in request.files:
-        return jsonify({'error': 'Brak pliku w żądaniu.'}), 400
+        return None, (jsonify({'error': 'Brak pliku w żądaniu.'}), 400)
     file = request.files['file']
     if file.filename == '':
-        return jsonify({'error': 'Nie wybrano pliku.'}), 400
+        return None, (jsonify({'error': 'Nie wybrano pliku.'}), 400)
+    return file.read(), None
 
-    try:
-        file_content = file.read().decode('utf-8-sig')
-    except UnicodeDecodeError:
-        file.seek(0)
-        try:
-            file_content = file.read().decode('windows-1250')
-        except UnicodeDecodeError:
-            return jsonify({'error': 'Nieobsługiwane kodowanie pliku. Oczekiwano UTF-8 lub Windows-1250 (eksport z ING).'}), 400
 
-    account_id = request.form.get('account_id')
+def _record_history(result: dict, user_token: str, meta: dict) -> Optional[str]:
+    """Zapisuje historię importu (wiersz na każde pokryte konto) i zwraca
+    ewentualne ostrzeżenie o nakładających się zakresach.
 
-    try:
-        result = parse_ing_csv(
-            file_content,
+    Zakres wyznaczamy z min/max daty faktycznie zaimportowanych transakcji —
+    zawsze dostępny, niezależnie od tego, czy dany format deklaruje okres.
+    """
+    transactions = result['transactions']
+    batch_id = uuid.uuid4().hex
+
+    # Konta pokryte tym plikiem: dla wielokontowego ING bierzemy je z transakcji.
+    per_account: dict[Optional[int], list] = {}
+    for tx in transactions:
+        per_account.setdefault(tx.get('account_id'), []).append(tx)
+
+    warnings: list[str] = []
+    for account_id, rows in per_account.items():
+        dates = [r['date'] for r in rows if r.get('date')]
+        p_start, p_end = (min(dates), max(dates)) if dates else (None, None)
+
+        overlaps = find_overlapping_imports(user_token, account_id, p_start, p_end)
+        warning = build_overlap_warning(overlaps)
+        if warning:
+            warnings.append(warning)
+
+        record_statement_import(
             user_token=user_token,
-            main_account_id=int(account_id) if account_id else None
+            filename=meta.get('filename') or 'wyciąg',
+            bank=meta.get('bank') or 'nieznany',
+            file_format=meta.get('format') or 'nieznany',
+            account_id=account_id,
+            period_start=p_start,
+            period_end=p_end,
+            transaction_count=len(rows),
+            skipped_count=result.get('skipped_count', 0) if len(per_account) == 1 else 0,
+            batch_id=batch_id,
+            commit=False,
         )
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+    db.session.commit()
+    return ' '.join(warnings) if warnings else None
 
+
+def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None,
+                       meta: dict | None = None):
+    """Wspólne zakończenie importu: zapis do stagingu + historia + odpowiedź."""
     transactions = result['transactions']
     skipped_count = result['skipped_count']
 
@@ -58,6 +110,9 @@ def import_ing_csv():
         return jsonify({'error': msg}), 400
 
     try:
+        # Ostrzeżenie o nakładaniu liczymy PRZED zapisem historii tego importu,
+        # inaczej nowy wpis nakładałby się sam na siebie.
+        overlap_warning = _record_history(result, user_token, meta or {})
         saved_records = save_transactions_to_staging(transactions, user_token=user_token)
         resp: dict = {
             'message': f'Udało się zaimportować {len(saved_records)} transakcji do weryfikacji.',
@@ -67,9 +122,139 @@ def import_ing_csv():
             resp['csv_accounts'] = result['csv_accounts']
         if skipped_count:
             resp['skipped_count'] = skipped_count
+        if overlap_warning:
+            resp['overlap_warning'] = overlap_warning
+        if extra:
+            resp.update(extra)
         return jsonify(resp), 201
     except ValueError as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 400
+
+
+@import_bp.route('/api/import/history', methods=['GET'])
+@login_required
+def import_history():
+    """Historia wgranych wyciągów bieżącego użytkownika."""
+    return jsonify(list_import_history(current_user.token)), 200
+
+
+@import_bp.route('/api/import/auto', methods=['POST'])
+@login_required
+def import_auto():
+    """Import z automatyczną detekcją banku i formatu po zawartości pliku."""
+    user_token = current_user.token
+
+    raw, err = _read_upload()
+    if err:
+        return err
+
+    bank, fmt = detect_bank_and_format(raw, request.files['file'].filename or '')
+    if bank is None or fmt is None:
+        detected = f" (rozpoznany format: {fmt.upper()})" if fmt else ''
+        return jsonify({'error': f'Nie rozpoznano banku lub formatu pliku{detected}. Wybierz bank ręcznie z listy.'}), 400
+
+    entry = STATEMENT_PARSERS.get((bank, fmt))
+    if entry is None:
+        return jsonify({'error': f'Wykryto wyciąg {bank.upper()} w formacie {fmt.upper()} — ten format nie jest jeszcze obsługiwany.'}), 400
+    parser, input_mode = entry
+
+    if input_mode == 'text':
+        try:
+            payload = decode_statement_bytes(raw)
+        except UnicodeDecodeError:
+            return jsonify({'error': 'Nieobsługiwane kodowanie pliku. Oczekiwano UTF-8 lub Windows-1250 (eksport z banku).'}), 400
+    else:
+        payload = raw
+
+    # Rozpoznanie konta po numerze rachunku z NAGŁÓWKA wyciągu (mBank ma go
+    # w każdym formacie). Chroni przed importem na złe konto i pozwala
+    # importować wiele plików bez ręcznego wskazywania konta per plik.
+    account_id = request.form.get('account_id')
+    resolved_account = None
+    statement_ibans = extract_statement_ibans(raw, bank, fmt)
+    if statement_ibans:
+        norm_iban = _normalize_acc_num(statement_ibans[0])
+        matched = next(
+            (a for a in db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+             if a.account_number and _normalize_acc_num(a.account_number) == norm_iban),
+            None
+        )
+        if account_id:
+            chosen = db.session.query(Account).filter_by(
+                id=int(account_id), user_token=user_token, is_active=True
+            ).first()
+            # Niezgodność: wybrane konto ma inny numer, ALBO rachunek z wyciągu
+            # pasuje do innego konta użytkownika niż wybrane.
+            chosen_num_differs = bool(chosen and chosen.account_number
+                                      and _normalize_acc_num(chosen.account_number) != norm_iban)
+            matched_is_other = bool(matched and chosen and matched.id != chosen.id)
+            if chosen_num_differs or matched_is_other:
+                masked = f"{norm_iban[:2]}...{norm_iban[-4:]}"
+                return jsonify({'error': (
+                    f"Wyciąg dotyczy rachunku {masked}, a wybrano konto '{chosen.name}' o innym numerze. "
+                    f"{'Rachunek z wyciągu pasuje do konta: ' + matched.name + '. ' if matched else ''}"
+                    "Wybierz właściwe konto lub pozostaw wybór automatyczny."
+                )}), 400
+        elif matched:
+            account_id = matched.id
+            resolved_account = {'id': matched.id, 'name': matched.name}
+        else:
+            masked = f"{norm_iban[:2]}...{norm_iban[-4:]}"
+            return jsonify({'error': (
+                f"Wyciąg dotyczy rachunku {masked}, który nie pasuje do żadnego konta w aplikacji. "
+                "Dodaj konto z tym numerem rachunku w Słownikach albo wybierz konto ręcznie."
+            )}), 400
+
+    try:
+        result = parser(
+            payload,
+            user_token=user_token,
+            main_account_id=int(account_id) if account_id else None
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
+    extra = {'detected': {'bank': bank, 'format': fmt}}
+    if resolved_account:
+        extra['resolved_account'] = resolved_account
+    return _stage_and_respond(result, user_token, extra=extra,
+                              meta={'filename': request.files['file'].filename,
+                                    'bank': bank, 'format': fmt})
+
+
+@import_bp.route('/api/import/<bank>', methods=['POST'])
+@login_required
+def import_csv(bank):
+    user_token = current_user.token
+
+    parser = CSV_PARSERS.get(bank.lower())
+    if parser is None:
+        return jsonify({'error': f"Nieobsługiwany bank: '{bank}'. Dostępne: {', '.join(sorted(CSV_PARSERS))}."}), 400
+
+    raw, err = _read_upload()
+    if err:
+        return err
+
+    try:
+        file_content = decode_statement_bytes(raw)
+    except UnicodeDecodeError:
+        return jsonify({'error': 'Nieobsługiwane kodowanie pliku. Oczekiwano UTF-8 lub Windows-1250 (eksport z banku).'}), 400
+
+    account_id = request.form.get('account_id')
+
+    try:
+        result = parser(
+            file_content,
+            user_token=user_token,
+            main_account_id=int(account_id) if account_id else None
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
+    return _stage_and_respond(result, user_token,
+                              meta={'filename': request.files['file'].filename,
+                                    'bank': bank, 'format': 'csv'})
 
 @import_bp.route('/api/staging/pending', methods=['GET'])
 @login_required

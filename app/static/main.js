@@ -2324,7 +2324,7 @@ function renderTransactions() {
                 row.className = `transition-colors group hover:bg-slate-50 ${isVirtual ? 'bg-indigo-50/30' : ''}`;
                 row.innerHTML = `
                     <td class="p-4 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
-                    <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${iconHtml}${t.desc}</td>
+                    <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${iconHtml}${t.desc}${t.transfer_unmatched ? ` <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider align-middle" title="Przelew wewnętrzny bez drugiej strony — powiąże się automatycznie po zaimportowaniu wyciągu drugiego konta">Do zmapowania</span>` : ''}</td>
                     <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${t.contractor_name || t.contractor || '-'}
                     </td>

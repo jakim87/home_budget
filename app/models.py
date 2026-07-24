@@ -243,3 +243,40 @@ class TransactionStaging(db.Model):
     account_id: Mapped[Optional[int]] = mapped_column(ForeignKey('accounts.id'))
     user_token: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey('users.token'))
     suggested_contractor_name: Mapped[Optional[str]] = mapped_column(String(255))
+
+
+class StatementImport(db.Model):
+    """Ewidencja wgranych wyciągów — jeden wiersz na parę (plik, pokryte konto).
+
+    Pełni dwie role:
+    1. audyt — co, kiedy i za jaki okres zostało zaimportowane,
+    2. sygnał pokrycia — czy dane konto w ogóle dostaje własne wyciągi. To drugie
+       jest fundamentem modelu transferów: dla konta z własnymi wyciągami druga
+       noga przelewu przyjdzie realnie, więc lustra generować NIE wolno.
+
+    Plik wielokontowy (ING) tworzy N wierszy o wspólnym batch_id — dzięki temu
+    pokrycie da się odpytać zwykłym filtrem po account_id, bez kolumn JSON
+    (których SQLite w testach nie obsługuje).
+    """
+    __tablename__ = 'statement_imports'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False, index=True)
+    batch_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    bank: Mapped[str] = mapped_column(String(30), nullable=False)
+    file_format: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    account_id: Mapped[Optional[int]] = mapped_column(ForeignKey('accounts.id'), index=True)
+
+    # Zakres wyznaczany z min/max daty zaimportowanych transakcji (nie z deklaracji
+    # w nagłówku) — zawsze dostępny i odzwierciedla to, co faktycznie weszło.
+    period_start: Mapped[Optional[date]] = mapped_column(Date)
+    period_end: Mapped[Optional[date]] = mapped_column(Date)
+
+    transaction_count: Mapped[int] = mapped_column(default=0)
+    skipped_count: Mapped[int] = mapped_column(default=0)
+    imported_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), server_default=db.func.now())
+
+    account = relationship("Account")

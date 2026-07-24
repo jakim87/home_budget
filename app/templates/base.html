@@ -598,7 +598,7 @@
     <div id="import-modal" class="fixed inset-0 bg-slate-900/50 hidden flex-col items-center justify-center z-50 px-4 backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 class="text-lg font-bold text-slate-800">Import transakcji (ING)</h3>
+                <h3 class="text-lg font-bold text-slate-800">Import transakcji</h3>
                 <button id="closeImportModalBtn" class="text-slate-400 hover:text-slate-600 focus:outline-none transition-colors rounded-lg">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
@@ -606,16 +606,39 @@
             <div class="p-6">
                 <form id="importForm">
                     <div class="mb-5">
-                        <label class="block text-sm font-medium text-slate-700 mb-2">
-                            Konto (wymagane dla wyciągu z jednym kontem)
+                        <label for="import-bank-select" class="block text-sm font-medium text-slate-700 mb-2">
+                            Bank (format wyciągu)
                         </label>
-                        <p class="text-xs text-slate-500 mb-2">Dla pliku wielokontowego konta zostaną wykryte automatycznie na podstawie nagłówka CSV.</p>
+                        <select id="import-bank-select" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-1">
+                            <option value="auto" selected>Wykryj automatycznie (zalecane)</option>
+                            <option value="ing">ING Bank Śląski (CSV)</option>
+                            <option value="mbank">mBank (CSV)</option>
+                        </select>
+                        <p class="text-xs text-slate-500 mb-4">Obsługiwane: ING (CSV), mBank (CSV, HTML, PDF). Wskazówka: dla mBanku najlepszym formatem jest <span class="font-medium">HTML</span> („Zestawienie operacji") — ma najczytelniejsze opisy transakcji.</p>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">
+                            Konto (opcjonalne)
+                        </label>
+                        <p class="text-xs text-slate-500 mb-2">Konto jest rozpoznawane automatycznie po numerze rachunku z wyciągu. Wybierz ręcznie tylko, gdy wyciąg nie zawiera numeru. Przy imporcie wielu plików wybór jest ignorowany — każdy plik trafia na swoje konto.</p>
                         <select id="import-account-select" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-4"></select>
                         <label for="csvFileInput" class="block text-sm font-medium text-slate-700 mb-2 mt-4">
-                            Wybierz plik z historią (.csv)
+                            Wybierz pliki z historią (.csv, .html, .pdf)
                         </label>
-                        <input type="file" id="csvFileInput" accept=".csv" required class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <input type="file" id="csvFileInput" accept=".csv,.html,.htm,.pdf" multiple class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <div class="flex items-center justify-between mt-2">
+                            <button type="button" id="pickFolderBtn" class="text-xs text-blue-600 hover:text-blue-800 font-medium underline underline-offset-2">…albo wybierz cały folder z wyciągami</button>
+                            <span id="pickedFilesInfo" class="text-xs text-slate-500"></span>
+                        </div>
+                        <input type="file" id="folderInput" webkitdirectory class="hidden">
+                        <div id="import-results" class="hidden mt-3 border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-48 overflow-y-auto text-sm"></div>
                         <p id="importError" class="text-rose-500 text-sm mt-2 hidden"></p>
+
+                        <div class="mt-4 pt-4 border-t border-slate-100">
+                            <button type="button" id="toggleImportHistoryBtn" class="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-800">
+                                <svg id="importHistoryChevron" class="w-3.5 h-3.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                Historia importów
+                            </button>
+                            <div id="import-history" class="hidden mt-2 border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto text-xs"></div>
+                        </div>
                     </div>
                     
                     <div class="flex justify-end gap-3 mt-6">

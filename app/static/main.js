@@ -2850,9 +2850,21 @@ function renderNetWorthHistoryChart() {
         },
         options: {
             responsive: true,
-            plugins: { legend: { display: false } },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `Majątek netto: ${ctx.parsed.y.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`
+                    }
+                }
+            },
             scales: {
-                y: { ticks: { callback: (v) => `${Number(v).toFixed(0)} PLN` } }
+                y: {
+                    ticks: {
+                        callback: v => `${Number(v).toLocaleString('pl-PL')} PLN`
+                    }
+                }
             }
         }
     });

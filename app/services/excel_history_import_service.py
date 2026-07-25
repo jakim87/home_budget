@@ -18,6 +18,10 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 from xml.etree import ElementTree as ET
 
+from app import db
+from app.models import Account, Transaction
+from app.services.budget_service import create_transaction, get_or_create_reconciliation_category
+
 logger = logging.getLogger(__name__)
 
 _NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
@@ -255,3 +259,118 @@ def build_migration_report(
         report.account_periods[name] = (min(dates), max(dates))
 
     return report
+
+
+@dataclass
+class RebuildEntry:
+    """Jeden miesiąc odbudowanej historii: docelowe saldo na koniec miesiąca +
+    kwota transakcji "Uzgadnianie salda" potrzebna, by je osiągnąć (różnica
+    względem poprzedniego miesiąca — dla pierwszego miesiąca to pełne saldo)."""
+    entry_date: date
+    balance: Decimal
+    delta: Decimal
+
+
+@dataclass
+class AccountRebuildPlan:
+    app_account_name: str
+    excel_account_names: list[str]  # >1 przy współdzielonym NRB (np. Smart Saver)
+    entries: list[RebuildEntry] = field(default_factory=list)
+
+
+def plan_account_rebuild(
+    app_account_name: str, excel_account_names: list[str], balances: list[MonthlyBalance]
+) -> AccountRebuildPlan:
+    """Buduje chronologiczny plan dla JEDNEGO konta w apce. Gdy excel_account_names
+    ma więcej niż jedną nazwę (wspólny fizyczny rachunek pod kilkoma etykietami
+    w Excelu — potwierdzone przez użytkownika jako bezpieczne, bez nakładania
+    miesięcy), salda ze wszystkich nazw są scalane w jedną chronologiczną oś —
+    etykiety z arkusza nie mają znaczenia, liczy się ciągłość fizycznego rachunku."""
+    combined = sorted(
+        (b for b in balances if b.account_name in excel_account_names),
+        key=lambda b: b.period_end,
+    )
+    entries: list[RebuildEntry] = []
+    previous = Decimal('0')
+    for b in combined:
+        entries.append(RebuildEntry(entry_date=b.period_end, balance=b.balance, delta=b.balance - previous))
+        previous = b.balance
+    return AccountRebuildPlan(app_account_name=app_account_name, excel_account_names=excel_account_names, entries=entries)
+
+
+def build_rebuild_plans(
+    report: MigrationReport,
+    balances: list[MonthlyBalance],
+    manual_merges: Optional[dict[str, list[str]]] = None,
+) -> list[AccountRebuildPlan]:
+    """Buduje plany odbudowy WYŁĄCZNIE dla kont już istniejących w apce
+    (report.matched_to_existing) — nic tu nie tworzy nowych kont. manual_merges
+    pozwala jawnie potwierdzić grupę współdzielonego NRB (np.
+    {'Smart Saver': ['Sluchawki 1200', 'Telefon Ja', 'Robot czyszczący']}),
+    nadpisując/uzupełniając automatyczne dopasowania z raportu."""
+    manual_merges = manual_merges or {}
+    grouped: dict[str, list[str]] = {}
+    for excel_name, app_name in report.matched_to_existing:
+        grouped.setdefault(app_name, []).append(excel_name)
+    for app_name, excel_names in manual_merges.items():
+        grouped[app_name] = excel_names
+
+    return [plan_account_rebuild(app_name, excel_names, balances) for app_name, excel_names in grouped.items()]
+
+
+@dataclass
+class RebuildSummary:
+    app_account_name: str
+    account_id: int
+    existing_tx_deleted: int
+    new_tx_created: int
+    first_date: Optional[date]
+    last_date: Optional[date]
+    final_balance: Optional[Decimal]
+
+
+def execute_account_rebuild(
+    user_token: str, account_id: int, plan: AccountRebuildPlan, dry_run: bool = True
+) -> RebuildSummary:
+    """Usuwa WSZYSTKIE istniejące transakcje danego konta i odtwarza historię
+    z planu jako miesięczne transakcje "Uzgadnianie salda". Kategorie i
+    kontrahenci NIE są ruszane — tylko transakcje tego jednego konta.
+
+    dry_run=True (domyślnie): nic nie zapisuje, tylko liczy i zwraca podsumowanie.
+    Nie wykonuje własnego commit — woła je kod wywołujący (jedna atomowa
+    operacja na wszystkie konta naraz, patrz CLI)."""
+    existing = db.session.query(Transaction).filter_by(account_id=account_id, user_token=user_token).all()
+
+    summary = RebuildSummary(
+        app_account_name=plan.app_account_name,
+        account_id=account_id,
+        existing_tx_deleted=len(existing),
+        new_tx_created=len(plan.entries),
+        first_date=plan.entries[0].entry_date if plan.entries else None,
+        last_date=plan.entries[-1].entry_date if plan.entries else None,
+        final_balance=plan.entries[-1].balance if plan.entries else None,
+    )
+    if dry_run:
+        return summary
+
+    for tx in existing:
+        db.session.delete(tx)
+    db.session.flush()
+
+    account = db.session.query(Account).filter_by(id=account_id, user_token=user_token).first()
+    if not account:
+        raise ValueError(f"Konto o ID {account_id} nie istnieje lub brak uprawnień.")
+    account.balance = Decimal('0')
+    db.session.flush()
+
+    category = get_or_create_reconciliation_category()
+    for entry in plan.entries:
+        create_transaction(
+            user_token=user_token, account_id=account_id, amount=entry.delta,
+            title="Uzgadnianie salda", transaction_date=entry.entry_date,
+            category_id=category.id, contractor="-",
+            comment="Migracja historii z arkusza XLSX (#110)",
+            commit=False,
+        )
+
+    return summary

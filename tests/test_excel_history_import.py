@@ -8,13 +8,20 @@ import zipfile
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
+from app import db
+from app.models import Account, Transaction, User
 from app.services.excel_history_import_service import (
     DictAccount,
     MonthlyBalance,
     build_migration_report,
+    build_rebuild_plans,
     clean_nrb,
+    execute_account_rebuild,
     parse_dictionaries,
     parse_saldo_end_of_month,
+    plan_account_rebuild,
     read_xlsx_sheet_rows,
 )
 
@@ -251,6 +258,154 @@ def test_read_xlsx_sheet_rows_reads_numeric_grid(tmp_path):
     rows = read_xlsx_sheet_rows(str(path), 'DaneTestowe')
 
     assert rows == [['1', '2', '3'], ['4', '5', '6']]
+
+
+# --- plan_account_rebuild ---
+
+def test_plan_account_rebuild_computes_telescoping_deltas():
+    """Pierwszy miesiąc = pełne saldo; kolejne = różnica względem poprzedniego."""
+    balances = [
+        MonthlyBalance('Konto X', Decimal('100.00'), date(2020, 1, 31)),
+        MonthlyBalance('Konto X', Decimal('150.00'), date(2020, 2, 29)),
+        MonthlyBalance('Konto X', Decimal('120.00'), date(2020, 3, 31)),
+    ]
+    plan = plan_account_rebuild('Moje Konto', ['Konto X'], balances)
+
+    assert [e.delta for e in plan.entries] == [Decimal('100.00'), Decimal('50.00'), Decimal('-30.00')]
+    assert plan.entries[-1].balance == Decimal('120.00')
+
+
+def test_plan_account_rebuild_merges_multiple_excel_names_chronologically():
+    """Grupa współdzielonego NRB (np. Smart Saver): kilka nazw w Excelu scalone
+    w jedną chronologiczną oś, niezależnie od etykiety."""
+    balances = [
+        MonthlyBalance('Cel A', Decimal('50.00'), date(2020, 1, 31)),
+        MonthlyBalance('Cel B', Decimal('80.00'), date(2020, 2, 29)),  # inna nazwa, ten sam rachunek
+    ]
+    plan = plan_account_rebuild('Smart Saver', ['Cel A', 'Cel B'], balances)
+
+    assert [e.delta for e in plan.entries] == [Decimal('50.00'), Decimal('30.00')]
+    assert plan.entries[-1].balance == Decimal('80.00')
+
+
+def test_plan_account_rebuild_empty_when_no_matching_balances():
+    plan = plan_account_rebuild('Puste Konto', ['Nieistniejące W Excelu'], [])
+    assert plan.entries == []
+
+
+# --- build_rebuild_plans ---
+
+def test_build_rebuild_plans_only_covers_matched_accounts():
+    """Nie tworzy planów dla report.missing_in_app — tylko dla już istniejących w apce."""
+    dict_accounts = [DictAccount('Konto X', '11111111111111111111111111', 'ING', True)]
+    balances = [MonthlyBalance('Konto X', Decimal('100.00'), date(2020, 1, 31))]
+    report = build_migration_report(dict_accounts, balances, {'11111111111111111111111111': 'Moje Konto'})
+
+    plans = build_rebuild_plans(report, balances)
+
+    assert len(plans) == 1
+    assert plans[0].app_account_name == 'Moje Konto'
+    assert plans[0].excel_account_names == ['Konto X']
+
+
+def test_build_rebuild_plans_applies_manual_merge_override():
+    report = build_migration_report([], [], {})
+    balances = [
+        MonthlyBalance('Cel A', Decimal('10.00'), date(2020, 1, 31)),
+        MonthlyBalance('Cel B', Decimal('20.00'), date(2020, 2, 29)),
+    ]
+    plans = build_rebuild_plans(report, balances, manual_merges={'Smart Saver': ['Cel A', 'Cel B']})
+
+    assert len(plans) == 1
+    assert plans[0].app_account_name == 'Smart Saver'
+    assert plans[0].excel_account_names == ['Cel A', 'Cel B']
+    assert len(plans[0].entries) == 2
+
+
+# --- execute_account_rebuild (dotyka bazy) ---
+
+@pytest.fixture
+def rebuild_user_and_account(app):
+    user = User(username="rebuild_user", email="rebuild@user.com", password_hash="a")
+    db.session.add(user)
+    db.session.commit()
+    account = Account(name="Konto Testowe", bank_name="TestBank", balance=Decimal("999.99"), user_token=user.token)
+    db.session.add(account)
+    db.session.commit()
+    return user.token, account.id
+
+
+def test_execute_account_rebuild_dry_run_makes_no_changes(app, rebuild_user_and_account):
+    token, account_id = rebuild_user_and_account
+    tx = Transaction(user_token=token, account_id=account_id, amount=Decimal("999.99"),
+                     title="Testowa", date=date(2026, 1, 1))
+    db.session.add(tx)
+    db.session.commit()
+
+    plan = plan_account_rebuild('Konto Testowe', ['Konto X'],
+                                [MonthlyBalance('Konto X', Decimal('500.00'), date(2020, 1, 31))])
+    summary = execute_account_rebuild(token, account_id, plan, dry_run=True)
+
+    assert summary.existing_tx_deleted == 1
+    assert summary.new_tx_created == 1
+    assert summary.final_balance == Decimal('500.00')
+    # nic naprawdę się nie zmieniło
+    assert db.session.query(Transaction).filter_by(account_id=account_id).count() == 1
+    assert db.session.get(Account, account_id).balance == Decimal("999.99")
+
+
+def test_execute_account_rebuild_deletes_old_and_creates_historical_transactions(app, rebuild_user_and_account):
+    token, account_id = rebuild_user_and_account
+    old_tx = Transaction(user_token=token, account_id=account_id, amount=Decimal("999.99"),
+                         title="Testowa (do usunięcia)", date=date(2026, 1, 1))
+    db.session.add(old_tx)
+    db.session.commit()
+
+    balances = [
+        MonthlyBalance('Konto X', Decimal('100.00'), date(2020, 1, 31)),
+        MonthlyBalance('Konto X', Decimal('150.00'), date(2020, 2, 29)),
+    ]
+    plan = plan_account_rebuild('Konto Testowe', ['Konto X'], balances)
+    summary = execute_account_rebuild(token, account_id, plan, dry_run=False)
+    db.session.commit()
+
+    remaining = db.session.query(Transaction).filter_by(account_id=account_id).order_by(Transaction.date).all()
+    assert len(remaining) == 2
+    assert remaining[0].date == date(2020, 1, 31)
+    assert remaining[0].amount == Decimal('100.00')
+    assert remaining[1].date == date(2020, 2, 29)
+    assert remaining[1].amount == Decimal('50.00')
+    assert all(t.title == "Uzgadnianie salda" for t in remaining)
+
+    account = db.session.get(Account, account_id)
+    assert account.balance == Decimal('150.00')
+    assert summary.final_balance == Decimal('150.00')
+
+
+def test_execute_account_rebuild_preserves_categories_and_contractors(app, rebuild_user_and_account):
+    """Usuwane są TYLKO transakcje tego konta — kategorie/kontrahenci zostają nietknięte."""
+    from app.models import Category, Contractor
+    token, account_id = rebuild_user_and_account
+
+    cat = Category(name="Zakupy spożywcze", type="expense")
+    db.session.add(cat)
+    db.session.commit()
+    cont = Contractor(name="Biedronka", user_token=token, default_category_id=cat.id)
+    db.session.add(cont)
+    db.session.commit()
+
+    tx = Transaction(user_token=token, account_id=account_id, amount=Decimal("-50.00"),
+                     title="Zakupy", date=date(2026, 1, 1), category_id=cat.id, contractor_id=cont.id)
+    db.session.add(tx)
+    db.session.commit()
+
+    plan = plan_account_rebuild('Konto Testowe', ['Konto X'],
+                                [MonthlyBalance('Konto X', Decimal('10.00'), date(2020, 1, 31))])
+    execute_account_rebuild(token, account_id, plan, dry_run=False)
+    db.session.commit()
+
+    assert db.session.get(Category, cat.id) is not None
+    assert db.session.get(Contractor, cont.id) is not None
 
 
 def test_read_xlsx_sheet_rows_unknown_sheet_raises(tmp_path):

@@ -6,7 +6,7 @@ from app.models import TransactionStaging, Category, Contractor, Account
 from typing import Optional
 from app.schemas import StagingApproveSchema
 from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor
-from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf
+from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf, parse_ing_pdf
 from app.services.budget_service import _normalize_acc_num
 from app.services.import_history_service import (
     build_overlap_warning,
@@ -32,6 +32,7 @@ CSV_PARSERS = {
 # Dodanie parsera = jedna pozycja tutaj + funkcja w services.
 STATEMENT_PARSERS = {
     ('ing', 'csv'): (parse_ing_csv, 'text'),
+    ('ing', 'pdf'): (parse_ing_pdf, 'bytes'),
     ('mbank', 'csv'): (parse_mbank_csv, 'text'),
     ('mbank', 'html'): (parse_mbank_html, 'text'),
     ('mbank', 'pdf'): (parse_mbank_pdf, 'bytes'),

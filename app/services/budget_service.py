@@ -304,10 +304,27 @@ def _handle_internal_transfer(
     if matching_staging:
         db.session.delete(matching_staging)
 
-def reconcile_account_balance(user_token: str, account_id: int, new_balance: Decimal, comment: Optional[str] = None) -> Transaction:
+def get_or_create_reconciliation_category() -> Category:
+    """Kategoria systemowa 'Uzgadnianie salda' — współdzielona przez ręczne
+    uzgodnienie salda (UI) i migrację historycznych sald z Excela."""
+    category = db.session.query(Category).filter_by(name="Uzgadnianie salda", is_system_category=True).first()
+    if not category:
+        category = Category(name="Uzgadnianie salda", type="system_reconciliation", is_system_category=True)
+        db.session.add(category)
+        db.session.flush()
+    return category
+
+
+def reconcile_account_balance(
+    user_token: str, account_id: int, new_balance: Decimal,
+    comment: Optional[str] = None, transaction_date: Optional[date] = None
+) -> Transaction:
     """
     Uzgadnia saldo konta. Tworzy transakcję korygującą, jeśli istnieje różnica
     między nowym saldem a bieżącym saldem w systemie.
+
+    transaction_date domyślnie to dziś (uzgodnienie "na teraz" z UI); migracja
+    historycznych sald (excel_history_import_service) podaje datę z przeszłości.
     """
     try:
         account = db.session.query(Account).filter_by(id=account_id, user_token=user_token).first()
@@ -320,18 +337,14 @@ def reconcile_account_balance(user_token: str, account_id: int, new_balance: Dec
         if difference == Decimal('0.00'):
             return None
 
-        reconciliation_category = db.session.query(Category).filter_by(name="Uzgadnianie salda", is_system_category=True).first()
-        if not reconciliation_category:
-            reconciliation_category = Category(name="Uzgadnianie salda", type="system_reconciliation", is_system_category=True)
-            db.session.add(reconciliation_category)
-            db.session.flush()
+        reconciliation_category = get_or_create_reconciliation_category()
 
         reconciliation_tx = create_transaction(
             user_token=user_token,
             account_id=account_id,
             amount=difference,
             title="Uzgadnianie salda",
-            transaction_date=date.today(),
+            transaction_date=transaction_date or date.today(),
             category_id=reconciliation_category.id,
             contractor="-",
             comment=comment or None

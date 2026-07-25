@@ -2737,6 +2737,8 @@ function renderDashboard() {
         }
     }
 
+    computeNetWorthSeries();
+    renderNetWorthHistoryChart();
     renderDashboardChart();
 
     // Ostatnie 5 transakcji
@@ -2758,6 +2760,118 @@ function renderDashboard() {
         }
     }
 }
+
+// --- MAJĄTEK W CZASIE ---
+// Net worth to suma prefiksowa transakcji w czasie (stan, nie strumień).
+// Liczymy ją RAZ (jeden przebieg po już załadowanych `transactions`) —
+// wybór dowolnego zakresu w UI to potem tylko wycinanie gotowej tablicy,
+// bez ponownego przeliczania i bez nowego zapytania do backendu.
+let netWorthSeriesFull = [];
+let netWorthChart = null;
+
+function computeNetWorthSeries() {
+    if (transactions.length === 0) { netWorthSeriesFull = []; return; }
+
+    const sorted = [...transactions]
+        .filter(t => t.date)
+        .sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
+
+    const firstYM = sorted[0].date.slice(0, 7);
+    const now = new Date();
+    const todayYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const lastTxYM = sorted[sorted.length - 1].date.slice(0, 7);
+    const lastYM = lastTxYM > todayYM ? lastTxYM : todayYM;
+
+    const months = [];
+    let [y, m] = firstYM.split('-').map(Number);
+    const [ly, lm] = lastYM.split('-').map(Number);
+    while (y < ly || (y === ly && m <= lm)) {
+        months.push(`${y}-${String(m).padStart(2, '0')}`);
+        m++;
+        if (m > 12) { m = 1; y++; }
+    }
+
+    let idx = 0;
+    let totalRunning = 0;
+    const series = [];
+    for (const ym of months) {
+        const [yy, mm] = ym.split('-').map(Number);
+        const daysInMonth = new Date(yy, mm, 0).getDate();
+        const monthEndStr = `${yy}-${String(mm).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+        while (idx < sorted.length && sorted[idx].date <= monthEndStr) {
+            totalRunning += sorted[idx].amount;
+            idx++;
+        }
+        series.push({ month: ym, value: totalRunning });
+    }
+    netWorthSeriesFull = series;
+}
+
+function renderNetWorthHistoryChart() {
+    const ctx = document.getElementById('networth-history-chart');
+    const fromInput = document.getElementById('networth-range-from');
+    const toInput = document.getElementById('networth-range-to');
+    if (!ctx || !fromInput || !toInput) return;
+
+    if (netWorthSeriesFull.length === 0) {
+        if (netWorthChart) { netWorthChart.destroy(); netWorthChart = null; }
+        return;
+    }
+
+    const allMonths = netWorthSeriesFull.map(p => p.month);
+    const minMonth = allMonths[0], maxMonth = allMonths[allMonths.length - 1];
+    fromInput.min = minMonth; fromInput.max = maxMonth;
+    toInput.min = minMonth; toInput.max = maxMonth;
+    if (!fromInput.value) fromInput.value = minMonth;
+    if (!toInput.value) toInput.value = maxMonth;
+
+    const from = fromInput.value, to = toInput.value;
+    const sliced = netWorthSeriesFull.filter(p => p.month >= from && p.month <= to);
+
+    if (netWorthChart) {
+        netWorthChart.destroy();
+        netWorthChart = null;
+    }
+
+    netWorthChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: sliced.map(p => p.month),
+            datasets: [{
+                label: 'Majątek netto',
+                data: sliced.map(p => p.value),
+                borderColor: 'rgba(37, 99, 235, 1)',
+                backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                fill: true,
+                tension: 0.15,
+                pointRadius: 0,
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `Majątek netto: ${ctx.parsed.y.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: {
+                        callback: v => `${Number(v).toLocaleString('pl-PL')} PLN`
+                    }
+                }
+            }
+        }
+    });
+}
+
+document.getElementById('networth-range-from')?.addEventListener('change', renderNetWorthHistoryChart);
+document.getElementById('networth-range-to')?.addEventListener('change', renderNetWorthHistoryChart);
 
 function renderDashboardChart() {
     const ctx = document.getElementById('dashboard-chart');

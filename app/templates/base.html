@@ -74,6 +74,19 @@
                     <p id="dashboard-net-worth" class="text-4xl font-bold">0.00 PLN</p>
                 </div>
 
+                <!-- Majątek w czasie -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
+                        <h2 class="font-bold text-slate-800">Majątek w czasie</h2>
+                        <div class="flex items-center gap-2 text-sm">
+                            <input type="month" id="networth-range-from" class="p-1.5 border border-slate-300 rounded-lg text-sm bg-white">
+                            <span class="text-slate-400">–</span>
+                            <input type="month" id="networth-range-to" class="p-1.5 border border-slate-300 rounded-lg text-sm bg-white">
+                        </div>
+                    </div>
+                    <canvas id="networth-history-chart"></canvas>
+                </div>
+
                 <!-- Karty kont -->
                 <div id="dashboard-accounts" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
 

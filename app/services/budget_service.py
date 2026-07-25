@@ -304,10 +304,16 @@ def _handle_internal_transfer(
     if matching_staging:
         db.session.delete(matching_staging)
 
-def reconcile_account_balance(user_token: str, account_id: int, new_balance: Decimal, comment: Optional[str] = None) -> Transaction:
+def reconcile_account_balance(
+    user_token: str, account_id: int, new_balance: Decimal,
+    comment: Optional[str] = None, transaction_date: Optional[date] = None
+) -> Transaction:
     """
     Uzgadnia saldo konta. Tworzy transakcję korygującą, jeśli istnieje różnica
     między nowym saldem a bieżącym saldem w systemie.
+
+    transaction_date domyślnie to dziś (uzgodnienie "na teraz" z UI); migracja
+    historycznych sald (import_excel_history_service) podaje datę z przeszłości.
     """
     try:
         account = db.session.query(Account).filter_by(id=account_id, user_token=user_token).first()
@@ -331,7 +337,7 @@ def reconcile_account_balance(user_token: str, account_id: int, new_balance: Dec
             account_id=account_id,
             amount=difference,
             title="Uzgadnianie salda",
-            transaction_date=date.today(),
+            transaction_date=transaction_date or date.today(),
             category_id=reconciliation_category.id,
             contractor="-",
             comment=comment or None

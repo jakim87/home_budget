@@ -411,6 +411,82 @@ def parse_ing_csv_row(row_data: str, header_map: dict, key_map: dict) -> Optiona
 
     return result
 
+def build_ing_account_maps(
+    account_entries: list[tuple[str, str]], user_token: str
+) -> tuple[list[dict], dict[str, Optional[int]], dict[str, int], set[str]]:
+    """Dopasowuje etykiety kont ING (z sekcji 'Wybrane rachunki' — wspólnej dla
+    CSV i PDF) do kont użytkownika w apce, po numerze rachunku.
+
+    account_entries: lista (etykieta_produktowa, znormalizowany_iban).
+
+    Zwraca (accounts_info, name_to_account_id, db_name_to_account_id, ibans_set):
+    - accounts_info: do wyświetlenia w UI po imporcie (jak dotąd 'csv_accounts').
+    - name_to_account_id: etykieta -> account_id (pierwsze dopasowanie wygrywa
+      przy duplikatach nazw — ING potrafi nazwać kilka różnych kont tą samą
+      generyczną etykietą produktową, np. "Otwarte Konto Oszczędnościowe").
+    - db_name_to_account_id: fallback po WŁASNEJ nazwie konta w apce
+      (case-insensitive) — ING w wierszu transakcji/bloku PDF pokazuje
+      przemianowane konto (np. "Wakacje") inaczej niż w nagłówku.
+    - ibans_set: wszystkie znormalizowane IBAN-y z pliku, do wykrywania
+      przelewów wewnętrznych w obrębie tego samego pliku.
+    """
+    db_accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+    iban_to_account = {_normalize_acc_num(a.account_number): a for a in db_accounts if a.account_number}
+
+    ibans_set: set[str] = {iban for _, iban in account_entries}
+    accounts_info: list[dict] = []
+    name_to_account_id: dict[str, Optional[int]] = {}
+
+    for name, iban in account_entries:
+        db_acc = iban_to_account.get(iban)
+        accounts_info.append({
+            'csv_name': name,
+            'iban': iban,
+            'account_id': db_acc.id if db_acc else None,
+            'account_name': db_acc.name if db_acc else None,
+            'matched': db_acc is not None,
+        })
+        # Przy duplikatach nazw zachowujemy pierwsze dopasowanie; reszta jest
+        # obsługiwana przez fallback po nazwie konta w DB.
+        if name not in name_to_account_id:
+            name_to_account_id[name] = db_acc.id if db_acc else None
+
+    db_name_to_account_id: dict[str, int] = {
+        acc.name.lower(): acc.id
+        for acc in db_accounts
+        if acc.account_number and _normalize_acc_num(acc.account_number) in ibans_set
+    }
+    return accounts_info, name_to_account_id, db_name_to_account_id, ibans_set
+
+
+def resolve_ing_account_label(
+    konto_raw: str,
+    name_to_account_id: dict[str, Optional[int]],
+    db_name_to_account_id: dict[str, int],
+) -> tuple[bool, Optional[int]]:
+    """Rozwiązuje etykietę konta (kolumna 'Konto' w CSV albo blok w PDF) na
+    account_id, tym samym dwuetapowym algorytmem dla obu formatów:
+    1. dopasowanie po nazwie produktowej z 'Wybrane rachunki',
+    2. fallback po własnej nazwie konta w apce (case-insensitive).
+
+    Zwraca (rozpoznane_jako_znane_apce_konto, account_id_lub_None). Pierwszy
+    element == False oznacza podkonto/cel spoza słownika (np. "iPad 3k") —
+    pomijamy, nie zgadujemy. Drugi element None przy pierwszym == True
+    oznacza: etykieta jest w pliku, ale to konto nie istnieje w apce.
+    """
+    konto_clean = re.sub(r'\s*\([^)]*\)\s*$', '', konto_raw).strip()
+
+    for lookup_key in (konto_raw, konto_clean):
+        if lookup_key in name_to_account_id:
+            return True, name_to_account_id[lookup_key]
+
+    fallback_id = db_name_to_account_id.get(konto_clean.lower())
+    if fallback_id is not None:
+        return True, fallback_id
+
+    return False, None
+
+
 def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
     """
     Parsuje plik CSV z ING.
@@ -451,43 +527,12 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
             except (StopIteration, IndexError):
                 pass
 
-    # Zbuduj słownik (pierwszy wpis wygrywa przy duplikatach nazw) i zbiór wszystkich IBAN
-    csv_accounts_raw: dict[str, str] = {}
-    csv_ibans_set: set[str] = set()
-    for name, iban in csv_accounts_entries:
-        if name not in csv_accounts_raw:
-            csv_accounts_raw[name] = iban
-        csv_ibans_set.add(iban)
-
-    # 2. Dopasuj konta z CSV do kont w bazie danych (po numerze IBAN)
-    db_accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
-    iban_to_account = {_normalize_acc_num(a.account_number): a for a in db_accounts if a.account_number}
-
-    csv_accounts_info: list[dict] = []
-    csv_name_to_account_id: dict[str, Optional[int]] = {}
-
-    for csv_name, iban in csv_accounts_entries:
-        db_acc = iban_to_account.get(iban)
-        csv_accounts_info.append({
-            'csv_name': csv_name,
-            'iban': iban,
-            'account_id': db_acc.id if db_acc else None,
-            'account_name': db_acc.name if db_acc else None,
-            'matched': db_acc is not None,
-        })
-        # Przy duplikatach nazw zachowujemy pierwsze dopasowanie;
-        # reszta jest obsługiwana przez fallback po nazwie konta w DB.
-        if csv_name not in csv_name_to_account_id:
-            csv_name_to_account_id[csv_name] = db_acc.id if db_acc else None
-
-    # Fallback: własne nazwy kont z aplikacji (np. "Fundusz remontowy", "Wakacje").
-    # ING wyświetla je w kolumnie "Konto", lecz w "Wybrane rachunki" używa nazw produktów
-    # (np. "Otwarte Konto Oszczędnościowe"). Dopasowujemy case-insensitive po nazwie w DB.
-    db_name_to_account_id: dict[str, int] = {
-        acc.name.lower(): acc.id
-        for acc in db_accounts
-        if acc.account_number and _normalize_acc_num(acc.account_number) in csv_ibans_set
-    }
+    # 2. Dopasuj konta z CSV do kont w bazie danych (po numerze IBAN) — wspólne
+    # z parserem PDF, patrz build_ing_account_maps.
+    csv_accounts_info, csv_name_to_account_id, db_name_to_account_id, csv_ibans_set = (
+        build_ing_account_maps(csv_accounts_entries, user_token)
+    )
+    matched_ibans = {info['iban'] for info in csv_accounts_info if info['matched']}
 
     # 3. Znajdź nagłówek transakcji i zbierz wiersze danych
     header_map: dict[str, int] = {}
@@ -509,7 +554,7 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
         raise ValueError("Nie znaleziono nagłówka transakcji ('Data transakcji') w pliku CSV.")
 
     # Tryb wielokontowy: plik zawiera sekcję "Wybrane rachunki" ORAZ kolumnę "Konto"
-    is_multi_account = 'Konto' in header_map and bool(csv_accounts_raw)
+    is_multi_account = 'Konto' in header_map and bool(csv_accounts_entries)
 
     key_map = {
         'date': 'Data transakcji',
@@ -537,24 +582,9 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
 
             if is_multi_account:
                 konto_raw = parsed_row.pop('source_account', None) or ''
-                konto_clean = re.sub(r'\s*\([^)]*\)\s*$', '', konto_raw).strip()
-
-                matched_id: Optional[int] = None
-                in_csv_accounts = False
-
-                # 1. Dopasowanie po nazwie produktowej z "Wybrane rachunki"
-                for lookup_key in [konto_raw, konto_clean]:
-                    if lookup_key in csv_name_to_account_id:
-                        in_csv_accounts = True
-                        matched_id = csv_name_to_account_id[lookup_key]
-                        break
-
-                # 2. Fallback: własna nazwa konta w aplikacji (case-insensitive)
-                if not in_csv_accounts:
-                    fallback_id = db_name_to_account_id.get(konto_clean.lower())
-                    if fallback_id is not None:
-                        in_csv_accounts = True
-                        matched_id = fallback_id
+                in_csv_accounts, matched_id = resolve_ing_account_label(
+                    konto_raw, csv_name_to_account_id, db_name_to_account_id
+                )
 
                 if not in_csv_accounts:
                     # Podkonto / cel oszczędnościowy (np. "iPad 3k") — pomiń
@@ -571,7 +601,7 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
                 if (parsed_row['amount'] > 0
                         and counterparty_iban
                         and counterparty_iban in csv_ibans_set
-                        and counterparty_iban in iban_to_account):
+                        and counterparty_iban in matched_ibans):
                     skipped_count += 1
                     continue
 

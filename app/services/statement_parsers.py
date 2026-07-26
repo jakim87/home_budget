@@ -20,13 +20,22 @@ from typing import Optional
 
 from bs4 import BeautifulSoup
 
-from app.services.budget_service import _MBANK_ACCOUNT_RE
+from app.services.budget_service import (
+    _MBANK_ACCOUNT_RE,
+    build_ing_account_maps,
+    resolve_ing_account_label,
+)
 
 logger = logging.getLogger(__name__)
 
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _PERIOD_RE = re.compile(r'od\s*(\d{4}-\d{2}-\d{2})\s*do\s*(\d{4}-\d{2}-\d{2})')
 _AMOUNT_PLN_RE = re.compile(r'(-?\d[\d \xa0]*,\d{2})\s*PLN')
+
+_ING_DATE_RE = re.compile(r'^\d{2}\.\d{2}\.\d{4}$')
+_ING_PERIOD_RE = re.compile(r'(\d{2}\.\d{2}\.\d{4})\s*-\s*(\d{2}\.\d{2}\.\d{4})')
+_ANY_26_DIGITS_RE = re.compile(r'(?<!\d)\d{26}(?!\d)')
+_KWOTA_PLATNOSCI_RE = re.compile(r'^kwota płatności\s*:?\s*$', re.IGNORECASE)
 
 
 def decode_statement_bytes(raw: bytes) -> str:
@@ -316,4 +325,197 @@ def parse_mbank_pdf(raw: bytes, user_token: str, main_account_id: Optional[int] 
         'period_start': period_start,
         'period_end': period_end,
         'statement_ibans': statement_ibans,
+    }
+
+
+def _extract_ing_pdf_period(text: str) -> tuple[Optional[object], Optional[object]]:
+    m = _ING_PERIOD_RE.search(text)
+    if not m:
+        return None, None
+    try:
+        start = datetime.strptime(m.group(1), '%d.%m.%Y').date()
+        end = datetime.strptime(m.group(2), '%d.%m.%Y').date()
+        return start, end
+    except ValueError:
+        return None, None
+
+
+_ING_ACCOUNT_LABEL_RE = re.compile(r'^.+\([A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]{2,4}\)$')
+
+
+def _extract_ing_pdf_accounts(lines: list[str]) -> list[tuple[str, str]]:
+    """Parsuje sekcję 'Wybrane rachunki' nagłówka: N etykiet produktowych
+    ('KONTO Z LWEM Direct (PLN)') i N numerów IBAN w TEJ SAMEJ kolejności
+    ('45 1050 1025 1000 0091 0293 0329').
+
+    Nagłówek PDF ma dwie kolumny (dane użytkownika + wybrane rachunki)
+    spłaszczone przez ekstrakcję tekstu do jednej sekwencji linii — między
+    'Wybrane rachunki' a pierwszą etykietą konta wtrąca się blok imię/adres
+    użytkownika (zmienna liczba linii). Dlatego NIE zakładamy stałej pozycji:
+    skanujemy cały obszar nagłówka i zbieramy WSZYSTKIE linie pasujące do
+    kształtu etykiety/IBAN, ignorując resztę."""
+    try:
+        start = next(i for i, l in enumerate(lines) if 'Wybrane rachunki' in l)
+    except StopIteration:
+        return []
+    try:
+        end = next(
+            i for i in range(start, len(lines))
+            if 'Zastosowane kryteria' in lines[i] or 'Data transakcji' in lines[i]
+        )
+    except StopIteration:
+        end = len(lines)
+
+    region = lines[start:end]
+    labels = [
+        re.sub(r'\s*\([^)]*\)\s*$', '', l).strip()
+        for l in region if _ING_ACCOUNT_LABEL_RE.match(l)
+    ]
+    # Numery IBAN w nagłówku bywają rozdzielone twardą spacją (\xa0), nie zwykłą
+    # — \s w re (domyślnie Unicode dla wzorców str) łapie oba warianty.
+    ibans = []
+    for l in region:
+        compact = re.sub(r'\s+', '', l)
+        if len(compact) == 26 and compact.isdigit():
+            ibans.append(compact)
+
+    return list(zip(labels, ibans))
+
+
+def parse_ing_pdf(raw: bytes, user_token: str, main_account_id: Optional[int] = None) -> dict:
+    """Parsuje 'Lista transakcji' ING w PDF (zwykle wielokontowa, tekstowa).
+
+    Tabela spłaszczona do tekstu przez PyMuPDF: blok transakcji zaczyna się od
+    DWÓCH KOLEJNYCH linii z datą DD.MM.YYYY (data transakcji + księgowania) —
+    ten podwójny wzorzec odróżnia START bloku od dat powtarzających się w
+    środku (np. przy płatnościach kartą). Blok kończy się dwiema ostatnimi
+    liniami-kwotami: [kwota transakcji, saldo po transakcji] — brane OD KOŃCA,
+    nie od początku, bo transakcje walutowe mają wcześniejszą, dodatkową kwotę
+    referencyjną w PLN ('Kwota: X PLN' obok oryginalnej kwoty w EUR/USD).
+    Etykieta konta to linie MIĘDZY tymi dwiema kwotami.
+
+    Rozpoznawanie kont dzieli logikę z parserem CSV (build_ing_account_maps /
+    resolve_ing_account_label w budget_service.py) — ING pokazuje w treści
+    transakcji przemianowane konto (np. "Wakacje") inaczej niż w nagłówku
+    ("Otwarte Konto Oszczędnościowe"), identycznie jak w CSV.
+
+    Tytuł/kontrahent to uproszczenie MVP (pierwsza linia opisu = tytuł, reszta
+    = kontrahent-blob) — pełny rozkład na kolumny "Tytuł" vs "Dane kontrahenta"
+    nie jest w pełni odtwarzalny z płaskiego tekstu PDF dla wszystkich typów
+    operacji (ten sam kompromis co blob mBank CSV, patrz IDEAS.md).
+    """
+    import fitz
+    with fitz.open(stream=raw, filetype='pdf') as doc:
+        text = '\n'.join(page.get_text() for page in doc)
+
+    period_start, period_end = _extract_ing_pdf_period(text)
+    lines = [l.strip() for l in text.splitlines()]
+
+    account_entries = _extract_ing_pdf_accounts(lines)
+    accounts_info, name_to_account_id, db_name_to_account_id, ibans_set = (
+        build_ing_account_maps(account_entries, user_token)
+    )
+    matched_ibans = {info['iban'] for info in accounts_info if info['matched']}
+    is_multi_account = bool(account_entries)
+
+    if not is_multi_account and main_account_id is None:
+        raise ValueError("Plik PDF zawiera jedno konto — proszę wybrać konto docelowe przed importem.")
+
+    starts = [i for i in range(len(lines) - 1) if _ING_DATE_RE.match(lines[i]) and _ING_DATE_RE.match(lines[i + 1])]
+    if not starts:
+        raise ValueError("Nie rozpoznano żadnej transakcji w pliku PDF ING (brak par dat DD.MM.RRRR).")
+
+    transactions: list[dict] = []
+    skipped_count = 0
+
+    for idx, s in enumerate(starts):
+        end = starts[idx + 1] if idx + 1 < len(starts) else len(lines)
+        block = [l for l in lines[s:end] if l]
+
+        try:
+            tx_date = datetime.strptime(block[0], '%d.%m.%Y').date()
+        except ValueError:
+            skipped_count += 1
+            continue
+
+        amount_line_idx = [i for i, l in enumerate(block) if _AMOUNT_PLN_RE.search(l)]
+        if len(amount_line_idx) < 2:
+            skipped_count += 1
+            continue
+
+        amount_idx, balance_idx = amount_line_idx[-2], amount_line_idx[-1]
+        amount = _clean_amount(_AMOUNT_PLN_RE.search(block[amount_idx]).group(1))
+        if amount is None:
+            logger.warning("Odrzucono blok ING PDF — nieprawidłowa kwota (user_token=%s)", user_token)
+            skipped_count += 1
+            continue
+
+        # Płatności kartą w walucie obcej czasem wstawiają między kwotą PLN
+        # a etykietą konta parę linii "kwota płatności:" + kwota w walucie
+        # oryginalnej (np. "-10,00 EUR") — trzeba je pominąć, inaczej wpadają
+        # do etykiety konta i psują dopasowanie.
+        konto_lines = block[amount_idx + 1:balance_idx]
+        cleaned_konto_lines = []
+        skip_next = False
+        for line in konto_lines:
+            if skip_next:
+                skip_next = False
+                continue
+            if _KWOTA_PLATNOSCI_RE.match(line):
+                skip_next = True
+                continue
+            cleaned_konto_lines.append(line)
+        konto_raw = ' '.join(cleaned_konto_lines).strip()
+        if is_multi_account:
+            in_known_accounts, matched_id = resolve_ing_account_label(
+                konto_raw, name_to_account_id, db_name_to_account_id
+            )
+            if not in_known_accounts:
+                # Podkonto/cel spoza słownika (np. "iPad 3k") — pomiń, nie zgadujemy.
+                skipped_count += 1
+                continue
+            if matched_id is None:
+                skipped_count += 1
+                continue
+            account_id = matched_id
+        else:
+            account_id = main_account_id
+
+        desc_lines = block[2:amount_idx]
+        title = desc_lines[0] if desc_lines else ''
+        contractor = ' '.join(desc_lines[1:]).strip() or None
+
+        desc_text = ' '.join(desc_lines)
+        acc_match = _ANY_26_DIGITS_RE.search(desc_text)
+        counterparty_account = acc_match.group(0) if acc_match else None
+
+        # Pomiń stronę "wpływu" (+) przelewu wewnętrznego między śledzonymi
+        # kontami w OBRĘBIE TEGO SAMEGO PLIKU (jak w CSV) — lustro powstanie
+        # automatycznie przy zatwierdzeniu strony "wypływu" (-).
+        if (is_multi_account and amount > 0 and counterparty_account
+                and counterparty_account in ibans_set
+                and counterparty_account in matched_ibans):
+            skipped_count += 1
+            continue
+
+        transactions.append({
+            'date': tx_date,
+            'contractor': contractor,
+            'title': title,
+            'amount': amount,
+            'counterparty_account': counterparty_account,
+            'account_id': account_id,
+        })
+
+    logger.info(
+        "Import PDF ING zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
+        user_token, len(transactions), skipped_count
+    )
+    return {
+        'transactions': transactions,
+        'csv_accounts': accounts_info,
+        'skipped_count': skipped_count,
+        'period_start': period_start,
+        'period_end': period_end,
+        'statement_ibans': list(ibans_set),
     }

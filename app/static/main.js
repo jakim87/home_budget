@@ -9,6 +9,7 @@ let stagingFilter = 'all';
 let stagingSort = { field: 'date', dir: 'desc' };
 let contractors = [];
 let accounts = [];
+let inactiveLoans = []; // spłacone/zamknięte kredyty — poza aktywnym słownikiem, tylko do historii
 
 let inlineEditingTxId = null;
 
@@ -1489,6 +1490,20 @@ function formatAccountNumber(num) {
     return digits.match(/.{1,4}/g)?.join(' ') || digits;
 }
 
+// Kolor plakietki typu konta — Kredyt wyróżniony (zobowiązanie), reszta neutralnie.
+function accountTypeBadge(type) {
+    if (!type) return '';
+    const colors = {
+        'ROR': 'bg-indigo-50 text-indigo-600',
+        'KO': 'bg-emerald-50 text-emerald-600',
+        'Kredyt': 'bg-rose-50 text-rose-600',
+        'Rach. Maklerski': 'bg-violet-50 text-violet-600',
+        'IKZE': 'bg-violet-50 text-violet-600',
+    };
+    const cls = colors[type] || 'bg-slate-100 text-slate-500';
+    return `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${cls}">${type}</span>`;
+}
+
 function renderAccounts() {
     const list = document.getElementById('account-list');
     list.innerHTML = '';
@@ -1499,6 +1514,7 @@ function renderAccounts() {
             <div>
                 <span class="font-medium text-slate-700 flex items-center gap-2">
                     ${a.name} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal">(${a.bank_name})</span>` : ''}
+                    ${accountTypeBadge(a.account_type)}
                     ${a.is_default ? '<svg class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>' : ''}
                 </span>
                 ${a.account_number ? `<span class="text-xs text-slate-500 block break-all font-mono mt-0.5">${formatAccountNumber(a.account_number)}</span>` : ''}
@@ -1526,6 +1542,32 @@ function renderAccounts() {
         `;
         list.appendChild(li);
     });
+}
+
+// Historia spłaconych/zamkniętych kredytów (Faza 3). Konta nieaktywne typu Kredyt —
+// poza aktywnym słownikiem, tylko do wglądu. Historia Majątku liczy je z transakcji.
+function renderInactiveLoans() {
+    const section = document.getElementById('inactive-loans-section');
+    const list = document.getElementById('inactive-loans-list');
+    if (!section || !list) return;
+    if (!inactiveLoans || inactiveLoans.length === 0) {
+        section.classList.add('hidden');
+        list.innerHTML = '';
+        return;
+    }
+    section.classList.remove('hidden');
+    list.innerHTML = inactiveLoans.map(a => `
+        <li class="py-3 px-3 flex justify-between items-center">
+            <div>
+                <span class="font-medium text-slate-600 flex items-center gap-2">
+                    ${a.name} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal">(${a.bank_name})</span>` : ''}
+                    <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">Spłacony</span>
+                </span>
+                ${a.account_number ? `<span class="text-xs text-slate-400 block break-all font-mono mt-0.5">${formatAccountNumber(a.account_number)}</span>` : ''}
+            </div>
+            <span class="text-sm font-semibold text-slate-500">${Number(a.balance).toFixed(2)} PLN</span>
+        </li>
+    `).join('');
 }
 
 window.moveAccount = async function(id, direction) {
@@ -1564,6 +1606,7 @@ window.editAccount = function(id) {
     document.getElementById('acc-name').value = a.name;
     document.getElementById('acc-bank').value = a.bank_name || '';
     document.getElementById('acc-number').value = formatAccountNumber(a.account_number);
+    document.getElementById('acc-type').value = a.account_type || '';
     document.getElementById('acc-owner').value = a.owner || '';
     document.getElementById('acc-co-owner').value = a.co_owner || '';
     document.getElementById('acc-default').checked = a.is_default || false;
@@ -1590,6 +1633,7 @@ document.getElementById('account-form').addEventListener('submit', async functio
     const name = document.getElementById('acc-name').value.trim();
     const bank_name = document.getElementById('acc-bank').value.trim();
     const account_number = document.getElementById('acc-number').value.trim();
+    const account_type = document.getElementById('acc-type').value || null;
     const owner = document.getElementById('acc-owner').value.trim() || null;
     const co_owner = document.getElementById('acc-co-owner').value.trim() || null;
     const is_default = document.getElementById('acc-default').checked;
@@ -1601,7 +1645,7 @@ document.getElementById('account-form').addEventListener('submit', async functio
         const response = await fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, bank_name, account_number, owner, co_owner, is_default })
+            body: JSON.stringify({ name, bank_name, account_number, account_type, owner, co_owner, is_default })
         });
         if (response.ok) {
             const saved = await response.json();
@@ -1632,6 +1676,38 @@ window.deleteAccount = async function(id) {
         accounts = accounts.filter(a => a.id !== id);
         renderAccounts();
         updateAccountSelects();
+    }
+}
+
+// --- FLOW SPŁATY KREDYTU (Faza 2) ---
+// Kredyt dochodzący do salda 0 = spłacony. Wykrywamy PRZEJŚCIE (poprzednie saldo
+// != 0 -> 0) po odświeżeniu danych i proponujemy zamknięcie konta. Przejście
+// łapiemy centralnie w fetchInitialData, więc działa dla każdej ścieżki zmiany
+// salda (transakcja, uzgodnienie, edycja, zatwierdzenie stagingu).
+function detectLoanPayoff(prevAccounts, newAccounts) {
+    if (!Array.isArray(prevAccounts) || prevAccounts.length === 0) return;
+    const prevById = new Map(prevAccounts.map(a => [a.id, a]));
+    for (const a of newAccounts) {
+        if (a.account_type !== 'Kredyt') continue;
+        if (Number(a.balance) !== 0) continue;          // spłacony = saldo dokładnie 0
+        const prev = prevById.get(a.id);
+        if (!prev || Number(prev.balance) === 0) continue; // brak przejścia (nie nękaj)
+        promptCloseLoan(a);
+        break; // jeden monit naraz
+    }
+}
+
+async function promptCloseLoan(account) {
+    const msg = `Kredyt „${account.name}" został spłacony (saldo 0,00 PLN). Zamknąć konto?\n\n`
+        + `Konto stanie się nieaktywne, ale pozostanie widoczne w historii Majątku `
+        + `oraz w historii spłaconych kredytów.`;
+    if (!confirm(msg)) return;
+    const res = await fetch(`/api/accounts/${account.id}`, { method: 'DELETE' });
+    if (res.ok) {
+        showToast(`Kredyt „${account.name}" zamknięty.`);
+        fetchInitialData();
+    } else {
+        showToast('Nie udało się zamknąć konta.', 'error');
     }
 }
 
@@ -3035,10 +3111,12 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
             return;
         }
         const data = await response.json();
+        const prevAccounts = accounts; // snapshot przed podmianą — do wykrycia spłaty kredytu (Faza 2)
         transactions = data.transactions || [];
         categories = data.categories || [];
         contractors = data.contractors || [];
         accounts = data.accounts || [];
+        inactiveLoans = data.inactive_loans || [];
 
         updateCategorySelects();
         updateContractorSelects();
@@ -3046,12 +3124,14 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
         renderCategories();
         renderContractors();
         renderAccounts();
+        renderInactiveLoans();
         renderTransactions();
         renderDashboard();
         await fetchPlannedTransactions();
         await fetchRecurringTransactions();
         await fetchRecurringPreview(viewDate.getFullYear(), viewDate.getMonth() + 1);
         renderTransactions();
+        detectLoanPayoff(prevAccounts, accounts); // Faza 2: kredyt doszedł do 0 -> zaproponuj zamknięcie
         if (!skipStagingRefresh) {
             await fetchPendingStaging(); // Po załadowaniu categories/contractors, żeby badge i dropdown były poprawne
         }

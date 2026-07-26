@@ -412,6 +412,14 @@
                                             <input type="text" id="acc-name" placeholder="Nazwa konta (np. Oszczędnościowe)" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                                             <input type="text" id="acc-bank" placeholder="Bank (np. mBank)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                                             <input type="text" id="acc-number" placeholder="Nr rachunku (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-mono">
+                                            <select id="acc-type" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                                <option value="">Typ konta (opcjonalnie)</option>
+                                                <option value="ROR">ROR — konto osobiste</option>
+                                                <option value="KO">KO — konto oszczędnościowe</option>
+                                                <option value="Kredyt">Kredyt (saldo ujemne)</option>
+                                                <option value="Rach. Maklerski">Rach. Maklerski</option>
+                                                <option value="IKZE">IKZE</option>
+                                            </select>
                                             <input type="text" id="acc-owner" placeholder="Właściciel (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                                             <input type="text" id="acc-co-owner" placeholder="Współwłaściciel (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                                             <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
@@ -429,6 +437,12 @@
                                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
                                         <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100">Twoje konta</h3>
                                         <ul id="account-list" class="divide-y divide-slate-100 p-2 max-h-[500px] overflow-y-auto"></ul>
+                                    </div>
+                                    <div id="inactive-loans-section" class="bg-white rounded-xl border border-slate-200 shadow-sm mt-4 hidden">
+                                        <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100 flex items-center gap-2">
+                                            <span>Historia spłaconych kredytów</span>
+                                        </h3>
+                                        <ul id="inactive-loans-list" class="divide-y divide-slate-100 p-2"></ul>
                                     </div>
                                 </div>
                             </div>

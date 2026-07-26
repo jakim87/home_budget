@@ -1,5 +1,5 @@
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Text, Numeric, Date, ForeignKey, Enum as SQLAlchemyEnum
+from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
+from sqlalchemy import String, Text, Numeric, Date, ForeignKey, Enum as SQLAlchemyEnum, event
 from datetime import date
 from typing import Optional, List
 from app import db
@@ -106,15 +106,25 @@ class User(db.Model, UserMixin):
     # Relacja do transakcji zaplanowanych
     planned_transactions: Mapped[List["PlannedTransaction"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
+# Dozwolone typy konta. None = konto bez przypisanego typu (np. gotówka/portfel,
+# konto techniczne). ROR/KO/Rach. Maklerski/IKZE mogą mieć dowolne saldo; Kredyt
+# musi mieć saldo <= 0 (zobowiązanie) — patrz ACCOUNT_TYPE_KREDYT i walidacja w budget_service.
+ACCOUNT_TYPES = ('ROR', 'KO', 'Kredyt', 'Rach. Maklerski', 'IKZE')
+ACCOUNT_TYPE_KREDYT = 'Kredyt'
+
+
 class Account(db.Model):
     __tablename__ = 'accounts'
-    
+
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False) # np. "ING Konto Direct", "Portfel"
     bank_name: Mapped[str] = mapped_column(String(50)) # np. "ING", "Manual"
     account_number: Mapped[Optional[str]] = mapped_column(String(50)) # Numer rachunku docelowego
     balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0.0)
     currency: Mapped[str] = mapped_column(String(3), default='PLN')
+    # Typ konta (jeden z ACCOUNT_TYPES) lub None. Steruje walidacją salda (Kredyt <= 0)
+    # i prezentacją; nie wpływa na dopasowanie kont przy imporcie (to idzie po NRB).
+    account_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     co_owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     
@@ -280,3 +290,22 @@ class StatementImport(db.Model):
     imported_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), server_default=db.func.now())
 
     account = relationship("Account")
+
+
+@event.listens_for(Session, 'before_flush')
+def _enforce_account_type_invariants(session, flush_context, instances):
+    """Twardy niezmiennik typu konta: Kredyt (zobowiązanie) nie może mieć salda > 0.
+
+    Egzekwowane centralnie przy KAŻDYM flushu, więc łapie wszystkie ścieżki zmiany
+    salda (dodanie/edycja/usunięcie transakcji, lustro przelewu wewnętrznego,
+    uzgodnienie salda, migracja historii) bez instrumentowania każdej z osobna.
+    Dodatnie saldo na koncie Kredyt oznacza błąd danych — świadomie przerywamy flush.
+    Saldo == 0 jest dozwolone (moment spłaty — patrz flow spłaty w budget_service).
+    """
+    for obj in list(session.new) + list(session.dirty):
+        if isinstance(obj, Account) and obj.account_type == ACCOUNT_TYPE_KREDYT:
+            if obj.balance is not None and Decimal(str(obj.balance)) > 0:
+                raise ValueError(
+                    f"Konto '{obj.name}' jest typu Kredyt i nie może mieć dodatniego "
+                    f"salda (próba ustawienia {obj.balance}). Kredyt to zobowiązanie — saldo musi być <= 0."
+                )

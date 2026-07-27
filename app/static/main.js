@@ -1575,7 +1575,8 @@ function renderInactiveAccounts() {
             </div>
             <div class="flex items-center gap-3 shrink-0">
                 <span class="text-sm font-semibold ${Number(a.balance) < 0 ? 'text-rose-600' : 'text-slate-500'}">${Number(a.balance).toFixed(2)} PLN</span>
-                <button onclick="viewAccountTransactions(${a.id})" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline whitespace-nowrap" title="Pokaż transakcje tego konta">Transakcje →</button>
+                <button onclick="viewAccountSummary(${a.id})" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline whitespace-nowrap" title="Cała historia konta w Podsumowaniu (zakres dat)">Podsumowanie →</button>
+                <button onclick="viewAccountTransactions(${a.id})" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline whitespace-nowrap" title="Transakcje tego konta (miesięcznie)">Transakcje →</button>
             </div>
         </li>
     `).join('');
@@ -1597,6 +1598,23 @@ window.viewAccountTransactions = function(id) {
     }
     switchTab('transactions');
     renderTransactions();
+};
+
+// Cała historia konta w zakładce Podsumowanie: ustaw filtr na to konto i zakres
+// dat obejmujący WSZYSTKIE jego transakcje (od pierwszej do ostatniej). Działa
+// dla kont aktywnych i archiwalnych — Podsumowanie liczy z globalnego stanu.
+window.viewAccountSummary = function(id) {
+    globalAccountFilter = id.toString();
+    const globalAcc = document.getElementById('global-account-filter');
+    if (globalAcc) globalAcc.value = globalAccountFilter;
+    const dates = transactions.filter(t => t.account_id == id && t.date).map(t => t.date).sort();
+    document.getElementById('filter-month').value = '';
+    if (dates.length > 0) {
+        document.getElementById('filter-start').value = dates[0];
+        document.getElementById('filter-end').value = dates[dates.length - 1];
+    }
+    switchTab('summary');
+    renderSummary();
 };
 
 window.moveAccount = async function(id, direction) {
@@ -2663,10 +2681,13 @@ function renderSummary() {
         const balanceValue = document.getElementById('summary-current-balance');
         
         if (globalAccountFilter) {
-            const acc = accounts.find(a => a.id == globalAccountFilter);
+            // Konto może być aktywne albo nieaktywne (archiwalne) — szukamy w obu.
+            const acc = accounts.find(a => a.id == globalAccountFilter)
+                || inactiveAccounts.find(a => a.id == globalAccountFilter);
             if (acc) {
-                balanceTitle.innerText = `Bieżące saldo (${acc.name})`;
-                balanceValue.innerText = `${acc.balance.toFixed(2)} PLN`;
+                const label = accounts.some(a => a.id == globalAccountFilter) ? acc.name : `${acc.name}, nieaktywne`;
+                balanceTitle.innerText = `Bieżące saldo (${label})`;
+                balanceValue.innerText = `${Number(acc.balance).toFixed(2)} PLN`;
             }
         } else {
             const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0);

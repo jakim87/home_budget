@@ -984,6 +984,26 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='main.js') }}"></script>
+    <!-- main.js rozbity na moduly (C1). Klasyczne skrypty wspoldziela zasieg globalny,
+         wiec wspolne zmienne (transactions, accounts...) i inline onclick dzialaja jak dotad.
+         Kolejnosc MA znaczenie: 99_bootstrap.js (kod startowy) laduje sie OSTATNI, gdy
+         wszystkie definicje funkcji sa juz dostepne. -->
+    <script src="{{ url_for('static', filename='js/01_state.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/02_import.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/03_staging.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/04_helpers.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/05_recurring.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/06_tabs.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/07_categories.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/08_accounts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/09_quickadd.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/10_contractors.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/11_transactions.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/12_summary.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/13_dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/14_combobox.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/15_init.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/16_reports.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/99_bootstrap.js') }}"></script>
 </body>
 </html>

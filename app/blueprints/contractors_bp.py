@@ -1,8 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from marshmallow import ValidationError
-from app import db
-from app.models import User
 from app.schemas import ContractorSchema
 from app.services.contractor_service import create_contractor, update_contractor, soft_delete_contractor
 

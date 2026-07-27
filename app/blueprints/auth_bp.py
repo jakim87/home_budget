@@ -4,8 +4,6 @@ from flask_login import login_user, logout_user, login_required, current_user
 from marshmallow import ValidationError
 from app.schemas import RegisterSchema, LoginSchema
 from app.services.auth_service import register_user, authenticate_user
-from app import db
-from app.models import User
 
 logger = logging.getLogger(__name__)
 

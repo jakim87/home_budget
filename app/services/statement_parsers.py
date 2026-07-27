@@ -11,7 +11,6 @@ Dodatkowo parsery zwracają, gdy da się je wyczytać z nagłówka wyciągu:
   'statement_ibans' — numery rachunków, których dotyczy plik (pod walidację
       konta i analizę pokrycia przy imporcie wielu plików).
 """
-import io
 import logging
 import re
 from datetime import datetime

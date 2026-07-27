@@ -1,5 +1,5 @@
 from decimal import Decimal
-from app.models import User, Account, Transaction, Category
+from app.models import User, Account, Category
 from app.services.budget_service import reconcile_account_balance
 from app import db
 

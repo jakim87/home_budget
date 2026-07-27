@@ -7,7 +7,6 @@ przed właściwą), zwykły przelew (PRZELEW), oraz obie strony przelewu
 wewnętrznego pokazane w tym samym pliku wielokontowym. Wszystkie dane
 zmyślone.
 """
-import io
 import os
 import tempfile
 from datetime import date

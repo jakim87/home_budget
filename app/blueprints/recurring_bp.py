@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from marshmallow import ValidationError
-from app import ma
 from app.schemas import RecurringTransactionSchema
 from app.services.recurring_service import (
     create_recurring_transaction,

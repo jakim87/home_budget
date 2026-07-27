@@ -19,6 +19,7 @@ class AccountSchema(ma.Schema):
     is_default = fields.Boolean(load_default=False)
     owner = fields.String(load_default=None, allow_none=True)
     co_owner = fields.String(load_default=None, allow_none=True)
+    account_type = fields.String(load_default=None, allow_none=True)
 
 class CategorySchema(ma.Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))

@@ -15,7 +15,7 @@ def add_account():
         req_data = request.get_json() or {}
         data = AccountSchema().load(req_data)
         acc = create_account(current_user.token, data)
-        return jsonify({'id': acc.id, 'name': acc.name, 'bank_name': acc.bank_name, 'account_number': acc.account_number, 'balance': 0.0, 'is_default': acc.is_default, 'owner': acc.owner, 'co_owner': acc.co_owner}), 201
+        return jsonify({'id': acc.id, 'name': acc.name, 'bank_name': acc.bank_name, 'account_number': acc.account_number, 'balance': 0.0, 'account_type': acc.account_type, 'is_default': acc.is_default, 'owner': acc.owner, 'co_owner': acc.co_owner}), 201
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
     except ValueError as err:
@@ -28,7 +28,7 @@ def edit_account(a_id):
         req_data = request.get_json() or {}
         data = AccountSchema(partial=True).load(req_data)
         acc = update_account(current_user.token, a_id, data)
-        return jsonify({'id': acc.id, 'name': acc.name, 'bank_name': acc.bank_name, 'account_number': acc.account_number, 'balance': float(acc.balance), 'is_default': acc.is_default, 'owner': acc.owner, 'co_owner': acc.co_owner}), 200
+        return jsonify({'id': acc.id, 'name': acc.name, 'bank_name': acc.bank_name, 'account_number': acc.account_number, 'balance': float(acc.balance), 'account_type': acc.account_type, 'is_default': acc.is_default, 'owner': acc.owner, 'co_owner': acc.co_owner}), 200
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
     except ValueError as err:

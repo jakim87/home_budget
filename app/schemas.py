@@ -1,6 +1,6 @@
 from app import ma
 from marshmallow import fields, validate, post_load
-from app.models import Frequency, Category, Account, Contractor # Import models for nested schemas or enums
+from app.models import Frequency # Import models for nested schemas or enums
 
 class RegisterSchema(ma.Schema):
     username = fields.String(required=True, validate=validate.Length(min=3))

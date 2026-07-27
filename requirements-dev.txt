@@ -1,3 +1,5 @@
-# Zależności deweloperskie (testy) — instalacja: pip install -r requirements-dev.txt
-# pytest jest też w requirements.txt; tu dodatkowo pomiar pokrycia.
+# Zależności deweloperskie (testy + jakość) — instalacja: pip install -r requirements-dev.txt
+# pytest jest też w requirements.txt; tu dodatkowo pomiar pokrycia i linter.
 pytest-cov==7.1.0
+# Linter — konfiguracja w ruff.toml (wąski zestaw E9+F). CI: job "ruff" w jakosc.yml.
+ruff==0.16.0

@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, jsonify
 from flask_login import login_required, current_user
 from app import db
-from app.models import Category, Contractor, Account, Transaction, User, TransactionSplit
+from app.models import Category, Contractor, Account, Transaction, TransactionSplit
 from sqlalchemy.orm import joinedload, selectinload
 
 home_bp = Blueprint('home', __name__)

@@ -10,7 +10,7 @@ from datetime import date
 from decimal import Decimal
 
 from app import db
-from app.models import User, Account, ACCOUNT_TYPE_KREDYT
+from app.models import User, ACCOUNT_TYPE_KREDYT
 from app.services.account_service import create_account, update_account
 from app.services.budget_service import create_transaction, reconcile_account_balance
 

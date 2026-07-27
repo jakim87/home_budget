@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from marshmallow import ValidationError
 from app import db
-from app.models import Category, Contractor, User
+from app.models import Category, Contractor
 from datetime import datetime
 from app.schemas import TransactionSchema
 from app.services.transaction_service import archive_and_delete_transaction, update_transaction

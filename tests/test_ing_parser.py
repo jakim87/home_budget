@@ -1,5 +1,4 @@
 from decimal import Decimal
-from datetime import date
 import pytest
 from app import db
 from app.models import User, Account

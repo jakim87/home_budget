@@ -1,7 +1,7 @@
 from app import db
 from app.models import Transaction, TransactionArchive, Category, TransactionSplit, Account
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 import json
 
 def _archive_and_remove_leg(leg: Transaction) -> None:

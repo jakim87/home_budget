@@ -1,0 +1,22 @@
+# Konfiguracja lintera ruff. Świadomie WĄSKI, wysokosygnałowy zestaw reguł —
+# bramka CI ma łapać realne błędy, nie wymuszać wielkiego sprzątania stylu na
+# istniejącym kodzie (dojrzały projekt, ~4 tys. linii Pythona).
+#
+# Egzekwowane:
+#   E9  — błędy składni / parsowania (zawsze chcemy, że kod się w ogóle uruchamia)
+#   F   — Pyflakes: nieużywane importy (F401), niezdefiniowane nazwy (F821),
+#         przesłonięcia, martwe f-stringi itd. To potencjalne bugi, nie kosmetyka.
+#
+# Świadomie NIEegzekwowane (na razie): I (sortowanie importów), UP (pep604/585),
+# BLE (blind-except), DTZ (strefy czasu), SIM, RUF. Można je włączyć osobnym
+# etapem po jednorazowym uporządkowaniu — patrz [[C1/jakosc]] w backlogu.
+
+target-version = "py312"
+line-length = 120
+
+# Wygenerowane migracje Alembica nie przechodzą przez ten sam rygor —
+# `flask db migrate` potrafi zostawić nieużywane importy w szablonie.
+extend-exclude = ["migrations", "venv"]
+
+[lint]
+select = ["E9", "F"]

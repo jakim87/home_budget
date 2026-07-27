@@ -865,7 +865,8 @@ def save_transactions_to_staging(
                 account_id=tx_data.get('account_id'),
                 proposed_category_id=prop_cat_id,
                 proposed_contractor_id=prop_contractor_id,
-                suggested_contractor_name=suggested_name
+                suggested_contractor_name=suggested_name,
+                counterparty_account=tx_data.get('counterparty_account')
             )
             db.session.add(staging_tx)
             staging_records.append(staging_tx)
@@ -890,6 +891,7 @@ def reanalyze_all_staging(user_token: str) -> int:
         for row in rows:
             cat_id, cont_id, suggested = analyze_transaction_data(
                 row.title, row.contractor, user_token,
+                counterparty_account=row.counterparty_account,
                 accounts=accounts, contractors=contractors
             )
             row.proposed_category_id = cat_id

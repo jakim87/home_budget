@@ -9,7 +9,7 @@ let stagingFilter = 'all';
 let stagingSort = { field: 'date', dir: 'desc' };
 let contractors = [];
 let accounts = [];
-let inactiveLoans = []; // spłacone/zamknięte kredyty — poza aktywnym słownikiem, tylko do historii
+let inactiveAccounts = []; // konta zamknięte/archiwalne — poza aktywnym słownikiem, z zachowaną historią transakcji
 
 let inlineEditingTxId = null;
 
@@ -1380,6 +1380,12 @@ function updateAccountSelects() {
     if (globalAcc) {
         let gHtml = '<option value="">Wszystkie konta</option>';
         accounts.forEach(a => gHtml += `<option value="${a.id}">${a.name} ${a.bank_name ? `(${a.bank_name})` : ''} (${a.balance.toFixed(2)} PLN)</option>`);
+        // Konta nieaktywne w osobnej grupie — pozwala podejrzeć ich historię transakcji.
+        if (inactiveAccounts && inactiveAccounts.length > 0) {
+            gHtml += '<optgroup label="Konta nieaktywne">';
+            inactiveAccounts.forEach(a => gHtml += `<option value="${a.id}">${a.name} ${a.bank_name ? `(${a.bank_name})` : ''} (nieaktywne)</option>`);
+            gHtml += '</optgroup>';
+        }
         globalAcc.innerHTML = gHtml;
         globalAcc.value = globalAccountFilter;
 
@@ -1544,31 +1550,54 @@ function renderAccounts() {
     });
 }
 
-// Historia spłaconych/zamkniętych kredytów (Faza 3). Konta nieaktywne typu Kredyt —
-// poza aktywnym słownikiem, tylko do wglądu. Historia Majątku liczy je z transakcji.
-function renderInactiveLoans() {
-    const section = document.getElementById('inactive-loans-section');
-    const list = document.getElementById('inactive-loans-list');
+// Konta nieaktywne / archiwalne (Faza 3). Konta zamknięte lub spłacone — poza
+// aktywnym słownikiem, ale z zachowaną historią transakcji (wliczaną do wykresu
+// Majątku). Każde ma przycisk podglądu swoich transakcji.
+function renderInactiveAccounts() {
+    const section = document.getElementById('inactive-accounts-section');
+    const list = document.getElementById('inactive-accounts-list');
     if (!section || !list) return;
-    if (!inactiveLoans || inactiveLoans.length === 0) {
+    if (!inactiveAccounts || inactiveAccounts.length === 0) {
         section.classList.add('hidden');
         list.innerHTML = '';
         return;
     }
     section.classList.remove('hidden');
-    list.innerHTML = inactiveLoans.map(a => `
-        <li class="py-3 px-3 flex justify-between items-center">
-            <div>
-                <span class="font-medium text-slate-600 flex items-center gap-2">
+    list.innerHTML = inactiveAccounts.map(a => `
+        <li class="py-3 px-3 flex justify-between items-center gap-2">
+            <div class="min-w-0">
+                <span class="font-medium text-slate-600 flex items-center gap-2 flex-wrap">
                     ${a.name} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal">(${a.bank_name})</span>` : ''}
-                    <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">Spłacony</span>
+                    ${accountTypeBadge(a.account_type)}
+                    <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">nieaktywne</span>
                 </span>
                 ${a.account_number ? `<span class="text-xs text-slate-400 block break-all font-mono mt-0.5">${formatAccountNumber(a.account_number)}</span>` : ''}
             </div>
-            <span class="text-sm font-semibold text-slate-500">${Number(a.balance).toFixed(2)} PLN</span>
+            <div class="flex items-center gap-3 shrink-0">
+                <span class="text-sm font-semibold ${Number(a.balance) < 0 ? 'text-rose-600' : 'text-slate-500'}">${Number(a.balance).toFixed(2)} PLN</span>
+                <button onclick="viewAccountTransactions(${a.id})" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline whitespace-nowrap" title="Pokaż transakcje tego konta">Transakcje →</button>
+            </div>
         </li>
     `).join('');
 }
+
+// Podgląd historii transakcji konta (także nieaktywnego): ustaw filtr na to konto
+// i przełącz na zakładkę Transakcje. Zakładka jest zawężona do miesiąca (viewDate),
+// a konta archiwalne mają starą historię — więc skaczemy na ich NAJNOWSZY miesiąc
+// z transakcjami, żeby lista nie była pusta. Transakcje kont nieaktywnych są w
+// globalnym stanie (filtr /api/init idzie po user_token, nie is_active).
+window.viewAccountTransactions = function(id) {
+    globalAccountFilter = id.toString();
+    const globalAcc = document.getElementById('global-account-filter');
+    if (globalAcc) globalAcc.value = globalAccountFilter;
+    const dates = transactions.filter(t => t.account_id == id && t.date).map(t => t.date).sort();
+    if (dates.length > 0) {
+        const [y, m] = dates[dates.length - 1].split('-').map(Number);
+        viewDate = new Date(y, m - 1, 1);
+    }
+    switchTab('transactions');
+    renderTransactions();
+};
 
 window.moveAccount = async function(id, direction) {
     const idx = accounts.findIndex(a => a.id === id);
@@ -3116,7 +3145,7 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
         categories = data.categories || [];
         contractors = data.contractors || [];
         accounts = data.accounts || [];
-        inactiveLoans = data.inactive_loans || [];
+        inactiveAccounts = data.inactive_accounts || [];
 
         updateCategorySelects();
         updateContractorSelects();
@@ -3124,7 +3153,7 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
         renderCategories();
         renderContractors();
         renderAccounts();
-        renderInactiveLoans();
+        renderInactiveAccounts();
         renderTransactions();
         renderDashboard();
         await fetchPlannedTransactions();

@@ -113,8 +113,8 @@ def test_changing_type_to_kredyt_with_positive_balance_rejected(user_token):
 
 # --- Widoczność zamkniętych kredytów (Faza 2/3) -------------------------------
 
-def test_init_returns_inactive_loans(logged_in_client, test_user):
-    """Nieaktywny (zamknięty) kredyt trafia do inactive_loans, nie do accounts."""
+def test_init_returns_inactive_accounts(logged_in_client, test_user):
+    """Konto nieaktywne (dowolnego typu) trafia do inactive_accounts, nie do accounts."""
     acc = create_account(test_user.token, {'name': 'Stary kredyt', 'bank_name': 'Pekao',
                                             'account_type': ACCOUNT_TYPE_KREDYT})
     reconcile_account_balance(test_user.token, acc.id, Decimal('-100.00'))
@@ -126,7 +126,29 @@ def test_init_returns_inactive_loans(logged_in_client, test_user):
     data = resp.get_json()
     assert resp.status_code == 200
     assert all(a['id'] != acc.id for a in data['accounts'])  # poza aktywnym słownikiem
-    assert any(l['id'] == acc.id and l['name'] == 'Stary kredyt' for l in data['inactive_loans'])
+    assert any(l['id'] == acc.id and l['name'] == 'Stary kredyt' for l in data['inactive_accounts'])
+
+
+def test_init_inactive_accounts_includes_non_kredyt(logged_in_client, test_user):
+    """Zamknięte konto NIE-Kredyt (np. KO z upadłego banku) z historią też jest
+    w inactive_accounts."""
+    acc = create_account(test_user.token, {'name': 'Konto Getin', 'bank_name': 'Getin', 'account_type': 'KO'})
+    reconcile_account_balance(test_user.token, acc.id, Decimal('500.00'))  # nadaj historię
+    acc.is_active = False
+    db.session.commit()
+
+    data = logged_in_client.get('/api/init').get_json()
+    assert any(l['id'] == acc.id and l['account_type'] == 'KO' for l in data['inactive_accounts'])
+
+
+def test_init_inactive_accounts_excludes_empty(logged_in_client, test_user):
+    """Nieaktywne konto BEZ transakcji (techniczne/testowe) nie zaśmieca listy."""
+    acc = create_account(test_user.token, {'name': 'Puste', 'bank_name': 'X', 'account_type': 'ROR'})
+    acc.is_active = False
+    db.session.commit()
+
+    data = logged_in_client.get('/api/init').get_json()
+    assert all(l['id'] != acc.id for l in data['inactive_accounts'])
 
 
 def test_closed_loan_transactions_stay_in_init(logged_in_client, test_user):

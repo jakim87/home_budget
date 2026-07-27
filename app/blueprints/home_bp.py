@@ -25,13 +25,22 @@ def init_data():
     accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).order_by(Account.sort_order, Account.name).all()
     accounts_data = [{'id': a.id, 'name': a.name, 'bank_name': a.bank_name, 'account_number': a.account_number, 'balance': float(a.balance), 'account_type': a.account_type, 'is_default': getattr(a, 'is_default', False), 'owner': a.owner, 'co_owner': a.co_owner, 'created_at': a.created_at.strftime('%Y-%m-%d') if a.created_at else None} for a in accounts]
 
-    # Spłacone/zamknięte kredyty (nieaktywne) — poza słownikiem aktywnym, ale
-    # pokazywane w "historii spłaconych kredytów". Historia Majątku i tak liczy
-    # się z transakcji, więc te konta pozostają w wykresie niezależnie od tego.
-    inactive_loans = db.session.query(Account).filter_by(
-        user_token=user_token, is_active=False, account_type='Kredyt'
+    # Konta nieaktywne (zamknięte/archiwalne) MAJĄCE powiązane transakcje —
+    # spłacone kredyty, zamknięte rachunki z upadłych banków itp. Puste konta
+    # nieaktywne (techniczne/testowe bez historii) pomijamy — lista ma pokazywać
+    # konta, z którymi wiążą się transakcje. Historia Majątku i tak liczy się
+    # z transakcji, więc te konta pozostają w wykresie.
+    accounts_with_tx = {
+        aid for (aid,) in db.session.query(Transaction.account_id)
+        .filter(Transaction.user_token == user_token).distinct().all()
+    }
+    inactive_accounts = db.session.query(Account).filter_by(
+        user_token=user_token, is_active=False
     ).order_by(Account.name).all()
-    inactive_loans_data = [{'id': a.id, 'name': a.name, 'bank_name': a.bank_name, 'account_number': a.account_number, 'balance': float(a.balance)} for a in inactive_loans]
+    inactive_accounts_data = [
+        {'id': a.id, 'name': a.name, 'bank_name': a.bank_name, 'account_number': a.account_number, 'balance': float(a.balance), 'account_type': a.account_type}
+        for a in inactive_accounts if a.id in accounts_with_tx
+    ]
 
     transactions = db.session.query(Transaction).options(
         joinedload(Transaction.category),
@@ -74,5 +83,5 @@ def init_data():
         'categories': categories_data,
         'contractors': contractors_data,
         'accounts': accounts_data,
-        'inactive_loans': inactive_loans_data
+        'inactive_accounts': inactive_accounts_data
     })

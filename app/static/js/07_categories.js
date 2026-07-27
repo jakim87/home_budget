@@ -15,6 +15,7 @@ function getCategoryOptionsHtml(selectedValue = null, byId = false) {
         const sel = (byId ? c.id == selectedValue : c.name === selectedValue) ? 'selected' : '';
         html += `<option value="${c[valueAttr]}" ${sel}>${c.name}</option>`;
     });
+    html += `</optgroup>`; // domknij grupę „Przychody" — <optgroup> nie może być zagnieżdżony; bez tego „Transfery" i „Dodaj kategorię" wchłaniały się w „Przychody"
     if (transferCategories.length > 0) {
         html += `<optgroup label="Transfery">`;
         transferCategories.forEach(c => {

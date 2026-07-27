@@ -2484,9 +2484,28 @@ function renderTransactions() {
     }
 }
 
+// Nazwa konta po ID — szuka wśród aktywnych i archiwalnych (do opisu w ostrzeżeniach).
+function accountLabelById(accId) {
+    const acc = accounts.find(a => a.id == accId) || inactiveAccounts.find(a => a.id == accId);
+    return acc ? acc.name : `konto #${accId}`;
+}
+
 window.deleteTransaction = async function(id) {
-    if (!confirm('Czy na pewno chcesz usunąć tę transakcję?')) return;
-    
+    const tx = transactions.find(t => t.id === id);
+
+    // Przelew wewnętrzny (transakcja lustrzana) = dwie powiązane nogi. Usunięcie
+    // jednej usuwa OBIE — ostrzegamy i pokazujemy dokładnie, które transakcje znikną.
+    let confirmMsg = 'Czy na pewno chcesz usunąć tę transakcję?';
+    if (tx && tx.linked_transaction_id) {
+        const mirror = transactions.find(t => t.id === tx.linked_transaction_id);
+        const fmt = t => `• ${t.date}  ${t.desc}  ${Number(t.amount).toFixed(2)} PLN  (${accountLabelById(t.account_id)})`;
+        const legs = [tx, mirror].filter(Boolean).map(fmt).join('\n');
+        confirmMsg = 'UWAGA: to jest przelew wewnętrzny (transakcja lustrzana).\n'
+            + 'Usunięcie usunie OBIE powiązane transakcje:\n\n'
+            + legs + '\n\nKontynuować?';
+    }
+    if (!confirm(confirmMsg)) return;
+
     try {
         const response = await fetch(`/api/transactions/${id}`, {
             method: 'DELETE'

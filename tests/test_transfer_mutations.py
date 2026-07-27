@@ -93,3 +93,15 @@ def test_editing_mirror_leg_amount_syncs_source_and_preserves_net_worth(transfer
     assert mirror.amount == Decimal("250.00")  # wpływ dodatni
     assert src.amount == Decimal("-250.00")    # źródło zsynchronizowane, znak wypływu
     assert _total(acc_a, acc_b) == Decimal("1000.00")
+
+
+# --- Dane dla ostrzeżenia w UI ----------------------------------------------
+
+def test_init_exposes_linked_transaction_id_for_transfer_legs(logged_in_client, transfer):
+    """/api/init wystawia linked_transaction_id — front używa go, by ostrzec przy
+    usuwaniu, że znikną obie nogi przelewu, i wskazać które."""
+    _, _, _, src, mirror = transfer
+    data = logged_in_client.get('/api/init').get_json()
+    by_id = {t['id']: t for t in data['transactions']}
+    assert by_id[src.id]['linked_transaction_id'] == mirror.id
+    assert by_id[mirror.id]['linked_transaction_id'] == src.id

@@ -71,6 +71,9 @@ def init_data():
             'account_id': tx.account_id,
             'splits': splits_data,
             'comment': tx.comment or '',
+            # Druga noga przelewu wewnętrznego (lustro) — front używa jej, by ostrzec
+            # przy usuwaniu, że znikną OBIE transakcje, i wskazać które.
+            'linked_transaction_id': tx.linked_transaction_id,
             # Przelew wewnętrzny bez powiązanej drugiej nogi — czeka na wyciąg
             # drugiego konta ("do zmapowania"). Front pokazuje przy nim znacznik.
             'transfer_unmatched': bool(

@@ -253,6 +253,10 @@ class TransactionStaging(db.Model):
     account_id: Mapped[Optional[int]] = mapped_column(ForeignKey('accounts.id'))
     user_token: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey('users.token'))
     suggested_contractor_name: Mapped[Optional[str]] = mapped_column(String(255))
+    # Numer rachunku kontrahenta z wyciągu (surowy, nieznormalizowany) — potrzebny,
+    # by reanalyze_all_staging mogło ponownie rozpoznać przelew wewnętrzny po IBAN,
+    # nie tylko przy pierwszym imporcie (patrz analyze_transaction_data, krok 1).
+    counterparty_account: Mapped[Optional[str]] = mapped_column(String(50))
 
 
 class StatementImport(db.Model):

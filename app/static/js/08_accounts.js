@@ -1,11 +1,15 @@
 // --- KONTA (SŁOWNIK) ---
 function formatAccountNumber(num) {
     if (!num) return '';
-    const digits = num.replace(/\s/g, '');
-    if (digits.length === 26) {
-        return digits.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})(\d{4})(\d{4})(\d{4})$/, '$1 $2 $3 $4 $5 $6 $7');
+    const digits = num.replace(/\D/g, '');
+    const groups = [2, 4, 4, 4, 4, 4, 4];
+    let result = '', i = 0;
+    for (const len of groups) {
+        if (i >= digits.length) break;
+        result += (result ? ' ' : '') + digits.slice(i, i + len);
+        i += len;
     }
-    return digits.match(/.{1,4}/g)?.join(' ') || digits;
+    return result;
 }
 
 // Kolor plakietki typu konta — Kredyt wyróżniony (zobowiązanie), reszta neutralnie.
@@ -185,6 +189,11 @@ window.cancelEditAccount = function() {
     document.getElementById('acc-submit-btn').classList.replace('bg-blue-600', 'bg-indigo-600');
     document.getElementById('acc-submit-btn').classList.replace('hover:bg-blue-700', 'hover:bg-indigo-700');
 };
+
+document.getElementById('acc-number').addEventListener('input', function(e) {
+    const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 26);
+    e.target.value = formatAccountNumber(digitsOnly);
+});
 
 document.getElementById('account-form').addEventListener('submit', async function(e) {
     e.preventDefault();

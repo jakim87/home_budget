@@ -1,3 +1,4 @@
+import re
 from app import db
 from app.models import Account, ACCOUNT_TYPES
 from decimal import Decimal
@@ -14,16 +15,33 @@ def _validate_account_type(value):
     return value
 
 
+def _validate_account_number(value):
+    """Zwraca numer konta jako 26 cyfr bez spacji, albo None (pole opcjonalne).
+    Numer musi mieć poprawną długość i sumę kontrolną mod-97 (jak w IBAN, z
+    prefiksem 'PL') — to samo, co bank sprawdza przy realnym przelewie."""
+    if value is None:
+        return None
+    digits = value.replace(' ', '')
+    if digits == '':
+        return None
+    if not re.fullmatch(r'\d{26}', digits):
+        raise ValueError("Nieprawidłowy numer rachunku: musi mieć 26 cyfr.")
+    numeric = digits[2:] + '2521' + digits[:2]  # PL przeniesione na koniec, P=25 L=21
+    if int(numeric) % 97 != 1:
+        raise ValueError("Nieprawidłowy numer rachunku: błędna suma kontrolna (sprawdź, czy nie ma literówki).")
+    return digits
+
+
 def create_account(user_token, data):
     try:
-        raw_num = data.get('account_number') or ''
+        account_number = _validate_account_number(data.get('account_number'))
         is_default = data.get('is_default', False)
         account_type = _validate_account_type(data.get('account_type'))
         max_order = db.session.query(func.max(Account.sort_order)).filter_by(user_token=user_token).scalar()
         new_acc = Account(
             name=data['name'],
             bank_name=data.get('bank_name'),
-            account_number=raw_num.replace(' ', '') or None,
+            account_number=account_number,
             balance=Decimal('0'),
             account_type=account_type,
             user_token=user_token,
@@ -52,9 +70,8 @@ def update_account(user_token, a_id, data):
             raise ValueError('Nie znaleziono konta.')
         acc.name = data.get('name', acc.name)
         acc.bank_name = data.get('bank_name', acc.bank_name)
-        raw_num = data.get('account_number')
-        if raw_num is not None:
-            acc.account_number = raw_num.replace(' ', '') or None
+        if 'account_number' in data:
+            acc.account_number = _validate_account_number(data.get('account_number'))
         if 'owner' in data:
             acc.owner = data['owner'] or None
         if 'co_owner' in data:

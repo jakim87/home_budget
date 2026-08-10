@@ -196,6 +196,11 @@ function renderTransactions() {
         return idB - idA;
     });
 
+    // Kolumna „Konto" ma sens tylko przy widoku „Wszystkie konta" — przy wybranym
+    // pojedynczym koncie cała tabela dotyczy tego jednego konta.
+    const showAccountColumn = !globalAccountFilter;
+    document.getElementById('th-tx-account').classList.toggle('hidden', !showAccountColumn);
+
     // Nazwa miesiąca w nagłówku
     const monthNames = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
     document.getElementById('current-month-display').innerText = `${monthNames[viewDate.getMonth()]} ${viewDate.getFullYear()}`;
@@ -210,7 +215,10 @@ function renderTransactions() {
         filtered.forEach(t => {
             const isSplit = t.splits && t.splits.length > 0;
             const row = document.createElement('tr');
-            
+            const accountCellHtml = showAccountColumn
+                ? `<td class="p-4 border-b border-slate-100 text-sm text-slate-600 break-words whitespace-normal">${escapeHtml(accountLabelById(t.account_id))}</td>`
+                : '';
+
             if (inlineEditingTxId === t.id && !t.isVirtual) {
                 // TRYB EDYCJI
                 row.className = 'bg-blue-50/50';
@@ -218,6 +226,7 @@ function renderTransactions() {
                     <td class="p-2 border-b border-blue-100">
                         <input type="date" id="edit-date-${t.id}" value="${t.date}" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                     </td>
+                    ${showAccountColumn ? `<td class="p-2 border-b border-blue-100 text-sm text-slate-500">${escapeHtml(accountLabelById(t.account_id))}</td>` : ''}
                     <td class="p-2 border-b border-blue-100">
                         <input type="text" id="edit-desc-${t.id}" value="${t.desc}" oninput="handleAutoFill(this.value, document.getElementById('edit-cont-${t.id}'), document.getElementById('edit-cat-${t.id}'))" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                     </td>
@@ -285,6 +294,7 @@ function renderTransactions() {
                 row.className = `transition-colors group hover:bg-slate-50 ${isVirtual ? 'bg-indigo-50/30' : ''}`;
                 row.innerHTML = `
                     <td class="p-4 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
+                    ${accountCellHtml}
                     <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${iconHtml}${t.desc}${t.transfer_unmatched ? ` <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider align-middle" title="Przelew wewnętrzny bez drugiej strony — powiąże się automatycznie po zaimportowaniu wyciągu drugiego konta">Do zmapowania</span>` : ''}</td>
                     <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${t.contractor_name || t.contractor || '-'}

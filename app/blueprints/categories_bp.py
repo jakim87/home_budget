@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
 from marshmallow import ValidationError
 from app.schemas import CategorySchema
 from app.services.category_service import create_category, soft_delete_category
@@ -11,7 +11,7 @@ categories_bp = Blueprint('categories', __name__)
 def add_category():
     try:
         data = CategorySchema().load(request.get_json() or {})
-        new_cat = create_category(data)
+        new_cat = create_category(current_user.token, data)
         return jsonify({'name': new_cat.name, 'type': new_cat.type}), 201
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
@@ -22,7 +22,7 @@ def add_category():
 @login_required
 def delete_category(cat_name):
     try:
-        soft_delete_category(cat_name)
+        soft_delete_category(current_user.token, cat_name)
         return jsonify({'message': f'Kategoria {cat_name} została usunięta.'}), 200
     except ValueError as err:
         return jsonify({'error': str(err)}), 400

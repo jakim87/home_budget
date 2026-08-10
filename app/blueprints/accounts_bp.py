@@ -32,7 +32,8 @@ def edit_account(a_id):
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
     except ValueError as err:
-        return jsonify({'error': str(err)}), 404
+        # 404 tylko gdy konta nie ma; błędne dane (np. suma kontrolna NRB) to 400.
+        return jsonify({'error': str(err)}), 404 if 'Nie znaleziono' in str(err) else 400
 
 @accounts_bp.route('/reorder', methods=['PUT'])
 @login_required

@@ -82,9 +82,9 @@ def test_delete_transaction_archives_and_removes(logged_in_client, app, test_use
     assert archive is not None
     assert archive.title == "Transakcja do usunięcia"
 
-def test_delete_category_soft_delete(logged_in_client, app):
-    # SETUP
-    cat = Category(name="DoUsuniecia", type="expense", is_active=True)
+def test_delete_category_soft_delete(logged_in_client, app, test_user_token):
+    # SETUP — kategoria własna użytkownika (globalnych nie da się usunąć)
+    cat = Category(name="DoUsuniecia", type="expense", is_active=True, user_token=test_user_token)
     db.session.add(cat)
     db.session.commit()
 

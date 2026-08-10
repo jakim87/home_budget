@@ -15,9 +15,9 @@ def register_user(data):
         db.session.add(new_user)
         db.session.commit()
         return new_user
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 def authenticate_user(username_or_email, password):
     user = db.session.query(User).filter(

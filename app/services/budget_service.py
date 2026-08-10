@@ -1,6 +1,7 @@
 from app import db
 from app.models import Transaction, Account, TransactionStaging, Contractor, Category, TransactionSplit
 from app.services.import_history_service import account_has_statement_imports
+from app.services.category_service import find_by_name as find_category_by_name
 from datetime import date, timedelta
 from typing import Optional
 from decimal import Decimal, InvalidOperation
@@ -109,6 +110,17 @@ def create_transaction(
         if not account:
             raise ValueError(f"Konto o ID {account_id} nie istnieje, jest nieaktywne lub brak uprawnień.")
 
+        # Kontrahent musi należeć do tego samego użytkownika. Bez tego można było
+        # podpiąć cudze ID (aktywność sprawdzamy dopiero w ścieżce przelewu
+        # wewnętrznego — transakcja z historycznym, wyłączonym kontrahentem jest OK).
+        contractor_obj = None
+        if contractor_id:
+            contractor_obj = db.session.query(Contractor).filter_by(
+                id=contractor_id, user_token=user_token
+            ).first()
+            if not contractor_obj:
+                raise ValueError(f"Kontrahent o ID {contractor_id} nie istnieje lub brak uprawnień.")
+
         new_transaction = Transaction(
             user_token=user_token,
             account_id=account_id,
@@ -130,7 +142,7 @@ def create_transaction(
         if splits_data:
             for split in splits_data:
                 cat_name = split.get('category')
-                split_cat = db.session.query(Category).filter_by(name=cat_name, is_active=True).first() if cat_name else None
+                split_cat = find_category_by_name(user_token, cat_name)
                 new_split = TransactionSplit(
                     amount=Decimal(str(split.get('amount', 0))),
                     desc=split.get('desc', ''),
@@ -139,25 +151,22 @@ def create_transaction(
                 new_transaction.splits.append(new_split)
 
         # --- LOGIKA PRZELEWÓW WEWNĘTRZNYCH ---
-        if category_id and contractor_id:
+        if (category_id and contractor_obj and contractor_obj.is_active
+                and contractor_obj.name.startswith("Moje konto: ")):
             category = db.session.get(Category, category_id)
             if category and category.type == 'transfer':
-                contractor_obj = db.session.query(Contractor).filter_by(
-                    id=contractor_id, user_token=user_token, is_active=True
-                ).first()
-                if contractor_obj and contractor_obj.name.startswith("Moje konto: "):
-                    _handle_internal_transfer(
-                        user_token, account, new_transaction, contractor_obj,
-                        amount, title, transaction_date, category_id, preserve_sign
-                    )
+                _handle_internal_transfer(
+                    user_token, account, new_transaction, contractor_obj,
+                    amount, title, transaction_date, category_id, preserve_sign
+                )
 
         if commit:
             db.session.commit()
 
         return new_transaction
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 
 def _resolve_destination_account(user_token: str, contractor_obj: Contractor) -> Optional[Account]:
@@ -351,9 +360,9 @@ def reconcile_account_balance(
         )
         db.session.commit()
         return reconciliation_tx
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 def _normalize_acc_num(acc_str: Optional[str]) -> str:
     """Normalizuje numer konta do porównań (usuwa spacje, cudzysłowy i prefix PL)."""
@@ -757,9 +766,9 @@ def analyze_transaction_data(
                 accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
             for acc in accounts:
                 if acc.account_number and _normalize_acc_num(acc.account_number) == norm_csv_acc:
-                    transfer_cat = db.session.query(Category).filter_by(name="Przelew wewnętrzny", is_active=True).first()
+                    transfer_cat = find_category_by_name(user_token, "Przelew wewnętrzny")
                     if not transfer_cat:
-                        transfer_cat = Category(name="Przelew wewnętrzny", type="transfer")
+                        transfer_cat = Category(name="Przelew wewnętrzny", type="transfer", user_token=user_token)
                         db.session.add(transfer_cat)
                         db.session.flush()
                     transfer_cont = db.session.query(Contractor).filter_by(
@@ -880,7 +889,68 @@ def save_transactions_to_staging(
     except Exception as e:
         db.session.rollback()
         logger.error("Błąd zapisu transakcji do stagingu (user_token=%s): %s", user_token, e)
-        raise ValueError(str(e))
+        raise
+
+def _abbrev_account(number: Optional[str]) -> str:
+    """Skrócony numer konta do prezentacji: 2 pierwsze + '....' + 4 ostatnie cyfry."""
+    if not number:
+        return ''
+    n = number.replace(' ', '').replace('-', '')
+    return f"{n[:2]}....{n[-4:]}" if len(n) >= 6 else n
+
+
+def list_pending_staging(user_token: str) -> list[dict]:
+    """Rekordy stagingu czekające na zatwierdzenie, gotowe do wyświetlenia.
+
+    Dla przelewów wewnętrznych dokłada opis obu stron (skąd -> dokąd). Konto docelowe
+    wyznacza _resolve_destination_account, czyli DOKŁADNIE ta sama reguła, według której
+    przelew zostanie później zaksięgowany — podgląd nie może pokazywać czego innego niż
+    zatwierdzenie zrobi.
+    """
+    rows = (
+        db.session.query(TransactionStaging, Category, Contractor)
+        .outerjoin(Category, TransactionStaging.proposed_category_id == Category.id)
+        .outerjoin(Contractor, TransactionStaging.proposed_contractor_id == Contractor.id)
+        .filter(TransactionStaging.user_token == user_token, TransactionStaging.status == 'pending')
+        .order_by(TransactionStaging.date.desc())
+        .all()
+    )
+    accounts_by_id = {
+        a.id: a for a in db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+    }
+
+    data = []
+    for tx, cat, cont in rows:
+        item = {
+            'id': tx.id,
+            'date': tx.date.strftime('%Y-%m-%d'),
+            'amount': float(tx.amount),
+            'title': tx.title,
+            'contractor': tx.contractor or '',
+            'status': tx.status,
+            'account_id': tx.account_id,
+            'proposed_category': cat.name if cat else '',
+            'proposed_contractor_id': tx.proposed_contractor_id,
+            'proposed_contractor_name': cont.name if cont else '',
+            'suggested_contractor_name': tx.suggested_contractor_name or '',
+        }
+
+        if cat and cat.type == 'transfer' and cont and cont.name.startswith("Moje konto: "):
+            src_acc = accounts_by_id.get(tx.account_id)
+            dest_acc = _resolve_destination_account(user_token, cont)
+            item['transfer_from'] = {
+                'name': src_acc.name if src_acc else '?',
+                'abbrev': _abbrev_account(src_acc.account_number if src_acc else None),
+            }
+            item['transfer_to'] = {
+                'name': dest_acc.name if dest_acc else cont.name[len("Moje konto: "):],
+                'abbrev': _abbrev_account(dest_acc.account_number if dest_acc else None),
+            }
+
+        data.append(item)
+
+    return data
+
 
 def reanalyze_all_staging(user_token: str) -> int:
     """Ponownie uruchamia autokategoryzację na wszystkich pending rekordach stagingu."""
@@ -899,9 +969,9 @@ def reanalyze_all_staging(user_token: str) -> int:
             row.suggested_contractor_name = suggested
         db.session.commit()
         return len(rows)
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 
 def clear_pending_staging(user_token: str) -> int:
@@ -910,9 +980,9 @@ def clear_pending_staging(user_token: str) -> int:
         deleted = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending').delete()
         db.session.commit()
         return deleted
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 
 def accept_staging_contractor(user_token: str, stg_id: int, name: str) -> dict:
@@ -939,9 +1009,9 @@ def accept_staging_contractor(user_token: str, stg_id: int, name: str) -> dict:
             'default_category_id': cont.default_category_id,
             'default_category_name': ''
         }
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 
 def approve_staging_record(user_token, stg_id, data):
@@ -959,7 +1029,7 @@ def approve_staging_record(user_token, stg_id, data):
         if not category_name or not contractor_id:
             raise ValueError('Wybór kategorii i kontrahenta jest wymagany do zatwierdzenia.')
 
-        category = db.session.query(Category).filter_by(name=category_name, is_active=True).first()
+        category = find_category_by_name(user_token, category_name)
         if not category:
             raise ValueError(f"Kategoria '{category_name}' nie istnieje lub jest nieaktywna.")
 
@@ -994,4 +1064,4 @@ def approve_staging_record(user_token, stg_id, data):
     except Exception as e:
         db.session.rollback()
         logger.error("Błąd zatwierdzania stagingu #%s (user_token=%s): %s", stg_id, user_token, e)
-        raise ValueError(str(e))
+        raise

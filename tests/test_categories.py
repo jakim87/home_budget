@@ -27,23 +27,50 @@ def test_recreate_category_after_soft_delete(logged_in_client, app):
     assert sorted(c.is_active for c in cats) == [False, True]
 
 
-def test_soft_delete_nonexistent_category_raises(app):
+def test_soft_delete_nonexistent_category_raises(app, test_user_token):
     with pytest.raises(ValueError):
-        soft_delete_category('NieMaTakiej')
+        soft_delete_category(test_user_token, 'NieMaTakiej')
 
 
-def test_soft_delete_targets_active_duplicate(app):
+def test_soft_delete_targets_active_duplicate(app, test_user_token):
     """Przy duplikacie nazw (nieaktywna + aktywna) usuwana jest AKTYWNA — nie martwy rekord."""
-    inactive = Category(name="Podwójna", type="expense", is_active=False)
-    active = Category(name="Podwójna", type="expense", is_active=True)
+    inactive = Category(name="Podwójna", type="expense", is_active=False, user_token=test_user_token)
+    active = Category(name="Podwójna", type="expense", is_active=True, user_token=test_user_token)
     db.session.add_all([inactive, active])
     db.session.commit()
 
-    soft_delete_category("Podwójna")
+    soft_delete_category(test_user_token, "Podwójna")
 
     db.session.expire_all()
     assert db.session.get(Category, active.id).is_active is False
     assert db.session.get(Category, inactive.id).is_active is False
+
+
+def test_global_category_not_deletable_by_user(app, test_user_token):
+    """Kategorii globalnej (user_token IS NULL) nie usuwa żaden użytkownik."""
+    globalna = Category(name="Uzgadnianie salda", type="system_reconciliation",
+                        is_system_category=True, user_token=None)
+    db.session.add(globalna)
+    db.session.commit()
+
+    with pytest.raises(ValueError):
+        soft_delete_category(test_user_token, "Uzgadnianie salda")
+
+    db.session.expire_all()
+    assert db.session.get(Category, globalna.id).is_active is True
+
+
+def test_user_cannot_delete_other_users_category(app, test_user_token, other_user):
+    """Kategoria innego użytkownika jest poza zasięgiem — to był realny problem."""
+    cudza = Category(name="Cudza", type="expense", user_token=other_user.token)
+    db.session.add(cudza)
+    db.session.commit()
+
+    with pytest.raises(ValueError):
+        soft_delete_category(test_user_token, "Cudza")
+
+    db.session.expire_all()
+    assert db.session.get(Category, cudza.id).is_active is True
 
 
 def test_delete_nonexistent_category_via_api_returns_400(logged_in_client, app):

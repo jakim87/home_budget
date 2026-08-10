@@ -40,7 +40,7 @@ class TransactionSchema(ma.Schema):
     title = fields.String(required=False)
     desc = fields.String(required=False)
     amount = fields.Decimal(required=True, as_string=False)
-    date = fields.String(required=True)
+    date = fields.Date(required=True, format='%Y-%m-%d')
     category = fields.String(load_default=None, allow_none=True)
     contractor_id = fields.Integer(load_default=None, allow_none=True)
     account_id = fields.Integer(required=True)

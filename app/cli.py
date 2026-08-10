@@ -7,6 +7,69 @@ from app.services.planned_transaction_service import process_planned_transaction
 logger = logging.getLogger(__name__)
 
 def register_commands(app):
+    @app.cli.command('seed')
+    @with_appcontext
+    def seed_db():
+        """Wypełnia bazę danymi startowymi do developmentu."""
+        from app import db
+        from app.models import User, Account, Category, Contractor, Transaction
+        from werkzeug.security import generate_password_hash
+        from datetime import date
+        from decimal import Decimal
+
+        click.echo("Seeding database...")
+        user = db.session.query(User).filter_by(username="default_user").first()
+        if user:
+            click.echo("Default user already exists. Skipping seed.")
+            return
+
+        user = User(username="default_user", email="default@local", password_hash=generate_password_hash("password"))
+        db.session.add(user)
+        db.session.commit()
+        click.echo("Created default_user with password 'password'.")
+
+        account = Account(name="Portfel", bank_name="Gotówka", balance=Decimal('1500.00'), user_token=user.token, is_default=True)
+        db.session.add(account)
+
+        cat_income = Category(name="Wynagrodzenie", type="income", user_token=user.token)
+        cat_expense = Category(name="Spożywcze", type="expense", user_token=user.token)
+        reconciliation_cat = Category(name="Uzgadnianie salda", type="system_reconciliation", is_system_category=True)
+        db.session.add_all([cat_income, cat_expense, reconciliation_cat])
+        db.session.commit()
+
+        cont_employer = Contractor(name="Pracodawca", user_token=user.token, default_category_id=cat_income.id)
+        cont_biedronka = Contractor(name="Biedronka", mapping_rules="biedronka, jeronimo", user_token=user.token, default_category_id=cat_expense.id)
+        db.session.add_all([cont_employer, cont_biedronka])
+        db.session.commit()
+
+        db.session.add_all([
+            Transaction(
+                date=date.today(), title="Wypłata", amount=Decimal('2000.00'),
+                account_id=account.id, category_id=cat_income.id, user_token=user.token,
+                contractor_id=cont_employer.id
+            ),
+            Transaction(
+                date=date.today(), title="Zakupy Biedronka", amount=Decimal('-150.50'),
+                account_id=account.id, category_id=cat_expense.id, user_token=user.token,
+                contractor_id=cont_biedronka.id
+            ),
+        ])
+        db.session.commit()
+        click.echo("Database seeded successfully.")
+
+    @app.cli.command('cleanup-archive')
+    @with_appcontext
+    def cleanup_archive():
+        """Usuwa przestarzałe wpisy z transaction_archive (> 60 dni)."""
+        from app import db
+        from app.models import TransactionArchive
+        from datetime import datetime, timedelta, timezone
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=60)
+        deleted = db.session.query(TransactionArchive).filter(TransactionArchive.deleted_at < cutoff).delete()
+        db.session.commit()
+        click.echo(f"Pomyślnie usunięto {deleted} przestarzałych wpisów z archiwum.")
+
     @app.cli.command('process-scheduled')
     @with_appcontext
     def process_scheduled_command():

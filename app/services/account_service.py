@@ -32,6 +32,48 @@ def _validate_account_number(value):
     return digits
 
 
+def resolve_statement_account(user_token, statement_ibans, chosen_account_id=None):
+    """Wskazuje konto, którego dotyczy wgrywany wyciąg.
+
+    Zwraca (account_id, dopasowane_konto_albo_None); drugi element jest wypełniony
+    tylko wtedy, gdy konto zostało rozpoznane automatycznie (użytkownik go nie wybrał).
+    Rozbieżność między wyciągiem a wybranym kontem to ValueError — import na złe konto
+    rozjeżdża salda, więc nie zgadujemy.
+    """
+    from app.services.budget_service import _normalize_acc_num
+
+    if not statement_ibans:
+        return chosen_account_id, None
+
+    norm_iban = _normalize_acc_num(statement_ibans[0])
+    masked = f"{norm_iban[:2]}...{norm_iban[-4:]}"
+    accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+    matched = next(
+        (a for a in accounts if a.account_number and _normalize_acc_num(a.account_number) == norm_iban),
+        None
+    )
+
+    if not chosen_account_id:
+        if matched:
+            return matched.id, matched
+        raise ValueError(
+            f"Wyciąg dotyczy rachunku {masked}, który nie pasuje do żadnego konta w aplikacji. "
+            "Dodaj konto z tym numerem rachunku w Słownikach albo wybierz konto ręcznie."
+        )
+
+    chosen = next((a for a in accounts if a.id == int(chosen_account_id)), None)
+    chosen_num_differs = bool(chosen and chosen.account_number
+                              and _normalize_acc_num(chosen.account_number) != norm_iban)
+    matched_is_other = bool(matched and chosen and matched.id != chosen.id)
+    if chosen_num_differs or matched_is_other:
+        raise ValueError(
+            f"Wyciąg dotyczy rachunku {masked}, a wybrano konto '{chosen.name}' o innym numerze. "
+            f"{'Rachunek z wyciągu pasuje do konta: ' + matched.name + '. ' if matched else ''}"
+            "Wybierz właściwe konto lub pozostaw wybór automatyczny."
+        )
+    return chosen_account_id, None
+
+
 def create_account(user_token, data):
     try:
         account_number = _validate_account_number(data.get('account_number'))
@@ -59,9 +101,9 @@ def create_account(user_token, data):
             new_acc.is_default = True
         db.session.commit()
         return new_acc
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(f"Błąd tworzenia konta: {str(e)}")
+        raise
 
 def update_account(user_token, a_id, data):
     try:
@@ -86,9 +128,9 @@ def update_account(user_token, a_id, data):
             acc.is_default = True
         db.session.commit()
         return acc
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 def soft_delete_account(user_token, a_id):
     try:
@@ -97,9 +139,9 @@ def soft_delete_account(user_token, a_id):
             raise ValueError('Nie znaleziono konta lub brak uprawnień.')
         acc.is_active = False
         db.session.commit()
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 def reorder_accounts(user_token, ordered_ids):
     """Zapisuje kolejność wyświetlania kont wg listy ID podanej przez użytkownika (tylko UI, bez wpływu na logikę)."""
@@ -114,6 +156,6 @@ def reorder_accounts(user_token, ordered_ids):
         for position, acc_id in enumerate(ordered_ids):
             accounts_by_id[acc_id].sort_order = position
         db.session.commit()
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise

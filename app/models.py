@@ -21,12 +21,12 @@ class RecurringTransaction(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False, index=True)
     account_id: Mapped[int] = mapped_column(ForeignKey('accounts.id'), nullable=False)
-    category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=True)
-    contractor_id: Mapped[int] = mapped_column(ForeignKey('contractors.id'), nullable=True)
-    
+    category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'), nullable=True)
+    contractor_id: Mapped[Optional[int]] = mapped_column(ForeignKey('contractors.id'), nullable=True)
+
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    
+
     frequency: Mapped[Frequency] = mapped_column(SQLAlchemyEnum(Frequency), nullable=False)
     interval: Mapped[int] = mapped_column(default=1, nullable=False) # Np. co 2 tygodnie (interval=2, frequency=WEEKLY)
     day_of_week: Mapped[int] = mapped_column(nullable=True) # 0=Poniedziałek, 6=Niedziela (dla WEEKLY)
@@ -51,12 +51,12 @@ class PlannedTransaction(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False, index=True)
     account_id: Mapped[int] = mapped_column(ForeignKey('accounts.id'), nullable=False)
-    category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=True)
-    contractor_id: Mapped[int] = mapped_column(ForeignKey('contractors.id'), nullable=True)
-    
+    category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'), nullable=True)
+    contractor_id: Mapped[Optional[int]] = mapped_column(ForeignKey('contractors.id'), nullable=True)
+
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    
+
     execution_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(20), default='pending', nullable=False) # pending, processed
     
@@ -120,7 +120,7 @@ class Account(db.Model):
     name: Mapped[str] = mapped_column(String(100), nullable=False) # np. "ING Konto Direct", "Portfel"
     bank_name: Mapped[str] = mapped_column(String(50)) # np. "ING", "Manual"
     account_number: Mapped[Optional[str]] = mapped_column(String(50)) # Numer rachunku docelowego
-    balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0.0)
+    balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
     currency: Mapped[str] = mapped_column(String(3), default='PLN')
     # Typ konta (jeden z ACCOUNT_TYPES) lub None. Steruje walidacją salda (Kredyt <= 0)
     # i prezentacją; nie wpływa na dopasowanie kont przy imporcie (to idzie po NRB).
@@ -153,6 +153,12 @@ class Category(db.Model):
     # NOWE POLE: Miękkie usuwanie
     is_active: Mapped[bool] = mapped_column(default=True, server_default='true', nullable=False)
     is_system_category: Mapped[bool] = mapped_column(default=False, server_default='false', nullable=False)
+    # Właściciel kategorii. NULL = kategoria globalna (systemowa, wspólna dla wszystkich):
+    # widoczna dla każdego, ale nieusuwalna przez użytkownika. Wcześniej WSZYSTKIE
+    # kategorie były globalne, więc dowolny użytkownik mógł dezaktywować cudzą.
+    user_token: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey('users.token'), nullable=True, index=True
+    )
 
 class Contractor(db.Model):
     __tablename__ = 'contractors'

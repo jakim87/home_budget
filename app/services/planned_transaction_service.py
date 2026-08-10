@@ -26,9 +26,9 @@ def create_planned_transaction(user_token, data):
         db.session.add(planned_tx)
         db.session.commit()
         return planned_tx
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(f"Błąd podczas tworzenia zaplanowanej transakcji: {e}")
+        raise
 
 def get_all_planned_transactions(user_token):
     """Pobiera wszystkie aktywne (pending) zaplanowane transakcje dla użytkownika."""
@@ -42,9 +42,9 @@ def delete_planned_transaction(user_token, pt_id):
             raise ValueError("Nie znaleziono zaplanowanej transakcji lub brak uprawnień.")
         db.session.delete(planned_tx)
         db.session.commit()
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(f"Błąd podczas usuwania: {e}")
+        raise
 
 def process_planned_transactions():
     """

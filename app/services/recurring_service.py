@@ -151,9 +151,9 @@ def create_recurring_transaction(user_token, data):
         db.session.add(rec_tx)
         db.session.commit()
         return rec_tx
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 def get_all_recurring_transactions(user_token):
     return db.session.query(RecurringTransaction).filter_by(user_token=user_token, is_active=True).all()
@@ -205,9 +205,9 @@ def update_recurring_transaction(user_token, rec_tx_id, data):
 
         db.session.commit()
         return rec_tx
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 def delete_recurring_transaction(user_token, rec_tx_id):
     try:
@@ -216,9 +216,9 @@ def delete_recurring_transaction(user_token, rec_tx_id):
             raise ValueError("Recurring transaction not found.")
         db.session.delete(rec_tx)
         db.session.commit()
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 def process_recurring_transactions():
     """

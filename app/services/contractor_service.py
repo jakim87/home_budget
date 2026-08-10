@@ -1,9 +1,10 @@
 from app import db
 from app.models import Contractor, Category
+from app.services.category_service import find_by_name as find_category_by_name
 
 def create_contractor(user_token, data):
     try:
-        category = db.session.query(Category).filter_by(name=data.get('category'), is_active=True).first() if data.get('category') else None
+        category = find_category_by_name(user_token, data.get('category'))
         new_cont = Contractor(
             name=data['name'],
             mapping_rules=data.get('rules'),
@@ -13,9 +14,9 @@ def create_contractor(user_token, data):
         db.session.add(new_cont)
         db.session.commit()
         return new_cont, category
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 def update_contractor(user_token, c_id, data):
     try:
@@ -29,17 +30,16 @@ def update_contractor(user_token, c_id, data):
         # edycja (PUT bez pola 'category') cicho kasowałaby domyślną kategorię kontrahenta.
         category = None
         if 'category' in data:
-            cat_name = data.get('category')
-            category = db.session.query(Category).filter_by(name=cat_name, is_active=True).first() if cat_name else None
+            category = find_category_by_name(user_token, data.get('category'))
             cont.default_category_id = category.id if category else None
         elif cont.default_category_id:
             category = db.session.get(Category, cont.default_category_id)
 
         db.session.commit()
         return cont, category
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 def soft_delete_contractor(user_token, c_id):
     try:
@@ -48,6 +48,6 @@ def soft_delete_contractor(user_token, c_id):
             raise ValueError('Nie znaleziono kontrahenta lub brak uprawnień.')
         cont.is_active = False
         db.session.commit()
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise

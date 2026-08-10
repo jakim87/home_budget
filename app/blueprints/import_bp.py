@@ -2,12 +2,11 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from marshmallow import ValidationError
 from app import db
-from app.models import TransactionStaging, Category, Contractor, Account
 from typing import Optional
 from app.schemas import StagingApproveSchema
-from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor
+from app.services.account_service import resolve_statement_account
+from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging
 from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf, parse_ing_pdf
-from app.services.budget_service import _normalize_acc_num
 from app.services.import_history_service import (
     build_overlap_warning,
     find_overlapping_imports,
@@ -38,13 +37,6 @@ STATEMENT_PARSERS = {
     ('mbank', 'pdf'): (parse_mbank_pdf, 'bytes'),
 }
 
-
-def _abbrev_account(number: Optional[str]) -> str:
-    """Zwraca skrócony numer konta: 2 pierwsze + '....' + 4 ostatnie cyfry."""
-    if not number:
-        return ''
-    n = number.replace(' ', '').replace('-', '')
-    return f"{n[:2]}....{n[-4:]}" if len(n) >= 6 else n
 
 def _read_upload():
     """Wspólna walidacja uploadu: zwraca (raw_bytes, error_response)."""
@@ -171,41 +163,13 @@ def import_auto():
     # Rozpoznanie konta po numerze rachunku z NAGŁÓWKA wyciągu (mBank ma go
     # w każdym formacie). Chroni przed importem na złe konto i pozwala
     # importować wiele plików bez ręcznego wskazywania konta per plik.
-    account_id = request.form.get('account_id')
-    resolved_account = None
-    statement_ibans = extract_statement_ibans(raw, bank, fmt)
-    if statement_ibans:
-        norm_iban = _normalize_acc_num(statement_ibans[0])
-        matched = next(
-            (a for a in db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
-             if a.account_number and _normalize_acc_num(a.account_number) == norm_iban),
-            None
+    try:
+        account_id, matched = resolve_statement_account(
+            user_token, extract_statement_ibans(raw, bank, fmt), request.form.get('account_id')
         )
-        if account_id:
-            chosen = db.session.query(Account).filter_by(
-                id=int(account_id), user_token=user_token, is_active=True
-            ).first()
-            # Niezgodność: wybrane konto ma inny numer, ALBO rachunek z wyciągu
-            # pasuje do innego konta użytkownika niż wybrane.
-            chosen_num_differs = bool(chosen and chosen.account_number
-                                      and _normalize_acc_num(chosen.account_number) != norm_iban)
-            matched_is_other = bool(matched and chosen and matched.id != chosen.id)
-            if chosen_num_differs or matched_is_other:
-                masked = f"{norm_iban[:2]}...{norm_iban[-4:]}"
-                return jsonify({'error': (
-                    f"Wyciąg dotyczy rachunku {masked}, a wybrano konto '{chosen.name}' o innym numerze. "
-                    f"{'Rachunek z wyciągu pasuje do konta: ' + matched.name + '. ' if matched else ''}"
-                    "Wybierz właściwe konto lub pozostaw wybór automatyczny."
-                )}), 400
-        elif matched:
-            account_id = matched.id
-            resolved_account = {'id': matched.id, 'name': matched.name}
-        else:
-            masked = f"{norm_iban[:2]}...{norm_iban[-4:]}"
-            return jsonify({'error': (
-                f"Wyciąg dotyczy rachunku {masked}, który nie pasuje do żadnego konta w aplikacji. "
-                "Dodaj konto z tym numerem rachunku w Słownikach albo wybierz konto ręcznie."
-            )}), 400
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    resolved_account = {'id': matched.id, 'name': matched.name} if matched else None
 
     try:
         result = parser(
@@ -260,53 +224,7 @@ def import_csv(bank):
 @import_bp.route('/api/staging/pending', methods=['GET'])
 @login_required
 def get_pending_staging_transactions():
-    user_token = current_user.token
-
-    pending_txs = (
-        db.session.query(TransactionStaging, Category, Contractor)
-        .outerjoin(Category, TransactionStaging.proposed_category_id == Category.id)
-        .outerjoin(Contractor, TransactionStaging.proposed_contractor_id == Contractor.id)
-        .filter(TransactionStaging.user_token == user_token, TransactionStaging.status == 'pending')
-        .order_by(TransactionStaging.date.desc())
-        .all()
-    )
-
-    user_accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
-    accounts_by_id = {acc.id: acc for acc in user_accounts}
-    accounts_by_name = {acc.name: acc for acc in user_accounts}
-
-    data = []
-    for tx, cat, cont in pending_txs:
-        item = {
-            'id': tx.id,
-            'date': tx.date.strftime('%Y-%m-%d'),
-            'amount': float(tx.amount),
-            'title': tx.title,
-            'contractor': tx.contractor or '',
-            'status': tx.status,
-            'account_id': tx.account_id,
-            'proposed_category': cat.name if cat else '',
-            'proposed_contractor_id': tx.proposed_contractor_id,
-            'proposed_contractor_name': cont.name if cont else '',
-            'suggested_contractor_name': tx.suggested_contractor_name or '',
-        }
-
-        if cat and cat.type == 'transfer' and cont and cont.name.startswith("Moje konto: "):
-            src_acc = accounts_by_id.get(tx.account_id)
-            dest_name = cont.name[len("Moje konto: "):]
-            dest_acc = accounts_by_name.get(dest_name)
-            item['transfer_from'] = {
-                'name': src_acc.name if src_acc else '?',
-                'abbrev': _abbrev_account(src_acc.account_number if src_acc else None),
-            }
-            item['transfer_to'] = {
-                'name': dest_name,
-                'abbrev': _abbrev_account(dest_acc.account_number if dest_acc else None),
-            }
-
-        data.append(item)
-
-    return jsonify(data), 200
+    return jsonify(list_pending_staging(current_user.token)), 200
 
 @import_bp.route('/api/staging/reanalyze', methods=['POST'])
 @login_required

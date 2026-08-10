@@ -103,6 +103,7 @@ app/
 ├── cli.py             # Flask CLI commands
 ├── services/          # Business logic — decoupled from HTTP/Flask
 │   ├── budget_service.py           # Core CRUD, CSV import, balance reconciliation
+│   ├── init_service.py             # Payload dla GET /api/init (cały stan frontu)
 │   ├── transaction_service.py      # Transaction archive & cleanup
 │   ├── recurring_service.py        # Recurring transaction execution
 │   ├── planned_transaction_service.py
@@ -130,6 +131,8 @@ app/
 **Internal Transfers**: Category type `"transfer"` + contractor name matching `"Moje konto: {account_name}"` automatically creates a mirror transaction on the destination account.
 
 **Soft Deletes**: Categories and contractors use `is_active=False`. Always filter `is_active=True` in queries.
+
+**Kategorie per użytkownik**: `Category.user_token` wskazuje właściciela; `NULL` = kategoria globalna (systemowa, widoczna dla wszystkich, nieusuwalna przez użytkownika). Nie pisz własnych zapytań o kategorię po nazwie — użyj `category_service.find_by_name(user_token, name)` / `list_active(user_token)`, które definiują zakres widoczności (własne + globalne) w jednym miejscu.
 
 **Deleted Transactions**: Moved to `TransactionArchive` (not hard-deleted) for audit trail.
 

@@ -54,11 +54,14 @@ def your_new_service_function(user_id: int, data: dict) -> YourModel:
         
         return new_object
 
-    except Exception as e:
+    except Exception:
         # 4. Wycofanie zmian w razie błędu
         db.session.rollback()
-        # Rzuć wyjątek dalej, aby obsłużyć go w warstwie wyżej (w blueprincie)
-        raise ValueError(f"Błąd podczas wykonywania operacji: {e}")
+        # Rzuć DALEJ ORYGINALNY wyjątek. ValueError (błąd użytkownika) blueprint
+        # zamieni na 400; wszystko inne (IntegrityError, błąd w kodzie) poleci do
+        # globalnego handlera jako 500 z pełnym tracebackiem w logu. NIE opakowuj
+        # wszystkiego w ValueError — awaria bazy wygląda wtedy jak zły formularz.
+        raise
 ```
 
 ### Krok 3: Użyj serwisu w Blueprincie

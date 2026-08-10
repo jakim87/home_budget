@@ -11,9 +11,9 @@ dev_bp = Blueprint('dev', __name__)
 def reset_user_data():
     """Czyści dane WYŁĄCZNIE bieżącego użytkownika — tylko do testów.
 
-    Uwaga: kategorie są globalne (współdzielone między użytkownikami), więc ten
-    reset ich NIE usuwa — kasowanie globalnych kategorii wpływałoby na innych
-    użytkowników. Zerujemy jedynie powiązania kategorii w danych tego użytkownika.
+    Uwaga: reset NIE usuwa kategorii — ani globalnych (te są współdzielone), ani
+    własnych użytkownika. Słownik kategorii buduje się długo i nie jest "danymi
+    testowymi"; zerujemy jedynie powiązania kategorii w usuwanych rekordach.
     """
     utok = current_user.token
     try:

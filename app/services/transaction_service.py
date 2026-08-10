@@ -1,5 +1,6 @@
 from app import db
-from app.models import Transaction, TransactionArchive, Category, TransactionSplit, Account
+from app.models import Transaction, TransactionArchive, TransactionSplit, Account
+from app.services.category_service import find_by_name as find_category_by_name
 from datetime import datetime
 from decimal import Decimal
 import json
@@ -60,9 +61,9 @@ def archive_and_delete_transaction(user_token, tx_id):
         for leg in legs:
             _archive_and_remove_leg(leg)
         db.session.commit()
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise
 
 def update_transaction(user_token, tx_id, data):
     try:
@@ -111,7 +112,7 @@ def update_transaction(user_token, tx_id, data):
         if 'date' in data:
             tx.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
         if 'category' in data:
-            cat = db.session.query(Category).filter_by(name=data['category'], is_active=True).first()
+            cat = find_category_by_name(user_token, data['category'])
             tx.category_id = cat.id if cat else tx.category_id
         if 'contractor_id' in data:
             cid = data.get('contractor_id')
@@ -122,13 +123,13 @@ def update_transaction(user_token, tx_id, data):
         if 'splits' in data:
             tx.splits.clear()
             for split_data in data['splits']:
-                cat = db.session.query(Category).filter_by(name=split_data.get('category'), is_active=True).first()
+                cat = find_category_by_name(user_token, split_data.get('category'))
                 tx.splits.append(TransactionSplit(
                     amount=Decimal(str(split_data.get('amount', 0))),
                     desc=split_data.get('desc', ''),
                     category_id=cat.id if cat else None
                 ))
         db.session.commit()
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        raise ValueError(str(e))
+        raise

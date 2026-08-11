@@ -12,11 +12,13 @@ function switchTab(tabName) {
     activeBtn.classList.remove('tab-inactive');
     activeBtn.classList.add('tab-active');
 
+    // Raporty korzystają z pełnej szerokości okna; pozostałe zakładki mają limit
+    // (max-w-7xl — węższy nie mieści 8-kolumnowej tabeli historii operacji).
     const container = document.getElementById('main-container');
     if (tabName === 'reports') {
-        container.classList.remove('max-w-5xl');
+        container.classList.remove('max-w-7xl');
     } else {
-        container.classList.add('max-w-5xl');
+        container.classList.add('max-w-7xl');
     }
 
     if (tabName === 'dashboard') renderDashboard();

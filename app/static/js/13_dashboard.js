@@ -2,6 +2,26 @@
 let dashboardView = 'monthly';
 let dashboardChart = null;
 
+// Filtr kont dla wykresów. Pusty zbiór = wszystkie konta.
+const dashboardAccountIds = new Set();
+
+function dashboardAccounts() {
+    return dashboardAccountIds.size === 0 ? accounts : accounts.filter(a => dashboardAccountIds.has(a.id));
+}
+
+function dashboardTransactions() {
+    return dashboardAccountIds.size === 0 ? transactions : transactions.filter(t => dashboardAccountIds.has(t.account_id));
+}
+
+window.toggleDashboardAccount = function(id) {
+    if (dashboardAccountIds.has(id)) {
+        dashboardAccountIds.delete(id);
+    } else {
+        dashboardAccountIds.add(id);
+    }
+    renderDashboard();
+};
+
 window.setDashboardView = function(view) {
     dashboardView = view;
     const monthlyBtn = document.getElementById('dashboard-toggle-monthly');
@@ -20,7 +40,7 @@ window.setDashboardView = function(view) {
 
 function renderDashboard() {
     // Net Worth
-    const netWorth = accounts.reduce((sum, a) => sum + a.balance, 0);
+    const netWorth = dashboardAccounts().reduce((sum, a) => sum + a.balance, 0);
     const netWorthEl = document.getElementById('dashboard-net-worth');
     if (netWorthEl) {
         netWorthEl.textContent = `${netWorth.toFixed(2)} PLN`;
@@ -32,13 +52,17 @@ function renderDashboard() {
         if (accounts.length === 0) {
             accountsEl.innerHTML = '<p class="col-span-4 text-sm text-slate-500">Brak kont. Dodaj konto w zakładce Słowniki.</p>';
         } else {
-            accountsEl.innerHTML = accounts.map(a => `
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            accountsEl.innerHTML = accounts.map(a => {
+                const selected = dashboardAccountIds.has(a.id);
+                return `
+                <button type="button" onclick="toggleDashboardAccount(${a.id})" aria-pressed="${selected}"
+                    class="text-left bg-white p-4 rounded-xl border shadow-sm transition-colors hover:border-blue-400 ${selected ? 'border-blue-600 ring-2 ring-blue-200' : 'border-slate-200'}">
                     <p class="text-xs font-medium text-slate-500 truncate">${a.name}${a.bank_name ? ` · ${a.bank_name}` : ''}</p>
                     ${(a.owner || a.co_owner) ? `<p class="text-xs text-slate-400 truncate">${[a.owner, a.co_owner].filter(Boolean).join(' / ')}</p>` : ''}
                     <p class="text-lg font-bold ${a.balance >= 0 ? 'text-slate-800' : 'text-rose-600'} mt-1">${a.balance.toFixed(2)} PLN</p>
-                </div>
-            `).join('');
+                </button>
+                `;
+            }).join('');
         }
     }
 
@@ -49,7 +73,7 @@ function renderDashboard() {
     // Ostatnie 5 transakcji
     const recentEl = document.getElementById('dashboard-recent-tx');
     if (recentEl) {
-        const recent = transactions.slice(0, 5);
+        const recent = dashboardTransactions().slice(0, 5);
         if (recent.length === 0) {
             recentEl.innerHTML = '<p class="p-4 text-sm text-slate-500">Brak transakcji.</p>';
         } else {
@@ -75,9 +99,10 @@ let netWorthSeriesFull = [];
 let netWorthChart = null;
 
 function computeNetWorthSeries() {
-    if (transactions.length === 0) { netWorthSeriesFull = []; return; }
+    const scoped = dashboardTransactions();
+    if (scoped.length === 0) { netWorthSeriesFull = []; return; }
 
-    const sorted = [...transactions]
+    const sorted = [...scoped]
         .filter(t => t.date)
         .sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
 
@@ -184,7 +209,7 @@ function renderDashboardChart() {
 
     const monthNames = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'];
 
-    const nonTransferTx = transactions.filter(t => {
+    const nonTransferTx = dashboardTransactions().filter(t => {
         const cat = categories.find(c => c.name === t.category);
         return !cat || cat.type !== 'transfer';
     });

@@ -28,7 +28,9 @@
         <p id="staging-progress-label" class="text-xs text-slate-400 mt-1.5 text-center">Możesz przejść do innej zakładki — operacja trwa w tle.</p>
     </div>
 
-    <div id="main-container" class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+    <!-- max-w-7xl, bo tabela historii operacji ma naturalną szerokość ~1075 px (8 kolumn);
+         w max-w-5xl (960 px treści) kolumna "Akcje" wypadała poza kadr za poziomym scrollem. -->
+    <div id="main-container" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         <header class="mb-8 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">

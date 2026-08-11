@@ -236,3 +236,100 @@ def test_approve_to_inactive_account_rejected(logged_in_client, app, test_user):
     db.session.expire_all()
     assert db.session.get(TransactionStaging, stg_id).status == "pending"
     assert db.session.query(Transaction).count() == 0
+
+
+# --- Wykrywanie duplikatów: wiersz importu vs transakcja wpisana wcześniej ręcznie ---
+
+@pytest.fixture
+def dup_setup(app, test_user):
+    """Odtwarza realny przypadek: ręczny wpis 'XTB' -150,00 z 2026-08-01 oraz wiersz
+    stagingu z wyciągu o tej samej kwocie i dacie, ale innym tytułem."""
+    account = Account(name="Moje ING", bank_name="ING", balance=Decimal("1000.00"), user_token=test_user.token)
+    cat = Category(name="Przelew wewnętrzny", type="transfer", user_token=test_user.token)
+    db.session.add_all([account, cat])
+    db.session.commit()
+
+    manual = Transaction(date=date(2026, 8, 1), title="XTB", amount=Decimal("-150.00"),
+                         account_id=account.id, category_id=cat.id,
+                         user_token=test_user.token, origin='manual')
+    stg = TransactionStaging(date=date(2026, 8, 1), amount=Decimal("-150.00"), title="54174604",
+                             contractor="XTB SPOLKA AKCYJNA", status="pending",
+                             user_token=test_user.token, account_id=account.id)
+    db.session.add_all([manual, stg])
+    db.session.commit()
+    return {'account': account, 'manual': manual, 'stg': stg}
+
+
+def test_duplicate_candidate_found_for_manual_entry(logged_in_client, app, dup_setup):
+    """Ten sam dzień, kwota i konto, inny tytuł → wiersz stagingu dostaje kandydata."""
+    resp = logged_in_client.get('/api/staging/pending')
+    assert resp.status_code == 200
+    row = next(r for r in resp.get_json() if r['id'] == dup_setup['stg'].id)
+    assert len(row['duplicate_candidates']) == 1
+    cand = row['duplicate_candidates'][0]
+    assert cand['id'] == dup_setup['manual'].id
+    assert cand['title'] == "XTB"
+    assert cand['origin'] == 'manual'
+    assert cand['days_diff'] == 0
+
+
+@pytest.mark.parametrize("field,value", [
+    ("amount", Decimal("-151.00")),   # inna kwota
+    ("date", date(2026, 8, 6)),       # 5 dni różnicy — poza oknem ±4
+])
+def test_no_duplicate_candidate_outside_criteria(logged_in_client, app, dup_setup, field, value):
+    setattr(dup_setup['manual'], field, value)
+    db.session.commit()
+
+    resp = logged_in_client.get('/api/staging/pending')
+    row = next(r for r in resp.get_json() if r['id'] == dup_setup['stg'].id)
+    assert row['duplicate_candidates'] == []
+
+
+def test_no_duplicate_candidate_on_other_account(logged_in_client, app, dup_setup, test_user):
+    """Ta sama kwota i data, ale inne konto → to nie ta sama operacja."""
+    other = Account(name="Inne", bank_name="ING", balance=Decimal("0.00"), user_token=test_user.token)
+    db.session.add(other)
+    db.session.commit()
+    dup_setup['manual'].account_id = other.id
+    db.session.commit()
+
+    resp = logged_in_client.get('/api/staging/pending')
+    row = next(r for r in resp.get_json() if r['id'] == dup_setup['stg'].id)
+    assert row['duplicate_candidates'] == []
+
+
+def test_dismiss_staging_as_duplicate(logged_in_client, app, dup_setup):
+    """Potwierdzenie duplikatu usuwa TYLKO wiersz stagingu — transakcja i saldo bez zmian."""
+    stg_id = dup_setup['stg'].id
+    tx_id = dup_setup['manual'].id
+    acc_id = dup_setup['account'].id
+
+    resp = logged_in_client.post(f'/api/staging/{stg_id}/duplicate-of', json={'transaction_id': tx_id})
+
+    assert resp.status_code == 200
+    db.session.expire_all()
+    assert db.session.get(TransactionStaging, stg_id) is None
+    assert db.session.get(Transaction, tx_id).amount == Decimal("-150.00")
+    assert db.session.get(Account, acc_id).balance == Decimal("1000.00")
+
+
+def test_dismiss_duplicate_requires_integer_transaction_id(logged_in_client, app, dup_setup):
+    resp = logged_in_client.post(f'/api/staging/{dup_setup["stg"].id}/duplicate-of', json={})
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(TransactionStaging, dup_setup['stg'].id) is not None
+
+
+def test_origin_manual_vs_import(logged_in_client, app, dup_setup, test_user):
+    """Transakcja z zatwierdzonego stagingu ma origin='import', ręczna 'manual'."""
+    cont = Contractor(name="XTB", user_token=test_user.token)
+    db.session.add(cont)
+    db.session.commit()
+
+    resp = logged_in_client.post(f'/api/staging/{dup_setup["stg"].id}/approve',
+                                 json={'category': 'Przelew wewnętrzny', 'contractor_id': cont.id})
+    assert resp.status_code == 200
+    imported = db.session.get(Transaction, resp.get_json()['transaction_id'])
+    assert imported.origin == 'import'
+    assert db.session.get(Transaction, dup_setup['manual'].id).origin == 'manual'

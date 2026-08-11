@@ -91,7 +91,8 @@ def create_transaction(
     source_recurring_id: Optional[int] = None,
     source_planned_id: Optional[int] = None,
     commit: bool = True,
-    preserve_sign: bool = False
+    preserve_sign: bool = False,
+    origin: str = 'manual'
 ) -> Transaction:
     """
     Tworzy nową transakcję i automatycznie aktualizuje saldo powiązanego konta.
@@ -121,6 +122,14 @@ def create_transaction(
             if not contractor_obj:
                 raise ValueError(f"Kontrahent o ID {contractor_id} nie istnieje lub brak uprawnień.")
 
+        # Ścieżki harmonogramu wołają tę funkcję z source_*_id — pochodzenie wynika
+        # z nich wprost, więc recurring_service/planned_transaction_service nie muszą
+        # przekazywać origin osobno.
+        if source_recurring_id:
+            origin = 'recurring'
+        elif source_planned_id:
+            origin = 'planned'
+
         new_transaction = Transaction(
             user_token=user_token,
             account_id=account_id,
@@ -132,7 +141,8 @@ def create_transaction(
             contractor_id=contractor_id,
             comment=comment or None,
             source_recurring_id=source_recurring_id,
-            source_planned_id=source_planned_id
+            source_planned_id=source_planned_id,
+            origin=origin
         )
 
         account.balance = Decimal(account.balance) + amount
@@ -296,7 +306,7 @@ def _handle_internal_transfer(
         user_token=user_token, account_id=dest_account.id, amount=counter_amount,
         title=title, date=transaction_date, category_id=category_id,
         contractor=source_contractor.name, contractor_id=source_contractor.id,
-        linked_transaction_id=new_transaction.id
+        linked_transaction_id=new_transaction.id, origin='mirror'
     )
     dest_account.balance = Decimal(dest_account.balance) + counter_amount
     db.session.add(mirror_tx)
@@ -356,7 +366,8 @@ def reconcile_account_balance(
             transaction_date=transaction_date or date.today(),
             category_id=reconciliation_category.id,
             contractor="-",
-            comment=comment or None
+            comment=comment or None,
+            origin='reconcile'
         )
         db.session.commit()
         return reconciliation_tx
@@ -899,6 +910,101 @@ def _abbrev_account(number: Optional[str]) -> str:
     return f"{n[:2]}....{n[-4:]}" if len(n) >= 6 else n
 
 
+# Okno dat przy szukaniu duplikatu wiersza stagingu wśród istniejących transakcji.
+# Ta sama wartość co przy parowaniu nóg przelewu, ale osobne pojęcie — bank księguje
+# operację innego dnia niż użytkownik wpisał ją ręcznie.
+_DUPLICATE_MATCH_WINDOW_DAYS = 4
+
+
+def _duplicate_candidates(user_token: str, staging_rows: list[TransactionStaging]) -> dict[int, list[dict]]:
+    """Dla każdego wiersza stagingu szuka istniejących transakcji, które mogą być tą samą
+    operacją wpisaną wcześniej ręcznie: to samo konto, ta sama kwota (ze znakiem),
+    data w oknie ±_DUPLICATE_MATCH_WINDOW_DAYS.
+
+    Deduplikacja przy imporcie (_existing_import_keys) porównuje też TYTUŁ, więc nie
+    wyłapuje wpisu ręcznego — tytuł z banku nigdy nie będzie identyczny z odręcznym.
+    Tutaj tytuł celowo nie jest kryterium; decyzję podejmuje użytkownik.
+
+    Zwraca {staging_id: [kandydat, ...]}, kandydaci posortowani od najbliższej daty.
+    """
+    if not staging_rows:
+        return {}
+
+    window = timedelta(days=_DUPLICATE_MATCH_WINDOW_DAYS)
+    amounts = {row.amount for row in staging_rows}
+    min_date = min(row.date for row in staging_rows) - window
+    max_date = max(row.date for row in staging_rows) + window
+
+    # Jedno zapytanie na całą listę (bez N+1): zawężamy po zakresie dat i zbiorze kwot,
+    # dokładne parowanie po koncie i dacie robimy w pamięci.
+    rows = (
+        db.session.query(Transaction, Category.name)
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .filter(
+            Transaction.user_token == user_token,
+            Transaction.amount.in_(amounts),
+            Transaction.date >= min_date,
+            Transaction.date <= max_date,
+        )
+        .all()
+    )
+
+    by_key: dict[tuple, list] = {}
+    for tx, cat_name in rows:
+        by_key.setdefault((tx.account_id, tx.amount), []).append((tx, cat_name))
+
+    result: dict[int, list[dict]] = {}
+    for stg in staging_rows:
+        matches = []
+        for tx, cat_name in by_key.get((stg.account_id, stg.amount), []):
+            days_diff = abs((tx.date - stg.date).days)
+            if days_diff <= _DUPLICATE_MATCH_WINDOW_DAYS:
+                matches.append({
+                    'id': tx.id,
+                    'date': tx.date.strftime('%Y-%m-%d'),
+                    'title': tx.title,
+                    'contractor': tx.contractor or '',
+                    'category': cat_name or '',
+                    'origin': tx.origin,
+                    'days_diff': days_diff,
+                })
+        if matches:
+            matches.sort(key=lambda m: (m['days_diff'], m['id']))
+            result[stg.id] = matches
+    return result
+
+
+def dismiss_staging_as_duplicate(user_token: str, stg_id: int, transaction_id: int) -> None:
+    """Odrzuca wiersz stagingu wskazany przez użytkownika jako duplikat istniejącej transakcji.
+
+    Istniejąca transakcja i saldo konta pozostają nietknięte — wiersz stagingu nigdy nie
+    wpływał na saldo. Sparowanie trafia do logu jako ślad audytowy.
+    """
+    try:
+        stg_tx = db.session.query(TransactionStaging).filter_by(
+            id=stg_id, user_token=user_token, status='pending'
+        ).first()
+        if not stg_tx:
+            raise ValueError('Nie znaleziono oczekującej transakcji.')
+
+        existing = db.session.query(Transaction).filter_by(
+            id=transaction_id, user_token=user_token
+        ).first()
+        if not existing:
+            raise ValueError('Nie znaleziono wskazanej transakcji.')
+
+        logger.info(
+            "Odrzucono staging #%s (%s, %s, %s) jako duplikat transakcji #%s (%s, %s) — user_token=%s",
+            stg_id, stg_tx.date, stg_tx.amount, stg_tx.title,
+            existing.id, existing.date, existing.title, user_token
+        )
+        db.session.delete(stg_tx)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+
 def list_pending_staging(user_token: str) -> list[dict]:
     """Rekordy stagingu czekające na zatwierdzenie, gotowe do wyświetlenia.
 
@@ -918,6 +1024,7 @@ def list_pending_staging(user_token: str) -> list[dict]:
     accounts_by_id = {
         a.id: a for a in db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
     }
+    duplicates = _duplicate_candidates(user_token, [tx for tx, _, _ in rows])
 
     data = []
     for tx, cat, cont in rows:
@@ -933,6 +1040,7 @@ def list_pending_staging(user_token: str) -> list[dict]:
             'proposed_contractor_id': tx.proposed_contractor_id,
             'proposed_contractor_name': cont.name if cont else '',
             'suggested_contractor_name': tx.suggested_contractor_name or '',
+            'duplicate_candidates': duplicates.get(tx.id, []),
         }
 
         if cat and cat.type == 'transfer' and cont and cont.name.startswith("Moje konto: "):
@@ -1052,7 +1160,8 @@ def approve_staging_record(user_token, stg_id, data):
             commit=False,
             # Dane pochodzą z wyciągu — znak kwoty jest źródłem prawdy i nie wolno
             # wymuszać wypływu (noga wpływu przelewu wewnętrznego musi zostać dodatnia).
-            preserve_sign=True
+            preserve_sign=True,
+            origin='import'
         )
         db.session.delete(stg_tx)
         db.session.commit()

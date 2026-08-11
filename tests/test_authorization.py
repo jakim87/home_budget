@@ -144,6 +144,34 @@ def test_intruder_cannot_accept_staging_contractor(intruder_client, owner_data):
     assert db.session.get(TransactionStaging, stg.id).proposed_contractor_id is None
 
 
+def test_intruder_cannot_dismiss_staging_as_duplicate(intruder_client, owner_data):
+    """Cudzy wiersz stagingu nie może zostać odrzucony jako duplikat."""
+    stg = owner_data['stg']
+    tx = owner_data['tx']
+    resp = intruder_client.post(f'/api/staging/{stg.id}/duplicate-of', json={'transaction_id': tx.id})
+    assert resp.status_code == 404
+    db.session.expire_all()
+    assert db.session.get(TransactionStaging, stg.id) is not None
+
+
+def test_intruder_cannot_dismiss_own_staging_against_foreign_transaction(intruder_client, owner_data, other_user):
+    """Intruz na WŁASNYM wierszu stagingu wskazuje CUDZĄ transakcję — odmowa, wiersz zostaje."""
+    my_acc = Account(name="Konto Intruza", bank_name="Bank", balance=Decimal("0.00"), user_token=other_user.token)
+    db.session.add(my_acc)
+    db.session.commit()
+    my_stg = TransactionStaging(date=date(2024, 1, 10), amount=Decimal("-50.00"), title="Mój staging",
+                                status="pending", user_token=other_user.token, account_id=my_acc.id)
+    db.session.add(my_stg)
+    db.session.commit()
+
+    resp = intruder_client.post(f'/api/staging/{my_stg.id}/duplicate-of',
+                                json={'transaction_id': owner_data['tx'].id})
+    assert resp.status_code == 404
+    db.session.expire_all()
+    assert db.session.get(TransactionStaging, my_stg.id) is not None
+    assert db.session.get(Transaction, owner_data['tx'].id) is not None
+
+
 def test_intruder_cannot_create_transaction_with_foreign_contractor(intruder_client, owner_data, other_user):
     """Intruz podaje CUDZY contractor_id przy tworzeniu własnej transakcji — kontrahent
     nie może zostać podpięty (a jego nazwa nie może wyciec w odpowiedzi)."""

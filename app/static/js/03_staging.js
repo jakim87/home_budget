@@ -58,8 +58,22 @@ function getStagingStatus(t) {
         : !!(t.proposed_category && t.proposed_contractor_id);
     const isPartiallyMapped = !hasSuggestion && !isFullyMapped && !!(t.proposed_category || t.proposed_contractor_id || destResolved);
     const isUnmapped = !hasSuggestion && !isFullyMapped && !isPartiallyMapped;
-    return { hasSuggestion, isFullyMapped, isPartiallyMapped, isUnmapped, isTransfer };
+    // Możliwy duplikat jest niezależny od stanu mapowania — wiersz w pełni zmapowany
+    // też może pokrywać się z transakcją wpisaną wcześniej ręcznie.
+    const hasDuplicate = !!(t.duplicate_candidates && t.duplicate_candidates.length);
+    return { hasSuggestion, isFullyMapped, isPartiallyMapped, isUnmapped, isTransfer, hasDuplicate };
 }
+
+const ORIGIN_LABELS = {
+    manual: 'dodana ręcznie',
+    import: 'z importu wyciągu',
+    recurring: 'z transakcji cyklicznej',
+    planned: 'z transakcji planowanej',
+    mirror: 'lustro przelewu wewnętrznego',
+    reconcile: 'uzgodnienie salda',
+    excel: 'migracja z arkusza',
+    unknown: 'pochodzenie nieznane',
+};
 
 window.setStagingFilter = function(filter) {
     stagingFilter = filter;
@@ -99,13 +113,14 @@ function renderStaging() {
     if (filtersRow) filtersRow.classList.remove('hidden');
 
     // Zlicz statusy z pełnej listy
-    const counts = { all: pendingStaging.length, mapped: 0, suggestion: 0, partial: 0, unmapped: 0 };
+    const counts = { all: pendingStaging.length, mapped: 0, suggestion: 0, partial: 0, unmapped: 0, duplicate: 0 };
     pendingStaging.forEach(t => {
-        const { hasSuggestion, isFullyMapped, isPartiallyMapped } = getStagingStatus(t);
+        const { hasSuggestion, isFullyMapped, isPartiallyMapped, hasDuplicate } = getStagingStatus(t);
         if (isFullyMapped) counts.mapped++;
         else if (hasSuggestion) counts.suggestion++;
         else if (isPartiallyMapped) counts.partial++;
         else counts.unmapped++;
+        if (hasDuplicate) counts.duplicate++;
     });
 
     // Auto-przełącz na 'mapped' gdy aktywny filtr nic nie pokaże, ale są zmapowane transakcje.
@@ -116,13 +131,14 @@ function renderStaging() {
             if (stagingFilter === 'suggestion') return s.hasSuggestion;
             if (stagingFilter === 'partial')    return s.isPartiallyMapped;
             if (stagingFilter === 'unmapped')   return s.isUnmapped;
+            if (stagingFilter === 'duplicate')  return s.hasDuplicate;
             return false;
         });
         if (!filterStillHasItems) stagingFilter = 'mapped';
     }
 
     // Aktualizuj przyciski filtrów
-    ['all', 'mapped', 'suggestion', 'partial', 'unmapped'].forEach(f => {
+    ['all', 'mapped', 'suggestion', 'partial', 'unmapped', 'duplicate'].forEach(f => {
         const countEl = document.getElementById(`sf-count-${f}`);
         if (countEl) countEl.textContent = counts[f];
         const btn = document.getElementById(`sf-${f}`);
@@ -147,11 +163,12 @@ function renderStaging() {
 
     // Filtruj
     let displayList = stagingFilter === 'all' ? pendingStaging : pendingStaging.filter(t => {
-        const { hasSuggestion, isFullyMapped, isPartiallyMapped, isUnmapped } = getStagingStatus(t);
+        const { hasSuggestion, isFullyMapped, isPartiallyMapped, isUnmapped, hasDuplicate } = getStagingStatus(t);
         if (stagingFilter === 'mapped') return isFullyMapped;
         if (stagingFilter === 'suggestion') return hasSuggestion;
         if (stagingFilter === 'partial') return isPartiallyMapped;
         if (stagingFilter === 'unmapped') return isUnmapped;
+        if (stagingFilter === 'duplicate') return hasDuplicate;
         return true;
     });
 
@@ -183,7 +200,7 @@ function renderStaging() {
         const amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
         const amountText = `${isPositive ? '+' : ''}${t.amount.toFixed(2)} PLN`;
 
-        const { hasSuggestion, isFullyMapped, isPartiallyMapped, isTransfer } = getStagingStatus(t);
+        const { hasSuggestion, isFullyMapped, isPartiallyMapped, isTransfer, hasDuplicate } = getStagingStatus(t);
 
         let rowBg = 'hover:bg-slate-50';
         let badgeHtml = '';
@@ -209,6 +226,25 @@ function renderStaging() {
             badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 uppercase tracking-wider" title="Znaleziono częściowe dopasowanie">Częściowo</span>`;
         }
 
+        if (hasDuplicate) {
+            rowBg = 'bg-orange-50/50 hover:bg-orange-100/50';
+            badgeHtml += `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700 uppercase tracking-wider" title="Znaleziono ${t.duplicate_candidates.length} transakcji o tej samej kwocie na tym koncie w oknie ±4 dni">Możliwy duplikat</span>`;
+        }
+
+        const dupHtml = hasDuplicate ? `
+            <div class="mt-1.5 p-2 bg-orange-50 border border-orange-200 rounded-lg text-xs">
+                <div class="text-orange-800 font-medium mb-1">Ta operacja może już być w historii:</div>
+                ${t.duplicate_candidates.map((c, i) => `
+                <label class="flex items-start gap-1.5 py-0.5 cursor-pointer">
+                    <input type="radio" name="dup-${t.id}" value="${c.id}" ${i === 0 ? 'checked' : ''} class="mt-0.5 shrink-0">
+                    <span class="text-slate-700">
+                        ${c.date} · <span class="font-medium">${c.title}</span>${c.contractor ? ` · ${c.contractor}` : ''}
+                        <span class="text-slate-500">(${c.category || 'bez kategorii'}, ${ORIGIN_LABELS[c.origin] || c.origin}${c.days_diff ? `, różnica ${c.days_diff} dni` : ''})</span>
+                    </span>
+                </label>`).join('')}
+                <button onclick="dismissStagingDuplicate(${t.id})" class="mt-1.5 text-xs bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded font-medium transition-colors">To ta sama — odrzuć wiersz</button>
+            </div>` : '';
+
         const row = document.createElement('tr');
         row.className = `${rowBg} transition-colors`;
         row.innerHTML = `
@@ -224,6 +260,7 @@ function renderStaging() {
                     <span class="text-sky-400">→</span>
                     <span>Na: ${t.transfer_to.name}${t.transfer_to.abbrev ? ` <span class="text-sky-500 font-normal">(${t.transfer_to.abbrev})</span>` : ''}</span>
                 </div>` : ''}
+                ${dupHtml}
             </td>
             <td class="p-3 border-b border-slate-100">
                 ${hasSuggestion ? `
@@ -273,6 +310,34 @@ window.acceptSuggestedContractor = function(stg_id) {
         return;
     }
     openQuickContractorModal(name, stg_id);
+}
+
+window.dismissStagingDuplicate = async function(id) {
+    const picked = document.querySelector(`input[name="dup-${id}"]:checked`);
+    if (!picked) {
+        showToast('Wybierz transakcję, z którą pokrywa się ten wiersz.', 'error');
+        return;
+    }
+    if (!confirm('Odrzucić ten wiersz importu jako duplikat wskazanej transakcji? Istniejąca transakcja i saldo konta pozostaną bez zmian.')) return;
+
+    try {
+        const response = await fetch(`/api/staging/${id}/duplicate-of`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transaction_id: parseInt(picked.value, 10) })
+        });
+        if (response.ok) {
+            showToast('Wiersz odrzucony jako duplikat.', 'info');
+            pendingStaging = pendingStaging.filter(t => t.id !== id);
+            renderStaging();
+        } else {
+            const err = await response.json();
+            showToast(err.error || 'Błąd odrzucania duplikatu.', 'error');
+        }
+    } catch (error) {
+        console.error(error);
+        showToast('Błąd połączenia z API.', 'error');
+    }
 }
 
 window.approveStaging = async function(id) {

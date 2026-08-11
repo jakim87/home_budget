@@ -216,6 +216,9 @@ class Transaction(db.Model):
     source_planned_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey('planned_transactions.id', ondelete='SET NULL'), nullable=True
     )
+    # Pochodzenie transakcji: 'manual' | 'import' | 'recurring' | 'planned' | 'mirror'
+    # | 'reconcile' | 'excel' | 'unknown' (dane sprzed wprowadzenia kolumny).
+    origin: Mapped[str] = mapped_column(String(20), nullable=False, default='manual', server_default='manual')
 
     # Właściwości relacyjne (wymagane m.in. dla eager loadingu w zapytaniach)
     account: Mapped['Account'] = relationship()

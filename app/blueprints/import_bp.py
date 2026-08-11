@@ -5,7 +5,7 @@ from app import db
 from typing import Optional
 from app.schemas import StagingApproveSchema
 from app.services.account_service import resolve_statement_account
-from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging
+from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging, dismiss_staging_as_duplicate
 from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf, parse_ing_pdf
 from app.services.import_history_service import (
     build_overlap_warning,
@@ -259,6 +259,23 @@ def accept_suggested_contractor(stg_id):
         return jsonify(result), 200
     except ValueError as e:
         return jsonify({'error': str(e)}), 404 if 'Nie znaleziono' in str(e) else 500
+
+
+@import_bp.route('/api/staging/<int:stg_id>/duplicate-of', methods=['POST'])
+@login_required
+def mark_staging_duplicate(stg_id):
+    """Użytkownik wskazał, że wiersz stagingu to ta sama operacja co istniejąca transakcja."""
+    data = request.get_json() or {}
+    transaction_id = data.get('transaction_id')
+
+    if not isinstance(transaction_id, int):
+        return jsonify({'error': 'Wymagane pole transaction_id (liczba całkowita).'}), 400
+
+    try:
+        dismiss_staging_as_duplicate(current_user.token, stg_id, transaction_id)
+        return jsonify({'message': 'Wiersz odrzucony jako duplikat.'}), 200
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404 if 'Nie znaleziono' in str(e) else 400
 
 
 @import_bp.route('/api/staging/<int:stg_id>/approve', methods=['POST'])

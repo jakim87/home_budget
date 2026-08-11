@@ -371,6 +371,7 @@ def execute_account_rebuild(
             category_id=category.id, contractor="-",
             comment="Migracja historii z arkusza XLSX (#110)",
             commit=False,
+            origin='excel',
         )
 
     return summary

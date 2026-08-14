@@ -1,4 +1,17 @@
 // --- COMBOBOX KONTRAHENTA (FORMULARZ TRANSAKCJI) ---
+
+// Wybór kontrahenta podpowiada jego kategorię domyślną — ale nigdy nie nadpisuje
+// kategorii, którą użytkownik wybrał ręcznie.
+function applyContractorCategory(contractorId) {
+    const catEl = document.getElementById('tx-category');
+    if (!catEl || catEl.dataset.userSet) return;
+    const c = contractors.find(x => x.id == contractorId);
+    if (!c || !c.default_category_name) return;
+    catEl.value = c.default_category_name;
+    catEl.dispatchEvent(new Event('change'));
+    delete catEl.dataset.userSet; // ustawienie automatyczne, nie ręczne
+}
+
 function initContractorCombobox() {
     const input = document.getElementById('tx-contractor-input');
     const hidden = document.getElementById('tx-contractor');
@@ -44,6 +57,7 @@ function initContractorCombobox() {
             hidden.value = id;
             input.value = li.dataset.name || '';
             dropdown.classList.add('hidden');
+            applyContractorCategory(id);
         }
     });
 }

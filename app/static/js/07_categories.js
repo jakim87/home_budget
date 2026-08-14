@@ -125,6 +125,15 @@ function updateContractorSelects() {
     // renderTransactions(); // This is redundant and called later in fetchInitialData
 }
 
+// Konto podpowiadane w formularzu transakcji: to z „Widoku konta", o ile jest
+// aktywne i wybrane pojedynczo — inaczej konto domyślne.
+window.preferredFormAccountId = function() {
+    const fromFilter = globalAccountFilter && accounts.find(a => a.id == globalAccountFilter);
+    if (fromFilter) return fromFilter.id;
+    const defaultAcc = accounts.find(a => a.is_default) || (accounts.length > 0 ? accounts[0] : null);
+    return defaultAcc ? defaultAcc.id : null;
+}
+
 function updateAccountSelects() {
     const defaultAcc = accounts.find(a => a.is_default) || (accounts.length > 0 ? accounts[0] : null);
     let html = '<option value="">Wybierz konto...</option>';
@@ -133,9 +142,12 @@ function updateAccountSelects() {
     const txAcc = document.getElementById('tx-account');
     if (txAcc) {
         txAcc.innerHTML = html;
-        if (defaultAcc && !txAcc.dataset.initialized) {
-            txAcc.value = defaultAcc.id;
-            txAcc.dataset.initialized = 'true';
+        if (!txAcc.dataset.initialized) {
+            const preferred = preferredFormAccountId();
+            if (preferred) {
+                txAcc.value = preferred;
+                txAcc.dataset.initialized = 'true';
+            }
         }
     }
     

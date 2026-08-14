@@ -120,8 +120,11 @@ window.handleAutoFill = function(textValue, contSelectEl, catSelectEl) {
                 const displayEl = document.getElementById(contSelectEl.id + '-input');
                 if (displayEl) displayEl.value = c.name;
             }
-            if (catSelectEl && c.default_category_id && catSelectEl.value != c.default_category_id) {
-                catSelectEl.value = c.default_category_id;
+            // Select kategorii operuje nazwami, nie ID. Ręczny wybór użytkownika
+            // w formularzu transakcji (dataset.userSet) ma pierwszeństwo.
+            if (catSelectEl && c.default_category_name && !catSelectEl.dataset.userSet
+                && catSelectEl.value != c.default_category_name) {
+                catSelectEl.value = c.default_category_name;
             }
             return; // Zatrzymujemy szukanie na pierwszym dopasowaniu
         }

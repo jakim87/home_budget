@@ -13,6 +13,8 @@ if (recDesc) {
 }
 
 document.getElementById('tx-category').addEventListener('change', function() {
+    // Ręczny wybór kategorii ma pierwszeństwo — auto-uzupełnianie go nie nadpisuje.
+    this.dataset.userSet = '1';
     const catName = this.value;
     const cat = categories.find(c => c.name === catName);
     const isTransfer = cat && cat.type === 'transfer';
@@ -22,8 +24,6 @@ document.getElementById('tx-category').addEventListener('change', function() {
         updateDestAccountOptions();
     } else {
         document.getElementById('tx-dest-account').value = '';
-        document.getElementById('tx-contractor').value = '';
-        document.getElementById('tx-contractor-input').value = '';
     }
 });
 
@@ -42,7 +42,7 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
     const accountInput = document.getElementById('tx-account').value;
     const commentInput = document.getElementById('tx-comment').value.trim();
 
-    if (!dateInput || !descInput || isNaN(rawAmount) || rawAmount <= 0) {
+    if (!dateInput || isNaN(rawAmount) || rawAmount <= 0) {
         showToast('Wypełnij poprawnie wszystkie pola.', 'error');
         return;
     }
@@ -97,10 +97,11 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
             document.getElementById('tx-contractor').value = '';
             document.getElementById('tx-contractor-input').value = '';
             document.getElementById('tx-comment').value = '';
-            
-            const defaultAcc = accounts.find(a => a.is_default);
-            if (defaultAcc) document.getElementById('tx-account').value = defaultAcc.id;
-            
+            delete document.getElementById('tx-category').dataset.userSet;
+
+            const preferredAcc = preferredFormAccountId();
+            if (preferredAcc) document.getElementById('tx-account').value = preferredAcc;
+
             showToast('Transakcja została zapisana pomyślnie.');
             fetchInitialData(); // Pobiera na nowo dane by odświeżyć globalne saldo
         } else {
@@ -140,7 +141,7 @@ async function saveInlineEdit(id) {
     const rawAmount = parseFloat(document.getElementById(`edit-amount-${id}`).value);
     const categoryVal = document.getElementById(`edit-cat-${id}`).value;
     const contractorVal = document.getElementById(`edit-cont-${id}`).value;
-    if (!dateVal || !descVal || isNaN(rawAmount) || rawAmount <= 0) {
+    if (!dateVal || isNaN(rawAmount) || rawAmount <= 0) {
         showToast('Wypełnij poprawnie wszystkie pola edycji.', 'error');
         return;
     }
@@ -228,29 +229,29 @@ function renderTransactions() {
                     </td>
                     ${showAccountColumn ? `<td class="p-2 border-b border-blue-100 text-sm text-slate-500">${escapeHtml(accountLabelById(t.account_id))}</td>` : ''}
                     <td class="p-2 border-b border-blue-100">
-                        <input type="text" id="edit-desc-${t.id}" value="${t.desc}" oninput="handleAutoFill(this.value, document.getElementById('edit-cont-${t.id}'), document.getElementById('edit-cat-${t.id}'))" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                    </td>
-                    <td class="p-2 border-b border-blue-100">
                         <select id="edit-cont-${t.id}" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                             <option value="">Brak kontrahenta</option>
                             ${getContractorOptionsHtml(t.contractor_id)}
                         </select>
                     </td>
                     <td class="p-2 border-b border-blue-100">
-                        ${isSplit ? 
+                        ${isSplit ?
                             `<span class="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded">Edycja podziału w oknie</span>
-                             <input type="hidden" id="edit-cat-${t.id}" value="${t.category}">` 
-                            : 
+                             <input type="hidden" id="edit-cat-${t.id}" value="${t.category}">`
+                            :
                             `<select id="edit-cat-${t.id}" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                                 ${getCategoryOptionsHtml(t.category, false)}
                             </select>`
                         }
                     </td>
                     <td class="p-2 border-b border-blue-100">
-                        <input type="number" id="edit-amount-${t.id}" value="${Math.abs(t.amount).toFixed(2)}" step="0.01" min="0.01" ${isSplit ? 'readonly title="Kwota wynika z podziału"' : ''} class="w-full p-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white ${isSplit ? 'bg-slate-100 text-slate-500' : ''}">
+                        <input type="text" id="edit-desc-${t.id}" value="${t.desc}" oninput="handleAutoFill(this.value, document.getElementById('edit-cont-${t.id}'), document.getElementById('edit-cat-${t.id}'))" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                     </td>
                     <td class="p-2 border-b border-blue-100">
                         <input type="text" id="edit-comment-${t.id}" value="${escapeHtml(t.comment || '')}" maxlength="255" placeholder="Komentarz..." class="w-full p-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-white">
+                    </td>
+                    <td class="p-2 border-b border-blue-100">
+                        <input type="number" id="edit-amount-${t.id}" value="${Math.abs(t.amount).toFixed(2)}" step="0.01" min="0.01" ${isSplit ? 'readonly title="Kwota wynika z podziału"' : ''} class="w-full p-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white ${isSplit ? 'bg-slate-100 text-slate-500' : ''}">
                     </td>
                     <td class="p-2 border-b border-blue-100 text-center">
                         <div class="flex justify-center items-center gap-1">
@@ -295,9 +296,8 @@ function renderTransactions() {
                 row.innerHTML = `
                     <td class="p-4 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
                     ${accountCellHtml}
-                    <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${iconHtml}${t.desc}${t.transfer_unmatched ? ` <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider align-middle" title="Przelew wewnętrzny bez drugiej strony — powiąże się automatycznie po zaimportowaniu wyciągu drugiego konta">Do zmapowania</span>` : ''}</td>
                     <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
-                        ${t.contractor_name || t.contractor || '-'}
+                        ${iconHtml}${t.contractor_name || t.contractor || '-'}
                     </td>
                     <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${isSplit ?
@@ -306,6 +306,7 @@ function renderTransactions() {
                             t.category
                         }
                     </td>
+                    <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${t.desc}${t.transfer_unmatched ? ` <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider align-middle" title="Przelew wewnętrzny bez drugiej strony — powiąże się automatycznie po zaimportowaniu wyciągu drugiego konta">Do zmapowania</span>` : ''}</td>
                     <td class="p-4 border-b border-slate-100 text-sm">${commentHtml}</td>
                     <td class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
                     <td class="p-4 border-b border-slate-100 text-center">

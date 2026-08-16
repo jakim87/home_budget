@@ -338,7 +338,14 @@ def execute_account_rebuild(
 
     dry_run=True (domyślnie): nic nie zapisuje, tylko liczy i zwraca podsumowanie.
     Nie wykonuje własnego commit — woła je kod wywołujący (jedna atomowa
-    operacja na wszystkie konta naraz, patrz CLI)."""
+    operacja na wszystkie konta naraz, patrz CLI).
+
+    ŚWIADOMY WYJĄTEK od reguły "usunięte transakcje trafiają do TransactionArchive":
+    kasujemy tu twardo, bez wpisu w archiwum. Archiwum służy audytowi decyzji
+    użytkownika, a to jest jednorazowa migracja (#110) odtwarzająca historię konta
+    od zera — zarchiwizowanie setek wierszy zaśmieciłoby audyt danymi, które z
+    definicji mają zniknąć. Zabezpieczenie: domyślny dry_run i jawna flaga
+    --execute w CLI."""
     existing = db.session.query(Transaction).filter_by(account_id=account_id, user_token=user_token).all()
 
     summary = RebuildSummary(

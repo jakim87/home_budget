@@ -208,7 +208,6 @@ def parse_mbank_html(content: str, user_token: str, main_account_id: Optional[in
             'amount': amount,
             'counterparty_account': counterparty_account,
             'account_id': main_account_id,
-            'bank_category': tds[3].get_text(strip=True) or None,
         })
 
     logger.info(

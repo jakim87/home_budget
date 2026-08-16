@@ -113,7 +113,12 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
     }
 });
 
-window.toggleComment = function(uid) {
+window.toggleComment = function(uid, event) {
+    // Wywołanie z klawiatury: reagujemy tylko na Enter i Spację, jak natywny <button>.
+    if (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+    }
     const s = document.getElementById(uid + '-s');
     const f = document.getElementById(uid + '-f');
     if (!s || !f) return;
@@ -285,7 +290,8 @@ function renderTransactions() {
                     const maxLen = 40;
                     if (c.length <= maxLen) return `<span class="text-slate-600 text-xs">${escapeHtml(c)}</span>`;
                     const uid = `cmt-${t.id}`;
-                    return `<span id="${uid}-s" class="text-slate-600 text-xs cursor-pointer hover:text-blue-600" onclick="toggleComment('${uid}')">${escapeHtml(c.substring(0, maxLen))}&hellip; <span class="text-blue-500 font-medium">[rozwiń]</span></span><span id="${uid}-f" class="hidden text-slate-600 text-xs">${escapeHtml(c)} <span class="text-blue-500 font-medium cursor-pointer" onclick="toggleComment('${uid}')">[zwiń]</span></span>`;
+                    const toggleAttrs = `role="button" tabindex="0" onclick="toggleComment('${uid}')" onkeydown="toggleComment('${uid}', event)"`;
+                    return `<span id="${uid}-s" class="text-slate-600 text-xs cursor-pointer hover:text-blue-600" ${toggleAttrs}>${escapeHtml(c.substring(0, maxLen))}&hellip; <span class="text-blue-500 font-medium">[rozwiń]</span></span><span id="${uid}-f" class="hidden text-slate-600 text-xs">${escapeHtml(c)} <span class="text-blue-500 font-medium cursor-pointer" ${toggleAttrs}>[zwiń]</span></span>`;
                 })();
 
                 row.className = `transition-colors group hover:bg-slate-50 ${isVirtual ? 'bg-indigo-50/30' : ''}`;

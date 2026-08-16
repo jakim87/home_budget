@@ -60,7 +60,6 @@ class StagingApproveSchema(ma.Schema):
 
 class PlannedTransactionSchema(ma.Schema):
     id = fields.Integer(dump_only=True)
-    user_id = fields.Integer(dump_only=True)
     account_id = fields.Integer(required=True)
     category_id = fields.Integer(required=True, allow_none=False)
     contractor_id = fields.Integer(allow_none=True)
@@ -74,7 +73,6 @@ class PlannedTransactionSchema(ma.Schema):
 
 class RecurringTransactionSchema(ma.Schema):
     id = fields.Integer(dump_only=True)
-    user_id = fields.Integer(dump_only=True)
     account_id = fields.Integer(required=True)
     category_id = fields.Integer(allow_none=True)
     contractor_id = fields.Integer(allow_none=True)

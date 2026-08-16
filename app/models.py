@@ -29,11 +29,11 @@ class RecurringTransaction(db.Model):
 
     frequency: Mapped[Frequency] = mapped_column(SQLAlchemyEnum(Frequency), nullable=False)
     interval: Mapped[int] = mapped_column(default=1, nullable=False) # Np. co 2 tygodnie (interval=2, frequency=WEEKLY)
-    day_of_week: Mapped[int] = mapped_column(nullable=True) # 0=Poniedziałek, 6=Niedziela (dla WEEKLY)
-    day_of_month: Mapped[int] = mapped_column(nullable=True) # 1-31 (dla MONTHLY)
+    day_of_week: Mapped[Optional[int]] = mapped_column(nullable=True) # 0=Poniedziałek, 6=Niedziela (dla WEEKLY)
+    day_of_month: Mapped[Optional[int]] = mapped_column(nullable=True) # 1-31 (dla MONTHLY)
 
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    end_date: Mapped[date] = mapped_column(Date, nullable=True)
+    end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     next_run_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     
     is_active: Mapped[bool] = mapped_column(default=True)

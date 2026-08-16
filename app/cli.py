@@ -96,8 +96,9 @@ def register_commands(app):
     @click.option('--file', 'file_path', required=True, help='Ścieżka do pliku .xlsx z historią sald (arkusze Dictionaries, SaldoEndOfMonth).')
     @click.option('--user', 'username', required=True, help='Nazwa użytkownika, dla którego importujemy historię.')
     @click.option('--execute', is_flag=True, default=False, help='Bez tej flagi: tylko podgląd (dry-run), nic nie zapisuje do bazy.')
+    @click.option('--merge', 'merges', multiple=True, help='Scalenie etykiet z Excela pod jedno konto w apce: "Nazwa konta=Etykieta1,Etykieta2". Można podać wielokrotnie.')
     @with_appcontext
-    def import_excel_balance_history_command(file_path, username, execute):
+    def import_excel_balance_history_command(file_path, username, execute, merges):
         """
         Jednorazowa migracja historii sald miesięcznych z arkusza XLSX (#110)
         do transakcji "Uzgadnianie salda".
@@ -118,6 +119,21 @@ def register_commands(app):
             read_xlsx_sheet_rows, parse_dictionaries, parse_saldo_end_of_month,
             build_migration_report, build_rebuild_plans, execute_account_rebuild,
         )
+
+        # Grupy współdzielonego NRB (jeden fizyczny rachunek pod kilkoma etykietami
+        # sub-celów w Excelu). Zależą od konkretnego arkusza, nie od aplikacji —
+        # dlatego podawane z linii poleceń, a nie zaszyte w kodzie. Scalać wolno
+        # dopiero po sprawdzeniu, że segmenty etykiet NIE nakładają się w czasie.
+        manual_merges = {}
+        for raw in merges:
+            name, sep, labels = raw.partition('=')
+            parsed = [label.strip() for label in labels.split(',') if label.strip()]
+            if not sep or not name.strip() or not parsed:
+                raise click.BadParameter(
+                    f"Oczekiwano formatu 'Nazwa konta=Etykieta1,Etykieta2', otrzymano: {raw!r}",
+                    param_hint='--merge',
+                )
+            manual_merges[name.strip()] = parsed
 
         user = db.session.query(User).filter_by(username=username).first()
         if not user:
@@ -142,14 +158,6 @@ def register_commands(app):
         app_id_by_name = {a.name: a.id for a in app_accounts}
 
         report = build_migration_report(dict_accounts, balances, app_by_nrb)
-
-        # Ręcznie potwierdzona grupa współdzielonego NRB (jeden fizyczny rachunek
-        # pod trzema kolejnymi etykietami sub-celów oszczędnościowych w Excelu) —
-        # zweryfikowane w sesji: segmenty się NIE nakładają, nazwy nie mają
-        # znaczenia (cele to budżet/plany, nie osobne rachunki).
-        manual_merges = {
-            'Smart Saver': ['Sluchawki 1200', 'Telefon Ja', 'Robot czyszczący'],
-        }
 
         plans = build_rebuild_plans(report, balances, manual_merges=manual_merges)
         if not plans:

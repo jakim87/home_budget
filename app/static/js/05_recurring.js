@@ -143,6 +143,8 @@ window.closeRecurringModal = function() {
     document.getElementById('recurring-modal').classList.remove('flex');
     document.getElementById('planned-form').reset(); // Reset planned form
     document.getElementById('recurring-form').reset(); // Reset recurring form
+    // Bez tego kolejne otwarcie modala przeliczałoby datę wg transakcji z poprzedniego użycia.
+    delete document.getElementById('rec-start-date').dataset.txDate;
     document.getElementById('rec-start-date').value = new Date().toISOString().split('T')[0]; // Reset recurring start date
     toggleRecEndDate(); // Reset recurring end date toggle
     toggleRecFreqInputs(); // Reset recurring frequency inputs
@@ -162,6 +164,102 @@ window.toggleRecFreqInputs = function() {
     document.getElementById('rec-opts-daily').classList.toggle('flex', type === 'daily');
     document.getElementById('rec-opts-weekly').classList.toggle('hidden', type !== 'weekly');
     document.getElementById('rec-opts-weekly').classList.toggle('flex', type === 'weekly');
+    syncRecStartDateToFrequency();
+};
+
+
+// --- ZAMIANA ISTNIEJĄCEJ TRANSAKCJI W HARMONOGRAM ---
+
+// Data lokalna jako YYYY-MM-DD. Nie używamy toISOString(), bo ten przelicza na UTC
+// i w naszej strefie potrafi cofnąć wynik o dobę.
+function toLocalISODate(d) {
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function addOneCycle(dateStr, frequency) {
+    const d = new Date(dateStr + 'T00:00:00');
+    if (frequency === 'daily') {
+        d.setDate(d.getDate() + 1);
+    } else if (frequency === 'weekly') {
+        d.setDate(d.getDate() + 7);
+    } else {
+        // setMonth/setFullYear przy 31. dniu przewija na kolejny miesiąc (31.01 -> 03.03).
+        // Backend (relativedelta) przycina do ostatniego dnia miesiąca — robimy tak samo,
+        // żeby podpowiedź w formularzu zgadzała się z tym, co policzy serwer.
+        const day = d.getDate();
+        d.setDate(1);
+        if (frequency === 'yearly') d.setFullYear(d.getFullYear() + 1);
+        else d.setMonth(d.getMonth() + 1);
+        const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        d.setDate(Math.min(day, lastDay));
+    }
+    return toLocalISODate(d);
+}
+
+// Transakcja z przeszłości może być datą startu wprost — backend przewinie harmonogram
+// do najbliższego przyszłego terminu. Transakcja z dziś lub z przyszłości musi ruszyć
+// dopiero za pełny cykl, inaczej `flask process-scheduled` zaksięguje ją drugi raz.
+function recurringStartFromTxDate(txDate, frequency) {
+    return txDate < toLocalISODate(new Date()) ? txDate : addOneCycle(txDate, frequency);
+}
+
+// Data startu podpowiedziana z transakcji zależy od częstotliwości, a tę użytkownik
+// wybiera już po otwarciu formularza — przeliczamy przy każdej zmianie. `txDate`
+// znika, gdy użytkownik sam wpisze datę: od tego momentu jego wybór jest wiążący.
+function syncRecStartDateToFrequency() {
+    const startInput = document.getElementById('rec-start-date');
+    const txDate = startInput.dataset.txDate;
+    if (!txDate) return;
+    startInput.value = recurringStartFromTxDate(txDate, document.getElementById('rec-freq-type').value);
+}
+
+document.getElementById('rec-start-date').addEventListener('input', function() {
+    delete this.dataset.txDate;
+});
+
+window.makeRecurringFromTransaction = function(txId) {
+    const t = transactions.find(x => x.id === txId);
+    if (!t) return;
+
+    if (t.splits && t.splits.length > 0) {
+        showToast('Transakcja rozbita na pozycje nie ma jednej kategorii — harmonogram załóż ręcznie.', 'error');
+        return;
+    }
+
+    // Ten sam kontrahent na tym samym koncie ma już harmonogram — prawdopodobnie
+    // użytkownik klika drugi raz na kolejnej racie tej samej subskrypcji.
+    const istniejacy = recurringTransactions.find(r =>
+        r.is_active && r.account_id === t.account_id &&
+        r.contractor_id != null && r.contractor_id === t.contractor_id
+    );
+    if (istniejacy && !confirm(
+        `Dla tego kontrahenta na tym koncie istnieje już aktywny harmonogram „${istniejacy.title}". Założyć kolejny?`
+    )) return;
+
+    openRecurringModal();  // wypełnia listy kategorii i kont — musi pójść przed wartościami
+
+    const category = categories.find(c => c.name === t.category);
+    document.getElementById('rec-desc').value = t.desc || '';
+    document.getElementById('rec-amount').value = Math.abs(t.amount).toFixed(2);
+    document.getElementById('rec-category').value = category ? category.id : '';
+    document.getElementById('rec-account').value = t.account_id;
+    document.getElementById('rec-contractor').value = t.contractor_id || '';
+
+    const txDay = new Date(t.date + 'T00:00:00');
+    document.getElementById('rec-day-of-month').value = txDay.getDate();
+    document.getElementById('rec-day-of-week').value = (txDay.getDay() + 6) % 7;  // JS: 0=niedziela, my: 0=poniedziałek
+
+    const startInput = document.getElementById('rec-start-date');
+    startInput.dataset.txDate = t.date;
+    syncRecStartDateToFrequency();
+
+    const form = document.getElementById('recurring-form');
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const box = form.parentElement;
+    box.classList.add('ring-2', 'ring-indigo-400');
+    setTimeout(() => box.classList.remove('ring-2', 'ring-indigo-400'), 2000);
 };
 
 

@@ -140,11 +140,15 @@ app/
 
 **Recurring/Planned**: `RecurringTransaction` (schedule-based) and `PlannedTransaction` (one-off with `execution_date`) are processed by `flask process-scheduled`.
 
-**Dashboard**: Zakładka otwierana domyślnie. Dane obliczane po stronie klienta z już załadowanego `transactions` + `accounts` (brak dodatkowego endpointa). Funkcje: `renderDashboard()`, `renderDashboardChart()`, `setDashboardView('monthly'|'yearly')` w `main.js`. Wykresy Chart.js ładowane z CDN.
+**Dashboard**: Zakładka otwierana domyślnie. Dane obliczane po stronie klienta z już załadowanego `transactions` + `accounts` (brak dodatkowego endpointa). Funkcje: `renderDashboard()`, `renderDashboardChart()`, `setDashboardView('monthly'|'yearly')` w `13_dashboard.js`. Wykresy Chart.js ładowane z CDN.
 
 **Contractor Combobox**: Pole kontrahenta w formularzu transakcji to combobox (nie `<select>`): `#tx-contractor-input` (text, widoczny) + `#tx-contractor` (hidden, przechowuje ID). Inicjalizacja: `initContractorCombobox()`. Pozostałe miejsca (inline edit w tabeli, staging, formularze cykliczne) nadal używają `<select>`.
 
-**Frontend = globalny stan z `/api/init`**: `home_bp.py` jednym zapytaniem ładuje `transactions`, `categories`, `contractors`, `accounts` do zmiennych globalnych w `main.js`; cały rendering i przeliczenia dzieją się po stronie klienta (brak osobnych endpointów read). Po mutacji (POST/PUT/DELETE) front woła `fetchInitialData()`, by odświeżyć globalny stan. `main.js` jest dużym monolitem — szukaj funkcji `render*()` / `update*()`.
+**Frontend = globalny stan z `/api/init`**: `home_bp.py` jednym zapytaniem ładuje `transactions`, `categories`, `contractors`, `accounts` do zmiennych globalnych zadeklarowanych w `01_state.js`; cały rendering i przeliczenia dzieją się po stronie klienta (brak osobnych endpointów read). Po mutacji (POST/PUT/DELETE) front woła `fetchInitialData()`, by odświeżyć globalny stan.
+
+Frontend to **18 modułów w `app/static/js/`**, ładowanych w kolejności prefiksów liczbowych (`01_state.js` … `17_tour.js`, `99_bootstrap.js`) — nie ma pliku `main.js`. Kolejność ma znaczenie: `01_state.js` deklaruje stan globalny, `99_bootstrap.js` startuje aplikację. Funkcje pomocnicze ogólnego przeznaczenia (np. `escapeHtml`) należą do `04_helpers.js`, żeby były dostępne dla modułów ładowanych później. Szukaj funkcji `render*()` / `update*()` w module odpowiadającym zakładce.
+
+**XSS**: dane użytkownika wstawiane do `innerHTML` MUSZĄ przechodzić przez `escapeHtml()` — tytuł przelewu przychodzącego ustala nadawca, więc to nie jest tylko self-XSS.
 
 **Dev Reset** (tylko dev/test): `app/blueprints/dev_bp.py` → `POST /api/dev/reset` (przycisk „Wyczyść wszystkie dane testowe") kasuje dane WYŁĄCZNIE bieżącego użytkownika i zeruje salda kont; kategorie są globalne, więc ich nie usuwa. Blueprint rejestrowany tylko gdy `app.debug`/`app.testing` lub `ENABLE_DEV_RESET=1`. Operacja destrukcyjna — nie wołać w trakcie zwykłej pracy.
 

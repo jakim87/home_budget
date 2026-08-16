@@ -1,19 +1,11 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from marshmallow import ValidationError
-from app import db
-from typing import Optional
 from app.schemas import StagingApproveSchema
 from app.services.account_service import resolve_statement_account
 from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging, dismiss_staging_as_duplicate
 from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf, parse_ing_pdf
-from app.services.import_history_service import (
-    build_overlap_warning,
-    find_overlapping_imports,
-    list_import_history,
-    record_statement_import,
-)
-import uuid
+from app.services.import_history_service import list_import_history, record_batch
 
 import_bp = Blueprint('import', __name__)
 
@@ -48,53 +40,12 @@ def _read_upload():
     return file.read(), None
 
 
-def _record_history(result: dict, user_token: str, meta: dict) -> Optional[str]:
-    """Zapisuje historię importu (wiersz na każde pokryte konto) i zwraca
-    ewentualne ostrzeżenie o nakładających się zakresach.
-
-    Zakres wyznaczamy z min/max daty faktycznie zaimportowanych transakcji —
-    zawsze dostępny, niezależnie od tego, czy dany format deklaruje okres.
-    """
-    transactions = result['transactions']
-    batch_id = uuid.uuid4().hex
-
-    # Konta pokryte tym plikiem: dla wielokontowego ING bierzemy je z transakcji.
-    per_account: dict[Optional[int], list] = {}
-    for tx in transactions:
-        per_account.setdefault(tx.get('account_id'), []).append(tx)
-
-    warnings: list[str] = []
-    for account_id, rows in per_account.items():
-        dates = [r['date'] for r in rows if r.get('date')]
-        p_start, p_end = (min(dates), max(dates)) if dates else (None, None)
-
-        overlaps = find_overlapping_imports(user_token, account_id, p_start, p_end)
-        warning = build_overlap_warning(overlaps)
-        if warning:
-            warnings.append(warning)
-
-        record_statement_import(
-            user_token=user_token,
-            filename=meta.get('filename') or 'wyciąg',
-            bank=meta.get('bank') or 'nieznany',
-            file_format=meta.get('format') or 'nieznany',
-            account_id=account_id,
-            period_start=p_start,
-            period_end=p_end,
-            transaction_count=len(rows),
-            skipped_count=result.get('skipped_count', 0) if len(per_account) == 1 else 0,
-            batch_id=batch_id,
-            commit=False,
-        )
-    db.session.commit()
-    return ' '.join(warnings) if warnings else None
-
-
 def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None,
                        meta: dict | None = None):
     """Wspólne zakończenie importu: zapis do stagingu + historia + odpowiedź."""
     transactions = result['transactions']
     skipped_count = result['skipped_count']
+    meta = meta or {}
 
     if not transactions:
         msg = 'Plik nie zawiera poprawnych transakcji lub jest uszkodzony.'
@@ -103,9 +54,14 @@ def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None,
         return jsonify({'error': msg}), 400
 
     try:
-        # Ostrzeżenie o nakładaniu liczymy PRZED zapisem historii tego importu,
-        # inaczej nowy wpis nakładałby się sam na siebie.
-        overlap_warning = _record_history(result, user_token, meta or {})
+        overlap_warning = record_batch(
+            user_token=user_token,
+            transactions=transactions,
+            filename=meta.get('filename') or 'wyciąg',
+            bank=meta.get('bank') or 'nieznany',
+            file_format=meta.get('format') or 'nieznany',
+            skipped_count=skipped_count,
+        )
         saved_records = save_transactions_to_staging(transactions, user_token=user_token)
         resp: dict = {
             'message': f'Udało się zaimportować {len(saved_records)} transakcji do weryfikacji.',
@@ -121,7 +77,8 @@ def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None,
             resp.update(extra)
         return jsonify(resp), 201
     except ValueError as e:
-        db.session.rollback()
+        # Rollback należy do serwisów — record_batch i save_transactions_to_staging
+        # same wycofują swoją transakcję, zanim podniosą wyjątek.
         return jsonify({'error': str(e)}), 400
 
 

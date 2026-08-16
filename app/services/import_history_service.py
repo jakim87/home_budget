@@ -2,6 +2,7 @@
 i sygnał pokrycia dla modelu transferów.
 """
 import logging
+import uuid
 from datetime import date
 from typing import Optional
 
@@ -41,6 +42,69 @@ def record_statement_import(
     if commit:
         db.session.commit()
     return entry
+
+
+def record_batch(
+    user_token: str,
+    transactions: list[dict],
+    filename: str,
+    bank: str,
+    file_format: str,
+    skipped_count: int = 0,
+) -> Optional[str]:
+    """Ewidencjonuje jeden import: wiersz historii na każde pokryte konto.
+
+    Zwraca ostrzeżenie o nakładających się zakresach albo None. Ostrzeżenie
+    liczone jest PRZED dodaniem własnych wpisów, inaczej import nakładałby się
+    sam na siebie.
+
+    Zakres wyznaczamy z min/max daty faktycznie zaimportowanych transakcji —
+    zawsze dostępny, niezależnie od tego, czy dany format deklaruje okres.
+    """
+    batch_id = uuid.uuid4().hex
+
+    # Konta pokryte tym plikiem: dla wielokontowego ING bierzemy je z transakcji.
+    per_account: dict[Optional[int], list] = {}
+    for tx in transactions:
+        per_account.setdefault(tx.get('account_id'), []).append(tx)
+
+    try:
+        warnings: list[str] = []
+        for account_id, rows in per_account.items():
+            dates = [r['date'] for r in rows if r.get('date')]
+            p_start, p_end = (min(dates), max(dates)) if dates else (None, None)
+
+            warning = build_overlap_warning(
+                find_overlapping_imports(user_token, account_id, p_start, p_end)
+            )
+            if warning:
+                warnings.append(warning)
+
+            record_statement_import(
+                user_token=user_token,
+                filename=filename,
+                bank=bank,
+                file_format=file_format,
+                account_id=account_id,
+                period_start=p_start,
+                period_end=p_end,
+                transaction_count=len(rows),
+                # Pominięte wiersze nie mają przypisanego konta, więc doliczamy je
+                # tylko wtedy, gdy plik pokrywa dokładnie jedno konto.
+                skipped_count=skipped_count if len(per_account) == 1 else 0,
+                batch_id=batch_id,
+                commit=False,
+            )
+        db.session.commit()
+        logger.info(
+            "Zapisano historię importu (user_token=%s, batch=%s, kont=%d)",
+            user_token, batch_id, len(per_account)
+        )
+        return ' '.join(warnings) if warnings else None
+    except Exception as e:
+        db.session.rollback()
+        logger.error("Błąd zapisu historii importu (user_token=%s): %s", user_token, e)
+        raise
 
 
 def find_overlapping_imports(

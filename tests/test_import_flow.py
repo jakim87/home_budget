@@ -333,3 +333,44 @@ def test_origin_manual_vs_import(logged_in_client, app, dup_setup, test_user):
     imported = db.session.get(Transaction, resp.get_json()['transaction_id'])
     assert imported.origin == 'import'
     assert db.session.get(Transaction, dup_setup['manual'].id).origin == 'manual'
+
+
+# --- Podgląd przelewu wewnętrznego w stagingu ---
+
+@pytest.mark.parametrize("hard_link", [True, False])
+def test_staging_preview_resolves_destination_account(logged_in_client, app, test_user, hard_link):
+    """Podgląd stagingu pokazuje obie strony przelewu — tak samo po twardym powiązaniu
+    (linked_account_id), jak i po nazwie konta.
+
+    list_pending_staging rozwiązuje konto docelowe w pamięci, z już pobranej listy kont
+    (bez N+1 — patrz przegląd kodu 2026-08-16, punkt E3). Wynik musi być identyczny
+    z rozwiązaniem po bazie, bo podgląd nie może pokazywać czego innego niż zrobi
+    zatwierdzenie.
+    """
+    src = Account(name="ING Osobiste", bank_name="ING", account_number="PL61109010140000071219812874",
+                  balance=Decimal("500.00"), user_token=test_user.token)
+    dest = Account(name="Cel: Wakacje", bank_name="ING", account_number="PL27114020040000300201355387",
+                   balance=Decimal("0.00"), user_token=test_user.token)
+    cat = Category(name="Przelew wewnętrzny", type="transfer", user_token=test_user.token)
+    db.session.add_all([src, dest, cat])
+    db.session.commit()
+
+    cont = Contractor(name="Moje konto: Cel: Wakacje", user_token=test_user.token,
+                      linked_account_id=dest.id if hard_link else None)
+    db.session.add(cont)
+    db.session.commit()
+
+    stg = TransactionStaging(date=date(2026, 8, 10), amount=Decimal("-200.00"),
+                             title="Przelew na cel", status="pending", user_token=test_user.token,
+                             account_id=src.id, proposed_category_id=cat.id,
+                             proposed_contractor_id=cont.id)
+    db.session.add(stg)
+    db.session.commit()
+
+    resp = logged_in_client.get('/api/staging/pending')
+    assert resp.status_code == 200
+    row = next(r for r in resp.get_json() if r['id'] == stg.id)
+    assert row['transfer_from']['name'] == "ING Osobiste"
+    assert row['transfer_from']['abbrev'] == "PL....2874"
+    assert row['transfer_to']['name'] == "Cel: Wakacje"
+    assert row['transfer_to']['abbrev'] == "PL....5387"

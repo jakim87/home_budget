@@ -185,23 +185,35 @@ def create_transaction(
         raise
 
 
-def _resolve_destination_account(user_token: str, contractor_obj: Contractor) -> Optional[Account]:
+def _resolve_destination_account(
+    user_token: str, contractor_obj: Contractor, accounts: Optional[list[Account]] = None
+) -> Optional[Account]:
     """Wyznacza konto docelowe przelewu wewnętrznego dla kontrahenta 'Moje konto: {nazwa}'.
 
     Najpierw po twardym powiązaniu (linked_account_id) — odporne na zmianę nazwy i
     duplikaty. Dopiero w razie braku powiązania (stare dane) wraca do dopasowania po nazwie.
+
+    accounts: opcjonalna lista aktywnych kont użytkownika. Podana — rozwiązujemy
+    w pamięci zamiast odpytywać bazę przy każdym wywołaniu (unikamy N+1 przy
+    listowaniu stagingu). Reguła wyboru jest w obu wariantach identyczna.
     """
     if contractor_obj.linked_account_id:
-        acc = db.session.query(Account).filter_by(
-            id=contractor_obj.linked_account_id, user_token=user_token, is_active=True
-        ).first()
+        if accounts is not None:
+            acc = next((a for a in accounts if a.id == contractor_obj.linked_account_id), None)
+        else:
+            acc = db.session.query(Account).filter_by(
+                id=contractor_obj.linked_account_id, user_token=user_token, is_active=True
+            ).first()
         if acc:
             return acc
 
     dest_account_name = contractor_obj.name.replace("Moje konto: ", "")
-    matches = db.session.query(Account).filter_by(
-        user_token=user_token, name=dest_account_name, is_active=True
-    ).all()
+    if accounts is not None:
+        matches = [a for a in accounts if a.name == dest_account_name]
+    else:
+        matches = db.session.query(Account).filter_by(
+            user_token=user_token, name=dest_account_name, is_active=True
+        ).all()
     if len(matches) == 1:
         return matches[0]
     if len(matches) > 1:
@@ -1027,9 +1039,8 @@ def list_pending_staging(user_token: str) -> list[dict]:
         .order_by(TransactionStaging.date.desc())
         .all()
     )
-    accounts_by_id = {
-        a.id: a for a in db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
-    }
+    active_accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+    accounts_by_id = {a.id: a for a in active_accounts}
     duplicates = _duplicate_candidates(user_token, [tx for tx, _, _ in rows])
 
     data = []
@@ -1051,7 +1062,7 @@ def list_pending_staging(user_token: str) -> list[dict]:
 
         if cat and cat.type == 'transfer' and cont and cont.name.startswith("Moje konto: "):
             src_acc = accounts_by_id.get(tx.account_id)
-            dest_acc = _resolve_destination_account(user_token, cont)
+            dest_acc = _resolve_destination_account(user_token, cont, accounts=active_accounts)
             item['transfer_from'] = {
                 'name': src_acc.name if src_acc else '?',
                 'abbrev': _abbrev_account(src_acc.account_number if src_acc else None),

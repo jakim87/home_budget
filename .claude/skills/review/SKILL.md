@@ -16,7 +16,7 @@ Sprawdź argument podany przez użytkownika:
 - `arch` → tylko przegląd architektury (warstwy, modele, serwisy, blueprinty)
 - `security` → tylko bezpieczeństwo (auth, walidacja, SQL injection, XSS)
 - `tests` → tylko pokrycie testami i jakość testów
-- `frontend` → tylko warstwa JS/HTML (main.js, base.html, wzorce HTMX)
+- `frontend` → tylko warstwa JS/HTML (moduły `app/static/js/`, base.html, wzorce HTMX)
 - `all` lub brak argumentu → pełny przegląd (wszystkie obszary)
 
 ---
@@ -34,7 +34,8 @@ Przed każdą analizą przeczytaj poniższe pliki **równolegle**:
 
 **Dla zakresu `frontend` lub `all`:**
 - `app/templates/base.html`
-- `app/static/main.js`
+- `app/static/js/*.js` — wszystkie moduły (`01_state.js` … `99_bootstrap.js`), ładowane
+  w kolejności prefiksów liczbowych; nie ma pliku `main.js`
 - `app/static/style.css`
 
 **Dla zakresu `tests` lub `all`:**
@@ -80,9 +81,9 @@ Sprawdź naruszenia kontraktu **Models → Services → Blueprints**:
 5. **CSRF** — czy formularze POST używają ochrony CSRF (Flask-WTF lub ręczny token)?
 6. **Hasła** — czy `generate_password_hash` / `check_password_hash` są poprawnie używane w `auth_service.py`?
 
-#### Obszar C: Frontend (main.js + base.html)
+#### Obszar C: Frontend (moduły `app/static/js/` + base.html)
 
-1. **Globalne zmienne** — wylistuj wszystkie zmienne globalne w `main.js`. Czy nie ma nadmiarowych lub nieużywanych?
+1. **Globalne zmienne** — wylistuj wszystkie zmienne globalne (deklarowane w `01_state.js`). Czy nie ma nadmiarowych lub nieużywanych? Czy któryś moduł nie używa funkcji zdefiniowanej w module ładowanym PÓŹNIEJ (kolejność wynika z prefiksów liczbowych)?
 2. **Źródło prawdy** — czy operacje na danych modyfikują globalne tablice (`transactions`, `categories`, itp.) spójnie, czy są niespójności (np. lokalna kopia vs. globalna)?
 3. **Wycieki pamięci** — czy instancje Chart.js są niszczone przed ponownym renderowaniem (`chart.destroy()`)?
 4. **Obsługa błędów fetch** — czy wywołania `fetch()` mają obsługę błędów HTTP (sprawdzenie `response.ok`) i sieci (`catch`)?

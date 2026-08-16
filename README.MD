@@ -1,34 +1,52 @@
 # Aplikacja Budżetu Domowego
 
-Aplikacja webowa do zarządzania budżetem domowym: śledzenie sald kont bankowych, import transakcji z wyciągów CSV, kategoryzacja wydatków, transakcje cykliczne i zaplanowane, transfery wewnętrzne, raporty z wykresami oraz monitorowanie wartości netto (Net Worth).
+Aplikacja webowa do zarządzania budżetem domowym: śledzenie sald kont bankowych, import transakcji z wyciągów bankowych (CSV, PDF, HTML), kategoryzacja wydatków, transakcje cykliczne i zaplanowane, transfery wewnętrzne, raporty z wykresami, historia importów oraz monitorowanie wartości netto (Net Worth).
 
 Projekt jest budowany jako aplikacja edukacyjna, rozwijana krok po kroku z wykorzystaniem Pythona, Flaska i PostgreSQL.
 
-## Cele projektu
+## Funkcje
 
-- Import transakcji z plików eksportowanych przez banki
-- Analiza wydatków i przychodów
+Zrealizowane:
+
+- Import transakcji z wyciągów bankowych (ING, mBank — CSV, PDF, HTML) z automatyczną detekcją banku i formatu
+- Historia importów z ostrzeżeniem o nakładających się zakresach dat
 - Kategoryzacja transakcji z automatycznym dopasowywaniem kontrahentów
-- Planowanie budżetu miesięcznego
-- Monitorowanie sald kont
-- Obsługa wielu banków i walut
-- Śledzenie wartości netto (Net Worth)
-- Obsługa kredytów (traktowanych jako zobowiązania / wartość ujemna)
-- Ręczne wprowadzanie salda gotówkowego
-- Uwierzytelnianie użytkownika (logowanie)
-- W przyszłości: skanowanie paragonów, aplikacja mobilna (iOS i Android)
+- Wykrywanie transferów wewnętrznych i parowanie obu nóg przelewu
+- Transakcje cykliczne i zaplanowane (harmonogramy)
+- Dashboard z wykresami i śledzeniem wartości netto (Net Worth)
+- Moduł raportów: KPI, wykresy, filtry kont/kategorii/kontrahentów, presety zakresów dat
+- Obsługa typów kont, w tym kredytów (zobowiązania / wartość ujemna)
+- Ręczne wprowadzanie transakcji, również gotówkowych
+- Uwierzytelnianie użytkownika (logowanie, rejestracja)
+- Interaktywny samouczek w aplikacji
+
+Planowane:
+
+- Planowanie budżetu miesięcznego (model `Budget` istnieje, brak UI)
+- Obsługa wielu walut
+- Skanowanie paragonów (OCR), aplikacja mobilna (iOS i Android)
 
 ## Obsługiwane źródła danych
 
-Aktualnie obsługiwane:
-- **ING Bank Śląski** (import z plików CSV w formacie UTF-8-sig / Windows-1250)
+Aktualnie obsługiwane formaty wyciągów:
 
-Docelowo planowana obsługa:
-- Millennium
-- mBank
-- Pekao
-- Revolut
-- Ręczne wpisy gotówkowe
+| Bank | CSV | PDF | HTML |
+|---|:---:|:---:|:---:|
+| **ING Bank Śląski** | ✅ | ✅ | — |
+| **mBank** | ✅ | ✅ | ✅ |
+
+Pliki CSV i HTML są dekodowane z UTF-8-sig lub Windows-1250 (oba warianty eksportu z banku).
+
+Import ma dwa tryby:
+- **Automatyczny** (`POST /api/import/auto`) — bank i format rozpoznawane po zawartości pliku,
+  konto po numerze rachunku z nagłówka wyciągu.
+- **Ręczny** (`POST /api/import/<bank>`) — użytkownik wskazuje bank i konto docelowe (tylko CSV).
+
+Poza importem z banku dostępne są:
+- Ręczne dodawanie transakcji (również gotówkowych)
+- Jednorazowa migracja historii sald z arkusza XLSX (`flask import-excel-balance-history`)
+
+Docelowo planowana obsługa: Millennium, Pekao, Revolut.
 
 ## Stack technologiczny
 
@@ -90,6 +108,13 @@ flask db downgrade                  # Cofnij ostatnią migrację (tylko developm
 flask process-scheduled             # Wykonaj zaplanowane i cykliczne transakcje
 flask cleanup-archive               # Usuń zarchiwizowane transakcje starsze niż 60 dni
 
+# Dane początkowe
+flask seed                          # Załaduj użytkownika domyślnego i dane testowe
+
+# Jednorazowa migracja historii sald z arkusza XLSX (domyślnie dry-run)
+flask import-excel-balance-history --file historia.xlsx --user default_user
+flask import-excel-balance-history --file historia.xlsx --user default_user --execute
+
 # Testy
 pytest                              # Uruchom wszystkie testy
 pytest tests/test_plik.py           # Pojedynczy plik
@@ -112,15 +137,20 @@ app/
 ├── schemas.py          # Serializatory Marshmallow (walidacja żądań i odpowiedzi)
 ├── cli.py              # Komendy Flask CLI
 ├── services/           # Logika biznesowa — oddzielona od warstwy HTTP
-│   ├── budget_service.py             # Główne CRUD, import CSV, uzgadnianie salda
+│   ├── budget_service.py             # Główne CRUD, staging, uzgadnianie salda
+│   ├── statement_parsers.py          # Parsery wyciągów (ING/mBank, CSV/PDF/HTML) + detekcja
+│   ├── import_history_service.py     # Ewidencja importów, wykrywanie nakładających się zakresów
+│   ├── init_service.py               # Payload dla GET /api/init (cały stan frontu)
 │   ├── transaction_service.py        # Archiwizacja i czyszczenie transakcji
 │   ├── recurring_service.py          # Wykonywanie transakcji cyklicznych
+│   ├── excel_history_import_service.py  # Jednorazowa migracja historii sald z XLSX
 │   ├── planned_transaction_service.py
 │   └── *.py                          # Serwisy kategorii, kontrahentów, kont, auth
 ├── blueprints/         # Warstwa HTTP — obsługuje żądania, wywołuje serwisy
 │   ├── home_bp.py      # Strona główna + endpoint /api/init
-│   ├── import_bp.py    # Import CSV → flow zatwierdzania ze stagingu
+│   ├── import_bp.py    # Import wyciągów → flow zatwierdzania ze stagingu
 │   ├── transactions_bp.py
+│   ├── dev_bp.py       # Reset danych testowych (tylko debug/testy)
 │   └── *.py            # auth, accounts, categories, contractors, recurring, planned
 └── templates/
     └── base.html       # Główny szablon Jinja2 (SPA z zakładkami)
@@ -157,7 +187,8 @@ budget/
 │   ├── services/
 │   │   └── README.md             # Instrukcje warstwy serwisów
 │   ├── static/
-│   │   ├── main.js               # Cała logika frontend (SPA)
+│   │   ├── js/                   # Frontend (SPA) — moduły ładowane w kolejności
+│   │   │                         #   prefiksów: 01_state.js … 17_tour.js, 99_bootstrap.js
 │   │   └── style.css             # Style uzupełniające Tailwind
 │   ├── templates/
 │   │   └── base.html             # Główny szablon HTML
@@ -174,7 +205,9 @@ budget/
 │   ├── conftest.py               # Fixture pytest (SQLite in-memory)
 │   └── test_*.py                 # Pliki z testami
 ├── docs/
-│   └── DOCUMENTATION.md          # Dokumentacja biznesowa i procesowa aplikacji
+│   ├── DOCUMENTATION.md          # Dokumentacja biznesowa i procesowa aplikacji
+│   ├── PRZEWODNIK_UZYTKOWNIKA.md # Przewodnik dla użytkownika końcowego
+│   └── review_*.md               # Raporty z przeglądów kodu i backlogu
 ├── .env                          # Zmienne środowiskowe (ignorowany przez git)
 ├── .flaskenv                     # Konfiguracja Flask (FLASK_DEBUG=1)
 ├── .gitignore

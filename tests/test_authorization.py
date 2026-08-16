@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from app import db
 from app.models import (
-    Account, Category, Contractor, Transaction, TransactionStaging,
+    Account, Budget, Category, Contractor, Transaction, TransactionStaging,
     TransactionArchive, RecurringTransaction, PlannedTransaction, Frequency,
     StatementImport,
 )
@@ -281,3 +281,51 @@ def test_intruder_sees_only_own_data_in_init(intruder_client, owner_data):
     assert data['transactions'] == []
     assert data['accounts'] == []
     assert all(c['name'] != 'Biedronka' for c in data['contractors'])
+
+
+def test_dev_reset_wipes_only_current_user_data(intruder_client, owner_data, test_user, other_user):
+    """POST /api/dev/reset kasuje WYŁĄCZNIE dane wołającego — dane ofiary nietknięte.
+
+    Najbardziej destrukcyjny endpoint w aplikacji (kasuje transakcje, staging, archiwum,
+    harmonogramy, budżety, kontrahentów i zeruje salda) — patrz przegląd kodu
+    2026-08-16, punkt D2. Test sprawdza obie strony: że reset faktycznie zadziałał
+    u wołającego ORAZ że nie ruszył cudzych wierszy w żadnej z tych tabel."""
+    # Ofiara dostaje jeszcze archiwum i budżet — obu owner_data nie zakłada,
+    # a reset ich dotyka.
+    victim_archive = TransactionArchive(original_id=999, title="Usunięta", amount=Decimal("-30.00"),
+                                        date=date(2024, 1, 5), account_id=owner_data['account'].id,
+                                        user_token=test_user.token)
+    victim_budget = Budget(amount=Decimal("500.00"), month=1, year=2024,
+                           category_id=owner_data['category'].id, user_token=test_user.token)
+    # Dane intruza — muszą zniknąć, inaczej test przeszedłby na resecie, który nic nie robi.
+    my_acc = Account(name="Konto Intruza", bank_name="Bank", balance=Decimal("300.00"), user_token=other_user.token)
+    db.session.add_all([victim_archive, victim_budget, my_acc])
+    db.session.commit()
+    my_tx = Transaction(date=date(2024, 2, 1), title="Moja transakcja", amount=Decimal("-15.00"),
+                        account_id=my_acc.id, user_token=other_user.token)
+    my_stg = TransactionStaging(date=date(2024, 2, 2), amount=Decimal("-5.00"), title="Mój staging",
+                                status="pending", user_token=other_user.token, account_id=my_acc.id)
+    db.session.add_all([my_tx, my_stg])
+    db.session.commit()
+
+    resp = intruder_client.post('/api/dev/reset')
+    assert resp.status_code == 200
+
+    db.session.expire_all()
+    # Dane intruza wyczyszczone, saldo wyzerowane.
+    assert db.session.query(Transaction).filter_by(user_token=other_user.token).count() == 0
+    assert db.session.query(TransactionStaging).filter_by(user_token=other_user.token).count() == 0
+    assert db.session.get(Account, my_acc.id).balance == Decimal("0.00")
+
+    # Dane ofiary w komplecie i bez zmian.
+    assert db.session.get(Transaction, owner_data['tx'].id) is not None
+    assert db.session.get(TransactionStaging, owner_data['stg'].id) is not None
+    assert db.session.get(RecurringTransaction, owner_data['rec'].id) is not None
+    assert db.session.get(PlannedTransaction, owner_data['planned'].id) is not None
+    assert db.session.get(Contractor, owner_data['contractor'].id) is not None
+    assert db.session.get(TransactionArchive, victim_archive.id) is not None
+    assert db.session.get(Budget, victim_budget.id) is not None
+    assert db.session.get(Account, owner_data['account'].id).balance == Decimal("1000.00")
+    # Kategoria ofiary nietknięta wraz z powiązaniem — reset celowo nie rusza słownika.
+    assert db.session.get(Category, owner_data['category'].id) is not None
+    assert db.session.get(Transaction, owner_data['tx'].id).category_id == owner_data['category'].id

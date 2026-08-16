@@ -52,8 +52,16 @@ def add_transaction():
 @login_required
 def edit_transaction(tx_id):
     try:
-        update_transaction(current_user.token, tx_id, request.get_json() or {})
+        # Bez schematu błędna kwota kończyła się 500: decimal.InvalidOperation nie
+        # dziedziczy po ValueError, więc `except` poniżej jej nie łapał.
+        # partial=True — edycja jest częściowa: pola nieobecne w żądaniu muszą
+        # zostać nietknięte (front wysyła albo pola inline, albo samą listę
+        # podziałów). Patrz test_partial_update_does_not_wipe_unsent_fields.
+        data = TransactionSchema(partial=True).load(request.get_json() or {})
+        update_transaction(current_user.token, tx_id, data)
         return jsonify({'message': 'Transakcja zaktualizowana pomyślnie.'}), 200
+    except ValidationError as err:
+        return jsonify({'error': err.messages}), 400
     except ValueError as err:
         return jsonify({'error': str(err)}), 400
 

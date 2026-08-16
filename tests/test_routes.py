@@ -128,6 +128,141 @@ def test_update_transaction_splits(logged_in_client, app, test_user_token):
     assert tx_in_db.splits[0].desc == 'Spożywcze'
     assert tx_in_db.splits[0].category.name == 'Czesc1'
 
+def test_update_transaction_rejects_malformed_amount(logged_in_client, app, test_user_token):
+    """Błędna kwota w PUT to 400 (walidacja wejścia), nie 500.
+
+    decimal.InvalidOperation NIE dziedziczy po ValueError, więc bez schematu
+    Marshmallow ten przypadek wychodził globalnym handlerem jako 500 — patrz
+    przegląd kodu 2026-08-16, punkt B4."""
+    account = Account(name="Konto", bank_name="Bank", balance=Decimal("100.00"), user_token=test_user_token)
+    db.session.add(account)
+    db.session.commit()
+    tx = Transaction(date=date(2024, 1, 10), title="Zakupy", amount=Decimal("-50.00"),
+                     account_id=account.id, user_token=test_user_token)
+    db.session.add(tx)
+    db.session.commit()
+    tx_id, old_balance = tx.id, account.balance
+
+    response = logged_in_client.put(f'/api/transactions/{tx_id}', json={'amount': 'abc'})
+
+    assert response.status_code == 400
+    db.session.expire_all()
+    # Saldo i kwota nietknięte — odrzucenie nastąpiło przed jakąkolwiek zmianą.
+    assert db.session.get(Transaction, tx_id).amount == Decimal("-50.00")
+    assert db.session.get(Account, account.id).balance == old_balance
+
+
+def test_update_transaction_rejects_malformed_date(logged_in_client, app, test_user_token):
+    """Błędny format daty w PUT to 400, a transakcja zostaje bez zmian."""
+    account = Account(name="Konto", bank_name="Bank", balance=Decimal("100.00"), user_token=test_user_token)
+    db.session.add(account)
+    db.session.commit()
+    tx = Transaction(date=date(2024, 1, 10), title="Zakupy", amount=Decimal("-50.00"),
+                     account_id=account.id, user_token=test_user_token)
+    db.session.add(tx)
+    db.session.commit()
+    tx_id = tx.id
+
+    response = logged_in_client.put(f'/api/transactions/{tx_id}', json={'date': '10-01-2024'})
+
+    assert response.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(Transaction, tx_id).date == date(2024, 1, 10)
+
+
+def test_update_transaction_accepts_valid_payload(logged_in_client, app, test_user_token):
+    """Poprawny payload (data + kwota + komentarz) nadal przechodzi — walidacja
+    nie może zablokować normalnej edycji inline z frontu."""
+    account = Account(name="Konto", bank_name="Bank", balance=Decimal("100.00"), user_token=test_user_token)
+    category = Category(name="Jedzenie", type="expense")
+    db.session.add_all([account, category])
+    db.session.commit()
+    tx = Transaction(date=date(2024, 1, 10), title="Zakupy", amount=Decimal("-50.00"),
+                     account_id=account.id, category_id=category.id, user_token=test_user_token)
+    db.session.add(tx)
+    db.session.commit()
+    tx_id = tx.id
+
+    response = logged_in_client.put(f'/api/transactions/{tx_id}', json={
+        'date': '2024-02-15', 'desc': 'Zakupy poprawione', 'amount': '-75.00',
+        'category': 'Jedzenie', 'comment': 'komentarz',
+    })
+
+    assert response.status_code == 200
+    db.session.expire_all()
+    updated = db.session.get(Transaction, tx_id)
+    assert updated.date == date(2024, 2, 15)
+    assert updated.title == 'Zakupy poprawione'
+    assert updated.amount == Decimal("-75.00")
+    assert updated.comment == 'komentarz'
+    # Saldo skorygowane o różnicę kwoty (-50 -> -75 to -25 na koncie).
+    assert db.session.get(Account, account.id).balance == Decimal("75.00")
+
+
+def test_partial_update_does_not_wipe_unsent_fields(logged_in_client, app, test_user_token):
+    """Edycja częściowa rusza WYŁĄCZNIE pola obecne w żądaniu.
+
+    Zabezpieczenie przed cichą utratą danych: gdyby schemat dowstawiał do żądania
+    swoje `load_default` (splits=[], comment=None, contractor_id=None), to zmiana
+    samej kwoty kasowałaby podziały, komentarz i kontrahenta. `partial=True` to
+    dziś blokuje, ale to niejawne zachowanie Marshmallow — ten test je przypina."""
+    account = Account(name="Konto", bank_name="Bank", balance=Decimal("100.00"), user_token=test_user_token)
+    category = Category(name="Jedzenie", type="expense")
+    db.session.add_all([account, category])
+    db.session.commit()
+    contractor = Contractor(name="Biedronka", user_token=test_user_token)
+    db.session.add(contractor)
+    db.session.commit()
+
+    tx = Transaction(date=date(2024, 1, 10), title="Zakupy", amount=Decimal("-100.00"),
+                     account_id=account.id, category_id=category.id, user_token=test_user_token,
+                     contractor_id=contractor.id, comment="ważny komentarz")
+    db.session.add(tx)
+    db.session.commit()
+    tx_id = tx.id
+    logged_in_client.put(f'/api/transactions/{tx_id}', json={
+        'splits': [{'amount': 60.0, 'desc': 'Spożywcze', 'category': 'Jedzenie'}]
+    })
+
+    # ACTION — żądanie zawiera WYŁĄCZNIE kwotę
+    response = logged_in_client.put(f'/api/transactions/{tx_id}', json={'amount': '-120.00'})
+
+    assert response.status_code == 200
+    db.session.expire_all()
+    updated = db.session.get(Transaction, tx_id)
+    assert updated.amount == Decimal("-120.00")
+    assert updated.comment == "ważny komentarz"
+    assert updated.contractor_id == contractor.id
+    assert len(updated.splits) == 1
+    assert updated.splits[0].desc == 'Spożywcze'
+
+
+def test_update_transaction_splits_tolerate_client_side_ids(logged_in_client, app, test_user_token):
+    """Front wysyła podziały ze swoim `id` (dla nowych wierszy tymczasowym, z Date.now()).
+    Schemat ma je ignorować, nie odrzucać całego żądania."""
+    account = Account(name="Konto", bank_name="Bank", balance=Decimal("100.00"), user_token=test_user_token)
+    category = Category(name="Jedzenie", type="expense")
+    db.session.add_all([account, category])
+    db.session.commit()
+    tx = Transaction(date=date(2024, 1, 10), title="Zakupy", amount=Decimal("-100.00"),
+                     account_id=account.id, category_id=category.id, user_token=test_user_token)
+    db.session.add(tx)
+    db.session.commit()
+    tx_id = tx.id
+
+    response = logged_in_client.put(f'/api/transactions/{tx_id}', json={
+        'splits': [{'id': 1723800000000.123, 'amount': 40.0, 'desc': 'Nowa pozycja', 'category': 'Jedzenie'}]
+    })
+
+    assert response.status_code == 200
+    db.session.expire_all()
+    splits = db.session.get(Transaction, tx_id).splits
+    assert len(splits) == 1
+    # Klient nie decyduje o ID — baza nadaje własne.
+    assert splits[0].id != 1723800000000
+    assert splits[0].desc == 'Nowa pozycja'
+
+
 def test_import_ing_csv_endpoint(logged_in_client, app, test_user_token):
     """Testuje wgrywanie pliku CSV z ING przez endpoint API."""
     account = Account(name="Test Konto", bank_name="Bank", user_token=test_user_token)

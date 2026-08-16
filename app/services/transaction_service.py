@@ -2,7 +2,7 @@ from app import db
 from app.models import Transaction, TransactionArchive, TransactionSplit, Account
 from app.services.category_service import find_by_name as find_category_by_name
 from app.services.contractor_service import find_owned as find_contractor_owned
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 import json
 
@@ -111,7 +111,10 @@ def update_transaction(user_token, tx_id, data):
                     account.balance = balance + (new_amount - old_amount)
                 tx.amount = new_amount
         if 'date' in data:
-            tx.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+            # Z blueprintu przychodzi już obiekt date (schemat Marshmallow), ale
+            # serwis bywa wołany też wprost z testów/CLI ze stringiem — przyjmujemy oba.
+            raw_date = data['date']
+            tx.date = raw_date if isinstance(raw_date, date) else datetime.strptime(raw_date, '%Y-%m-%d').date()
         if 'category' in data:
             cat = find_category_by_name(user_token, data['category'])
             tx.category_id = cat.id if cat else tx.category_id

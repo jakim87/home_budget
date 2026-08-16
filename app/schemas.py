@@ -1,5 +1,5 @@
 from app import ma
-from marshmallow import fields, validate, post_load
+from marshmallow import EXCLUDE, fields, validate, post_load
 from app.models import Frequency # Import models for nested schemas or enums
 
 class RegisterSchema(ma.Schema):
@@ -32,6 +32,13 @@ class ContractorSchema(ma.Schema):
     category = fields.String(load_default=None, allow_none=True)
 
 class SplitSchema(ma.Schema):
+    # Front wysyła podziały razem z własnym `id` (dla nowych wierszy to tymczasowy
+    # identyfikator z Date.now(), nie liczba z bazy). Serwer i tak odtwarza podziały
+    # od zera z amount/desc/category, więc nadmiarowe pola ignorujemy zamiast
+    # odrzucać całe żądanie.
+    class Meta:
+        unknown = EXCLUDE
+
     amount = fields.Decimal(required=True, as_string=False)
     desc = fields.String(load_default="")
     category = fields.String(required=True)

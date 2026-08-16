@@ -185,6 +185,29 @@ def test_weekly_aligns_to_day_of_week(app, setup_for_recurring):
     assert next_date == date(2024, 6, 10)  # kolejny poniedziałek
     assert next_date.weekday() == 0
 
+def test_api_update_recurring_rejects_invalid_payload(logged_in_client, app, setup_for_recurring):
+    """Błędne dane w PUT to 400 (jak w POST), nie 500.
+
+    PUT łapał tylko ValueError, więc ValidationError z Marshmallow wychodził
+    globalnym handlerem jako 500 — patrz przegląd kodu 2026-08-16, punkt B5."""
+    user_token, account_id, category_id = setup_for_recurring
+    rec_tx = RecurringTransaction(
+        user_token=user_token, account_id=account_id, title="Czynsz",
+        amount=Decimal("-1000.00"), frequency=Frequency.MONTHLY, day_of_month=5,
+        start_date=date(2024, 1, 1), next_run_date=date(2024, 6, 5),
+    )
+    db.session.add(rec_tx)
+    db.session.commit()
+    rec_tx_id = rec_tx.id
+
+    # day_of_month poza zakresem 1-31 (walidacja Range w RecurringTransactionSchema)
+    response = logged_in_client.put(f'/api/recurring-transactions/{rec_tx_id}', json={'day_of_month': 99})
+
+    assert response.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(RecurringTransaction, rec_tx_id).day_of_month == 5
+
+
 def test_process_deactivates_recurring_after_end_date(app, setup_for_recurring):
     """Definicja z next_run_date po end_date zostaje dezaktywowana bez tworzenia transakcji."""
     user_token, account_id, _ = setup_for_recurring

@@ -38,6 +38,10 @@ def edit_recurring_transaction(rec_tx_id):
         data = RecurringTransactionSchema(partial=True).load(request.get_json() or {})
         updated_tx = update_recurring_transaction(current_user.token, rec_tx_id, data)
         return RecurringTransactionSchema().dump(updated_tx), 200
+    except ValidationError as err:
+        # Bez tego błędne dane wejściowe wychodziły globalnym handlerem jako 500,
+        # mimo że POST na tym samym blueprincie zwraca w tej sytuacji 400.
+        return jsonify({'error': err.messages}), 400
     except ValueError as err:
         return jsonify({'error': str(err)}), 404
 

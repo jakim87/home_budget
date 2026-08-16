@@ -47,6 +47,11 @@ const TOURS = {
             akcja: 'Skorzystaj z ikon w kolumnie „Akcje"',
             efekt: 'Edycja działa w miejscu, bez przeładowania. Usunięcie nie kasuje danych na stałe — operacja trafia do archiwum i można ją stamtąd odzyskać przez 60 dni.',
         },
+        {
+            el: '#openRecurringModalBtn',
+            akcja: 'Kliknij „Transakcje Cykliczne"',
+            efekt: 'Otworzy się okno z harmonogramami i operacjami zaplanowanymi na przyszłość. Powtarzalną płatność szybciej jednak założysz z gotowego wpisu: wejdź w edycję jego wiersza, a obok „Zapisz" pojawi się ikona cyklu, która przeniesie kwotę, kategorię, kontrahenta i dzień miesiąca do formularza.',
+        },
     ],
 
     staging: [

@@ -219,6 +219,28 @@ document.getElementById('rec-start-date').addEventListener('input', function() {
     delete this.dataset.txDate;
 });
 
+// Wartości do przeniesienia. Ikona akcji siedzi w pasku trybu edycji, obok „Zapisz",
+// więc przepływ „popraw pola i zrób z tego harmonogram" jest naturalny — bierzemy to,
+// co użytkownik ma w polach, a nie stan sprzed edycji. Inaczej poprawki przepadłyby
+// po cichu, bo formularz cykliczny otwiera się bez zapisania transakcji.
+function recurringSourceValues(t) {
+    const pole = (prefix) => document.getElementById(`${prefix}-${t.id}`);
+    if (inlineEditingTxId !== t.id || !pole('edit-date')) {
+        return {
+            date: t.date, desc: t.desc, amount: Math.abs(t.amount),
+            category: t.category, contractor_id: t.contractor_id,
+        };
+    }
+    const kwota = parseFloat(pole('edit-amount').value);
+    return {
+        date: pole('edit-date').value || t.date,
+        desc: pole('edit-desc').value.trim() || t.desc,
+        amount: isNaN(kwota) ? Math.abs(t.amount) : Math.abs(kwota),
+        category: pole('edit-cat').value || t.category,
+        contractor_id: pole('edit-cont').value ? parseInt(pole('edit-cont').value) : null,
+    };
+}
+
 window.makeRecurringFromTransaction = function(txId) {
     const t = transactions.find(x => x.id === txId);
     if (!t) return;
@@ -228,11 +250,13 @@ window.makeRecurringFromTransaction = function(txId) {
         return;
     }
 
+    const src = recurringSourceValues(t);
+
     // Ten sam kontrahent na tym samym koncie ma już harmonogram — prawdopodobnie
     // użytkownik klika drugi raz na kolejnej racie tej samej subskrypcji.
     const istniejacy = recurringTransactions.find(r =>
         r.is_active && r.account_id === t.account_id &&
-        r.contractor_id != null && r.contractor_id === t.contractor_id
+        r.contractor_id != null && r.contractor_id === src.contractor_id
     );
     if (istniejacy && !confirm(
         `Dla tego kontrahenta na tym koncie istnieje już aktywny harmonogram „${istniejacy.title}". Założyć kolejny?`
@@ -240,19 +264,19 @@ window.makeRecurringFromTransaction = function(txId) {
 
     openRecurringModal();  // wypełnia listy kategorii i kont — musi pójść przed wartościami
 
-    const category = categories.find(c => c.name === t.category);
-    document.getElementById('rec-desc').value = t.desc || '';
-    document.getElementById('rec-amount').value = Math.abs(t.amount).toFixed(2);
+    const category = categories.find(c => c.name === src.category);
+    document.getElementById('rec-desc').value = src.desc || '';
+    document.getElementById('rec-amount').value = src.amount.toFixed(2);
     document.getElementById('rec-category').value = category ? category.id : '';
     document.getElementById('rec-account').value = t.account_id;
-    document.getElementById('rec-contractor').value = t.contractor_id || '';
+    document.getElementById('rec-contractor').value = src.contractor_id || '';
 
-    const txDay = new Date(t.date + 'T00:00:00');
+    const txDay = new Date(src.date + 'T00:00:00');
     document.getElementById('rec-day-of-month').value = txDay.getDate();
     document.getElementById('rec-day-of-week').value = (txDay.getDay() + 6) % 7;  // JS: 0=niedziela, my: 0=poniedziałek
 
     const startInput = document.getElementById('rec-start-date');
-    startInput.dataset.txDate = t.date;
+    startInput.dataset.txDate = src.date;
     syncRecStartDateToFrequency();
 
     const form = document.getElementById('recurring-form');

@@ -1,6 +1,7 @@
 from app import db
 from app.models import Transaction, TransactionArchive, TransactionSplit, Account
 from app.services.category_service import find_by_name as find_category_by_name
+from app.services.contractor_service import find_owned as find_contractor_owned
 from datetime import datetime
 from decimal import Decimal
 import json
@@ -116,7 +117,13 @@ def update_transaction(user_token, tx_id, data):
             tx.category_id = cat.id if cat else tx.category_id
         if 'contractor_id' in data:
             cid = data.get('contractor_id')
-            tx.contractor_id = int(cid) if cid else None
+            if cid:
+                contractor = find_contractor_owned(user_token, int(cid))
+                if not contractor:
+                    raise ValueError(f"Kontrahent o ID {cid} nie istnieje lub brak uprawnień.")
+                tx.contractor_id = contractor.id
+            else:
+                tx.contractor_id = None
         if 'comment' in data:
             tx.comment = data.get('comment') or None
 

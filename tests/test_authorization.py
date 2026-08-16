@@ -9,6 +9,7 @@ from app import db
 from app.models import (
     Account, Category, Contractor, Transaction, TransactionStaging,
     TransactionArchive, RecurringTransaction, PlannedTransaction, Frequency,
+    StatementImport,
 )
 from tests.conftest import login_as
 
@@ -183,9 +184,94 @@ def test_intruder_cannot_create_transaction_with_foreign_contractor(intruder_cli
         'title': 'Test', 'amount': '-10.00', 'date': '2024-01-15',
         'account_id': my_acc.id, 'contractor_id': owner_data['contractor'].id,
     })
-    # Transakcja może powstać, ale nazwa cudzego kontrahenta nie może wyciec
-    if resp.status_code == 201:
-        assert resp.get_json().get('contractor_name') is None
+    # Kontrahent jest walidowany w create_transaction — cudze ID odrzucone jako błąd,
+    # transakcja w ogóle nie powstaje (patrz #127).
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.query(Transaction).filter_by(account_id=my_acc.id).count() == 0
+
+
+def test_intruder_cannot_set_foreign_contractor_on_own_transaction(intruder_client, owner_data, other_user):
+    """Intruz edytuje WŁASNĄ transakcję, ale podaje CUDZY contractor_id — odrzucone (#127).
+
+    Odtwarza SONDĘ A z przeglądu kodu 2026-08-16: przed poprawką PUT zwracał 200
+    i podpinał cudzego kontrahenta, którego nazwa potem wyciekała przez /api/init."""
+    my_acc = Account(name="Konto Intruza", bank_name="Bank", balance=Decimal("0.00"), user_token=other_user.token)
+    db.session.add(my_acc)
+    db.session.commit()
+    my_tx = Transaction(date=date(2024, 1, 15), title="Moja transakcja", amount=Decimal("-10.00"),
+                        account_id=my_acc.id, user_token=other_user.token)
+    db.session.add(my_tx)
+    db.session.commit()
+
+    resp = intruder_client.put(f'/api/transactions/{my_tx.id}', json={'contractor_id': owner_data['contractor'].id})
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(Transaction, my_tx.id).contractor_id is None
+
+
+def test_intruder_cannot_set_foreign_category_on_recurring_or_planned(intruder_client, owner_data, test_user, other_user):
+    """Intruz zakłada WŁASNĄ transakcję cykliczną/zaplanowaną, ale podaje CUDZY
+    PRYWATNY category_id — odrzucone (#127, issue macierzysty tej rodziny luk).
+
+    Kategoria musi być prywatna (user_token != NULL) — globalne kategorie (owner_data
+    tworzy taką domyślnie) są celowo widoczne dla wszystkich, więc nie testują luki.
+
+    Odtwarza SONDĘ C z przeglądu kodu 2026-08-16: przed poprawką POST zwracał 201
+    i zapisywał cudzy category_id wprost do definicji harmonogramu."""
+    my_acc = Account(name="Konto Intruza", bank_name="Bank", balance=Decimal("0.00"), user_token=other_user.token)
+    private_cat = Category(name="Prywatna kategoria ofiary", type="expense", user_token=test_user.token)
+    db.session.add_all([my_acc, private_cat])
+    db.session.commit()
+    foreign_cat_id = private_cat.id
+
+    resp_rec = intruder_client.post('/api/recurring-transactions/', json={
+        'account_id': my_acc.id, 'category_id': foreign_cat_id, 'title': 'Test cykliczny',
+        'amount': '-100.00', 'frequency': 'monthly', 'day_of_month': 5,
+        'start_date': '2024-01-01',
+    })
+    assert resp_rec.status_code == 400
+    db.session.expire_all()
+    assert db.session.query(RecurringTransaction).filter_by(user_token=other_user.token).count() == 0
+
+    resp_planned = intruder_client.post('/api/planned-transactions/', json={
+        'account_id': my_acc.id, 'category_id': foreign_cat_id, 'title': 'Test zaplanowany',
+        'amount': '-50.00', 'execution_date': '2024-07-01',
+    })
+    assert resp_planned.status_code == 400
+    db.session.expire_all()
+    assert db.session.query(PlannedTransaction).filter_by(user_token=other_user.token).count() == 0
+
+
+def test_intruder_cannot_import_to_foreign_account(intruder_client, owner_data, other_user):
+    """Intruz wgrywa wyciąg wskazując CUDZE account_id w formularzu — odrzucone (#127).
+
+    Odtwarza SONDĘ D z przeglądu kodu 2026-08-16: przed poprawką import na CSV bez
+    wykrywalnego IBAN-u (ing, plik jednokontowy) w ogóle nie sprawdzał właściciela
+    konta — powstawał wiersz stagingu ORAZ wpis w statement_imports na cudzym koncie,
+    co po cichu wyłączało generowanie lustra przelewu wewnętrznego na koncie ofiary."""
+    import io
+    victim_acc = owner_data['account']
+    csv_content = (
+        "Data transakcji;Dane kontrahenta;Tytuł;Nr rachunku;Kwota transakcji (waluta rachunku)\n"
+        "2024-01-05;SKLEP;Zakupy;;-25,00\n"
+    )
+    resp = intruder_client.post(
+        '/api/import/ing',
+        data={'file': (io.BytesIO(csv_content.encode('utf-8')), 'wyciag.csv'),
+              'account_id': str(victim_acc.id)},
+        content_type='multipart/form-data',
+    )
+    assert resp.status_code == 400
+    db.session.expire_all()
+    # Filtr po user_token intruza (nie account_id samo w sobie) — owner_data już
+    # zakłada jeden legalny wiersz stagingu na tym koncie dla właściciela.
+    assert db.session.query(TransactionStaging).filter_by(
+        user_token=other_user.token, account_id=victim_acc.id
+    ).count() == 0
+    assert db.session.query(StatementImport).filter_by(
+        user_token=other_user.token, account_id=victim_acc.id
+    ).count() == 0
 
 
 def test_intruder_sees_only_own_data_in_init(intruder_client, owner_data):

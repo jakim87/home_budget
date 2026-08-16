@@ -7,8 +7,8 @@ function renderContractors() {
         li.className = 'py-3 px-3 flex justify-between items-center group';
         li.innerHTML = `
             <div>
-                <span class="font-medium text-slate-700 block">${c.name}</span>
-                <span class="text-xs text-slate-400 block break-all">Reguły: ${c.rules || '-'}</span>
+                <span class="font-medium text-slate-700 block">${escapeHtml(c.name)}</span>
+                <span class="text-xs text-slate-400 block break-all">Reguły: ${escapeHtml(c.rules || '-')}</span>
             </div>
             <div class="flex gap-1">
                 <button onclick="editContractor(${c.id})" class="text-slate-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100" title="Edytuj kontrahenta">

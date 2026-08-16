@@ -6,6 +6,10 @@ BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+# Testy są z definicji środowiskiem dev/debug — ustawione PRZED importem config,
+# żeby SECRET_KEY miał dostępny fallback (config.py wymaga go poza trybem debug).
+os.environ.setdefault('FLASK_DEBUG', '1')
+
 from app import create_app, db
 from config import Config
 from app.models import User

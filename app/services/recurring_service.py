@@ -4,6 +4,7 @@ from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 from dateutil.relativedelta import relativedelta
 from app.services.budget_service import create_transaction as create_standard_transaction
+from app.services.category_service import find_owned as find_category_owned
 import logging
 
 logger = logging.getLogger(__name__)
@@ -106,9 +107,10 @@ def get_recurring_preview(user_token, year: int, month: int) -> list:
     return result
 
 
-def _validate_refs(user_token, account_id, contractor_id):
-    """Sprawdza, że konto i (opcjonalnie) kontrahent należą do użytkownika i są aktywne.
-    Bez tego błędne ID ujawniłoby się dopiero w nocnym przetwarzaniu jako wieczny błąd w logach."""
+def _validate_refs(user_token, account_id, contractor_id, category_id=None):
+    """Sprawdza, że konto, kontrahent i kategoria należą/są widoczne dla użytkownika.
+    Bez tego błędne ID ujawniłoby się dopiero w nocnym przetwarzaniu jako wieczny błąd
+    w logach — albo, dla category_id, pozwoliłoby podpiąć cudzą prywatną kategorię (#127)."""
     account = db.session.query(Account).filter_by(
         id=account_id, user_token=user_token, is_active=True
     ).first()
@@ -120,12 +122,15 @@ def _validate_refs(user_token, account_id, contractor_id):
         ).first()
         if not contractor:
             raise ValueError("Kontrahent nie istnieje, jest nieaktywny lub brak uprawnień.")
+    if category_id is not None:
+        if not find_category_owned(user_token, category_id):
+            raise ValueError("Kategoria nie istnieje, jest nieaktywna lub brak uprawnień.")
 
 
 def create_recurring_transaction(user_token, data):
     """Creates a new recurring transaction definition with improved clarity."""
     try:
-        _validate_refs(user_token, data['account_id'], data.get('contractor_id'))
+        _validate_refs(user_token, data['account_id'], data.get('contractor_id'), data.get('category_id'))
         next_run_date = _calculate_first_occurrence_date(
             start_date=data['start_date'],
             frequency=data['frequency'],
@@ -165,11 +170,12 @@ def update_recurring_transaction(user_token, rec_tx_id, data):
         if not rec_tx or rec_tx.user_token != user_token:
             raise ValueError("Recurring transaction not found or access denied.")
 
-        if 'account_id' in data or 'contractor_id' in data:
+        if 'account_id' in data or 'contractor_id' in data or 'category_id' in data:
             _validate_refs(
                 user_token,
                 data.get('account_id', rec_tx.account_id),
-                data.get('contractor_id', rec_tx.contractor_id)
+                data.get('contractor_id', rec_tx.contractor_id),
+                data.get('category_id', rec_tx.category_id)
             )
 
         rec_tx.title = data.get('title', rec_tx.title)

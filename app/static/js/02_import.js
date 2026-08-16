@@ -145,7 +145,7 @@ async function importManyFiles(files) {
 
         const row = document.createElement('div');
         row.className = 'flex items-center justify-between gap-2 px-3 py-2';
-        row.innerHTML = `<span class="truncate text-slate-700">${file.name}</span><span class="shrink-0 text-slate-400">…</span>`;
+        row.innerHTML = `<span class="truncate text-slate-700">${escapeHtml(file.name)}</span><span class="shrink-0 text-slate-400">…</span>`;
         importResults.appendChild(row);
         const statusEl = row.lastElementChild;
 
@@ -215,12 +215,12 @@ async function renderImportHistory() {
             const konto = r.account_name || 'konto nieznane';
             return `<div class="px-3 py-2">
                 <div class="flex items-center justify-between gap-2">
-                    <span class="font-medium text-slate-700 truncate">${konto}</span>
+                    <span class="font-medium text-slate-700 truncate">${escapeHtml(konto)}</span>
                     <span class="shrink-0 text-slate-500">${r.transaction_count} tx</span>
                 </div>
                 <div class="flex items-center justify-between gap-2 mt-0.5 text-slate-500">
-                    <span class="truncate" title="${r.filename}">${r.filename}</span>
-                    <span class="shrink-0 uppercase text-[10px] tracking-wide text-slate-400">${r.bank}/${r.file_format}</span>
+                    <span class="truncate" title="${escapeHtml(r.filename)}">${escapeHtml(r.filename)}</span>
+                    <span class="shrink-0 uppercase text-[10px] tracking-wide text-slate-400">${escapeHtml(r.bank)}/${escapeHtml(r.file_format)}</span>
                 </div>
                 <div class="text-slate-400 mt-0.5">${okres} · wgrano ${r.imported_at || ''}</div>
             </div>`;

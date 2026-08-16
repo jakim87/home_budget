@@ -31,8 +31,8 @@ function rptInitDropdowns() {
         accList.innerHTML = accounts.map(a => `
             <label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm text-slate-700">
                 <input type="checkbox" class="rpt-acc-check rounded text-blue-600 focus:ring-blue-400 border-slate-300 cursor-pointer" value="${a.id}" checked onchange="applyRptFilters()">
-                <span class="flex-1">${a.name}</span>
-                <span class="text-xs text-slate-400">${a.bank_name || ''}</span>
+                <span class="flex-1">${escapeHtml(a.name)}</span>
+                <span class="text-xs text-slate-400">${escapeHtml(a.bank_name || '')}</span>
             </label>`).join('');
     }
 
@@ -50,7 +50,7 @@ function rptInitDropdowns() {
                 const dimmed = (type === 'transfer' || type === 'system_reconciliation') ? 'text-slate-400' : 'text-slate-700';
                 html += `<label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm ${dimmed}">
                     <input type="checkbox" class="rpt-cat-check rounded text-blue-600 focus:ring-blue-400 border-slate-300 cursor-pointer" value="${c.id}" onchange="applyRptFilters()">
-                    <span>${c.name}</span>
+                    <span>${escapeHtml(c.name)}</span>
                 </label>`;
             });
         });
@@ -66,9 +66,9 @@ function rptInitDropdowns() {
     const contList = document.getElementById('rpt-contractors-list');
     if (contList) {
         contList.innerHTML = contractors.map(c => `
-            <label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm text-slate-700 rpt-cont-row" data-name="${c.name.toLowerCase()}">
+            <label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm text-slate-700 rpt-cont-row" data-name="${escapeHtml(c.name.toLowerCase())}">
                 <input type="checkbox" class="rpt-cont-check rounded text-blue-600 focus:ring-blue-400 border-slate-300 cursor-pointer" value="${c.id}" checked onchange="applyRptFilters()">
-                <span>${c.name}</span>
+                <span>${escapeHtml(c.name)}</span>
             </label>`).join('') || '<p class="text-xs text-slate-400 p-2">Brak kontrahentów</p>';
     }
 }
@@ -389,16 +389,16 @@ function renderRptTable() {
         return `<tr class="hover:bg-slate-50 transition-colors">
             <td class="p-4 text-sm text-slate-500 whitespace-nowrap">${tx.date}</td>
             <td class="p-4 text-sm text-slate-800 max-w-xs">
-                <span class="block truncate" title="${tx.desc}">${tx.desc}</span>
-                ${tx.comment ? `<span class="text-xs text-slate-400 truncate block" title="${tx.comment}">${tx.comment}</span>` : ''}
+                <span class="block truncate" title="${escapeHtml(tx.desc)}">${escapeHtml(tx.desc)}</span>
+                ${tx.comment ? `<span class="text-xs text-slate-400 truncate block" title="${escapeHtml(tx.comment)}">${escapeHtml(tx.comment)}</span>` : ''}
             </td>
             <td class="p-4 text-sm text-slate-600 max-w-[160px]">
-                <span class="block truncate">${tx.contractor_name || '<span class="text-slate-300">—</span>'}</span>
+                <span class="block truncate">${tx.contractor_name ? escapeHtml(tx.contractor_name) : '<span class="text-slate-300">—</span>'}</span>
             </td>
             <td class="p-4">
-                <span class="text-xs px-2 py-0.5 rounded-full font-medium border ${catBadge}">${tx.category}</span>
+                <span class="text-xs px-2 py-0.5 rounded-full font-medium border ${catBadge}">${escapeHtml(tx.category)}</span>
             </td>
-            <td class="p-4 text-sm text-slate-500 whitespace-nowrap">${accMap[tx.account_id] || '—'}</td>
+            <td class="p-4 text-sm text-slate-500 whitespace-nowrap">${escapeHtml(accMap[tx.account_id] || '—')}</td>
             <td class="p-4 text-sm font-semibold ${amtClass} text-right whitespace-nowrap">${amtText}</td>
         </tr>`;
     }).join('') || `<tr><td colspan="6" class="p-10 text-center text-slate-400 text-sm">Brak transakcji spełniających kryteria filtrów.</td></tr>`;

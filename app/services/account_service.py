@@ -42,18 +42,28 @@ def resolve_statement_account(user_token, statement_ibans, chosen_account_id=Non
     """
     from app.services.budget_service import _normalize_acc_num
 
+    accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+
+    # Własność chosen_account_id sprawdzana ZAWSZE i jako pierwsza rzecz — niezależnie
+    # od statement_ibans. Bez tego, gdy wyciąg nie deklaruje IBAN-u (np. ING CSV
+    # jednokontowy), cudze konto przechodziłoby przez tę funkcję bez żadnej kontroli (#127).
+    chosen = None
+    if chosen_account_id:
+        chosen = next((a for a in accounts if a.id == int(chosen_account_id)), None)
+        if chosen is None:
+            raise ValueError("Wybrane konto nie istnieje, jest nieaktywne lub brak uprawnień.")
+
     if not statement_ibans:
-        return chosen_account_id, None
+        return (chosen.id if chosen else chosen_account_id), None
 
     norm_iban = _normalize_acc_num(statement_ibans[0])
     masked = f"{norm_iban[:2]}...{norm_iban[-4:]}"
-    accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
     matched = next(
         (a for a in accounts if a.account_number and _normalize_acc_num(a.account_number) == norm_iban),
         None
     )
 
-    if not chosen_account_id:
+    if not chosen:
         if matched:
             return matched.id, matched
         raise ValueError(
@@ -61,17 +71,16 @@ def resolve_statement_account(user_token, statement_ibans, chosen_account_id=Non
             "Dodaj konto z tym numerem rachunku w Słownikach albo wybierz konto ręcznie."
         )
 
-    chosen = next((a for a in accounts if a.id == int(chosen_account_id)), None)
-    chosen_num_differs = bool(chosen and chosen.account_number
+    chosen_num_differs = bool(chosen.account_number
                               and _normalize_acc_num(chosen.account_number) != norm_iban)
-    matched_is_other = bool(matched and chosen and matched.id != chosen.id)
+    matched_is_other = bool(matched and matched.id != chosen.id)
     if chosen_num_differs or matched_is_other:
         raise ValueError(
             f"Wyciąg dotyczy rachunku {masked}, a wybrano konto '{chosen.name}' o innym numerze. "
             f"{'Rachunek z wyciągu pasuje do konta: ' + matched.name + '. ' if matched else ''}"
             "Wybierz właściwe konto lub pozostaw wybór automatyczny."
         )
-    return chosen_account_id, None
+    return chosen.id, None
 
 
 def create_account(user_token, data):

@@ -218,7 +218,7 @@ function renderCategories() {
         li.className = 'py-3 px-3 flex justify-between items-center group';
         li.innerHTML = `
             <div class="flex items-center gap-3">
-                <span class="font-medium text-slate-700">${c.name}</span>
+                <span class="font-medium text-slate-700">${escapeHtml(c.name)}</span>
                 ${typeLabel}
             </div>
             <button onclick="deleteCategory('${c.name}')" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 ${isUsed ? 'hidden' : ''}" title="Usuń kategorię">

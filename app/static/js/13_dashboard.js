@@ -57,8 +57,8 @@ function renderDashboard() {
                 return `
                 <button type="button" onclick="toggleDashboardAccount(${a.id})" aria-pressed="${selected}"
                     class="text-left bg-white p-4 rounded-xl border shadow-sm transition-colors hover:border-blue-400 ${selected ? 'border-blue-600 ring-2 ring-blue-200' : 'border-slate-200'}">
-                    <p class="text-xs font-medium text-slate-500 truncate">${a.name}${a.bank_name ? ` · ${a.bank_name}` : ''}</p>
-                    ${(a.owner || a.co_owner) ? `<p class="text-xs text-slate-400 truncate">${[a.owner, a.co_owner].filter(Boolean).join(' / ')}</p>` : ''}
+                    <p class="text-xs font-medium text-slate-500 truncate">${escapeHtml(a.name)}${a.bank_name ? ` · ${escapeHtml(a.bank_name)}` : ''}</p>
+                    ${(a.owner || a.co_owner) ? `<p class="text-xs text-slate-400 truncate">${escapeHtml([a.owner, a.co_owner].filter(Boolean).join(' / '))}</p>` : ''}
                     <p class="text-lg font-bold ${a.balance >= 0 ? 'text-slate-800' : 'text-rose-600'} mt-1">${a.balance.toFixed(2)} PLN</p>
                 </button>
                 `;
@@ -80,8 +80,8 @@ function renderDashboard() {
             recentEl.innerHTML = recent.map(t => `
                 <div class="px-4 py-3 flex justify-between items-center hover:bg-slate-50">
                     <div class="min-w-0 mr-4">
-                        <p class="text-sm font-medium text-slate-800 truncate">${t.desc}</p>
-                        <p class="text-xs text-slate-400">${t.date} · ${t.category}${t.contractor_name ? ` · ${t.contractor_name}` : ''}</p>
+                        <p class="text-sm font-medium text-slate-800 truncate">${escapeHtml(t.desc)}</p>
+                        <p class="text-xs text-slate-400">${t.date} · ${escapeHtml(t.category)}${t.contractor_name ? ` · ${escapeHtml(t.contractor_name)}` : ''}</p>
                     </div>
                     <span class="text-sm font-bold whitespace-nowrap ${t.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${t.amount >= 0 ? '+' : ''}${t.amount.toFixed(2)} PLN</span>
                 </div>

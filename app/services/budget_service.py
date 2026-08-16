@@ -1,7 +1,8 @@
 from app import db
 from app.models import Transaction, Account, TransactionStaging, Contractor, Category, TransactionSplit
 from app.services.import_history_service import account_has_statement_imports
-from app.services.category_service import find_by_name as find_category_by_name
+from app.services.category_service import find_by_name as find_category_by_name, find_owned as find_category_owned
+from app.services.contractor_service import find_owned as find_contractor_owned
 from datetime import date, timedelta
 from typing import Optional
 from decimal import Decimal, InvalidOperation
@@ -116,11 +117,17 @@ def create_transaction(
         # wewnętrznego — transakcja z historycznym, wyłączonym kontrahentem jest OK).
         contractor_obj = None
         if contractor_id:
-            contractor_obj = db.session.query(Contractor).filter_by(
-                id=contractor_id, user_token=user_token
-            ).first()
+            contractor_obj = find_contractor_owned(user_token, contractor_id)
             if not contractor_obj:
                 raise ValueError(f"Kontrahent o ID {contractor_id} nie istnieje lub brak uprawnień.")
+
+        # Kategoria musi być widoczna dla użytkownika (własna lub globalna) — bez tego
+        # można było podpiąć cudzą prywatną kategorię (patrz #127).
+        category_obj = None
+        if category_id:
+            category_obj = find_category_owned(user_token, category_id)
+            if not category_obj:
+                raise ValueError(f"Kategoria o ID {category_id} nie istnieje lub brak uprawnień.")
 
         # Ścieżki harmonogramu wołają tę funkcję z source_*_id — pochodzenie wynika
         # z nich wprost, więc recurring_service/planned_transaction_service nie muszą
@@ -163,8 +170,7 @@ def create_transaction(
         # --- LOGIKA PRZELEWÓW WEWNĘTRZNYCH ---
         if (category_id and contractor_obj and contractor_obj.is_active
                 and contractor_obj.name.startswith("Moje konto: ")):
-            category = db.session.get(Category, category_id)
-            if category and category.type == 'transfer':
+            if category_obj and category_obj.type == 'transfer':
                 _handle_internal_transfer(
                     user_token, account, new_transaction, contractor_obj,
                     amount, title, transaction_date, category_id, preserve_sign

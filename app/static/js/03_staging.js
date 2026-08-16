@@ -238,8 +238,8 @@ function renderStaging() {
                 <label class="flex items-start gap-1.5 py-0.5 cursor-pointer">
                     <input type="radio" name="dup-${t.id}" value="${c.id}" ${i === 0 ? 'checked' : ''} class="mt-0.5 shrink-0">
                     <span class="text-slate-700">
-                        ${c.date} · <span class="font-medium">${c.title}</span>${c.contractor ? ` · ${c.contractor}` : ''}
-                        <span class="text-slate-500">(${c.category || 'bez kategorii'}, ${ORIGIN_LABELS[c.origin] || c.origin}${c.days_diff ? `, różnica ${c.days_diff} dni` : ''})</span>
+                        ${c.date} · <span class="font-medium">${escapeHtml(c.title)}</span>${c.contractor ? ` · ${escapeHtml(c.contractor)}` : ''}
+                        <span class="text-slate-500">(${escapeHtml(c.category || 'bez kategorii')}, ${ORIGIN_LABELS[c.origin] || c.origin}${c.days_diff ? `, różnica ${c.days_diff} dni` : ''})</span>
                     </span>
                 </label>`).join('')}
                 <button onclick="dismissStagingDuplicate(${t.id})" class="mt-1.5 text-xs bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded font-medium transition-colors">To ta sama — odrzuć wiersz</button>
@@ -251,14 +251,14 @@ function renderStaging() {
             <td class="p-3 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
             <td class="p-3 border-b border-slate-100 font-medium text-slate-800 break-words">
                 <div class="flex flex-wrap items-center gap-1.5 mb-0.5">
-                    <span>${t.title}</span>
+                    <span>${escapeHtml(t.title)}</span>
                     ${badgeHtml}
                 </div>
-                ${t.contractor ? `<div class="text-xs text-slate-500 font-normal mt-0.5 break-all">${t.contractor}</div>` : ''}
+                ${t.contractor ? `<div class="text-xs text-slate-500 font-normal mt-0.5 break-all">${escapeHtml(t.contractor)}</div>` : ''}
                 ${t.transfer_from ? `<div class="flex items-center gap-1 mt-1 text-xs text-sky-700 font-medium">
-                    <span>Z: ${t.transfer_from.name}${t.transfer_from.abbrev ? ` <span class="text-sky-500 font-normal">(${t.transfer_from.abbrev})</span>` : ''}</span>
+                    <span>Z: ${escapeHtml(t.transfer_from.name)}${t.transfer_from.abbrev ? ` <span class="text-sky-500 font-normal">(${escapeHtml(t.transfer_from.abbrev)})</span>` : ''}</span>
                     <span class="text-sky-400">→</span>
-                    <span>Na: ${t.transfer_to.name}${t.transfer_to.abbrev ? ` <span class="text-sky-500 font-normal">(${t.transfer_to.abbrev})</span>` : ''}</span>
+                    <span>Na: ${escapeHtml(t.transfer_to.name)}${t.transfer_to.abbrev ? ` <span class="text-sky-500 font-normal">(${escapeHtml(t.transfer_to.abbrev)})</span>` : ''}</span>
                 </div>` : ''}
                 ${dupHtml}
             </td>
@@ -266,7 +266,7 @@ function renderStaging() {
                 ${hasSuggestion ? `
                 <div class="flex items-center gap-1 mb-2 p-1.5 bg-amber-50 border border-amber-200 rounded-lg">
                     <span class="text-xs text-amber-700 font-medium shrink-0">Sugestia:</span>
-                    <input type="text" id="suggested-name-${t.id}" value="${t.suggested_contractor_name}" class="flex-1 text-xs p-1 border border-amber-300 rounded focus:ring-1 focus:ring-amber-400 outline-none min-w-0">
+                    <input type="text" id="suggested-name-${t.id}" value="${escapeHtml(t.suggested_contractor_name)}" class="flex-1 text-xs p-1 border border-amber-300 rounded focus:ring-1 focus:ring-amber-400 outline-none min-w-0">
                     <button onclick="acceptSuggestedContractor(${t.id})" class="shrink-0 text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded font-medium transition-colors whitespace-nowrap">Akceptuj</button>
                 </div>` : ''}
                 ${isTransfer ? `

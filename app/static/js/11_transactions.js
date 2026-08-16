@@ -113,10 +113,6 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
     }
 });
 
-function escapeHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 window.toggleComment = function(uid) {
     const s = document.getElementById(uid + '-s');
     const f = document.getElementById(uid + '-f');
@@ -237,7 +233,7 @@ function renderTransactions() {
                     <td class="p-2 border-b border-blue-100">
                         ${isSplit ?
                             `<span class="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded">Edycja podziału w oknie</span>
-                             <input type="hidden" id="edit-cat-${t.id}" value="${t.category}">`
+                             <input type="hidden" id="edit-cat-${t.id}" value="${escapeHtml(t.category)}">`
                             :
                             `<select id="edit-cat-${t.id}" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                                 ${getCategoryOptionsHtml(t.category, false)}
@@ -245,7 +241,7 @@ function renderTransactions() {
                         }
                     </td>
                     <td class="p-2 border-b border-blue-100">
-                        <input type="text" id="edit-desc-${t.id}" value="${t.desc}" oninput="handleAutoFill(this.value, document.getElementById('edit-cont-${t.id}'), document.getElementById('edit-cat-${t.id}'))" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                        <input type="text" id="edit-desc-${t.id}" value="${escapeHtml(t.desc)}" oninput="handleAutoFill(this.value, document.getElementById('edit-cont-${t.id}'), document.getElementById('edit-cat-${t.id}'))" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                     </td>
                     <td class="p-2 border-b border-blue-100">
                         <input type="text" id="edit-comment-${t.id}" value="${escapeHtml(t.comment || '')}" maxlength="255" placeholder="Komentarz..." class="w-full p-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-white">
@@ -297,16 +293,16 @@ function renderTransactions() {
                     <td class="p-4 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
                     ${accountCellHtml}
                     <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
-                        ${iconHtml}${t.contractor_name || t.contractor || '-'}
+                        ${iconHtml}${escapeHtml(t.contractor_name || t.contractor || '-')}
                     </td>
                     <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${isSplit ?
                             '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 font-medium text-xs border border-indigo-100" title="Transakcja rozbita na pozycje"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Sprawdź szczegóły</span>'
                             :
-                            t.category
+                            escapeHtml(t.category)
                         }
                     </td>
-                    <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${t.desc}${t.transfer_unmatched ? ` <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider align-middle" title="Przelew wewnętrzny bez drugiej strony — powiąże się automatycznie po zaimportowaniu wyciągu drugiego konta">Do zmapowania</span>` : ''}</td>
+                    <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${escapeHtml(t.desc)}${t.transfer_unmatched ? ` <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider align-middle" title="Przelew wewnętrzny bez drugiej strony — powiąże się automatycznie po zaimportowaniu wyciągu drugiego konta">Do zmapowania</span>` : ''}</td>
                     <td class="p-4 border-b border-slate-100 text-sm">${commentHtml}</td>
                     <td class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
                     <td class="p-4 border-b border-slate-100 text-center">

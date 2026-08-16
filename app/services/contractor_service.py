@@ -2,6 +2,19 @@ from app import db
 from app.models import Contractor, Category
 from app.services.category_service import find_by_name as find_category_by_name
 
+
+def find_owned(user_token, contractor_id):
+    """Kontrahent o danym ID należący do użytkownika, albo None.
+
+    Celowo BEZ filtra is_active — transakcja z historycznym, wyłączonym kontrahentem
+    jest dozwolona (patrz budget_service.create_transaction). Jedyne miejsce, w którym
+    kontrahent jest rozwiązywany po ID, żeby nie dało się podpiąć cudzego (patrz #127).
+    """
+    if not contractor_id:
+        return None
+    return db.session.query(Contractor).filter_by(id=contractor_id, user_token=user_token).first()
+
+
 def create_contractor(user_token, data):
     try:
         category = find_category_by_name(user_token, data.get('category'))

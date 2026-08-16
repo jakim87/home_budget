@@ -1,6 +1,7 @@
 from app import db
 from app.models import PlannedTransaction, Transaction, Account, Contractor
 from app.services.budget_service import create_transaction as create_standard_transaction
+from app.services.category_service import find_owned as find_category_owned
 from datetime import date
 import logging
 
@@ -21,6 +22,9 @@ def create_planned_transaction(user_token, data):
             ).first()
             if not contractor:
                 raise ValueError("Kontrahent nie istnieje, jest nieaktywny lub brak uprawnień.")
+        if data.get('category_id') is not None:
+            if not find_category_owned(user_token, data['category_id']):
+                raise ValueError("Kategoria nie istnieje, jest nieaktywna lub brak uprawnień.")
 
         planned_tx = PlannedTransaction(user_token=user_token, **data)
         db.session.add(planned_tx)

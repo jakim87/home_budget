@@ -37,6 +37,7 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
         if (!skipStagingRefresh) {
             await fetchPendingStaging(); // Po załadowaniu categories/contractors, żeby badge i dropdown były poprawne
         }
+        maybeOfferTour(); // Pusta aplikacja przy pierwszym wejściu -> propozycja samouczka
     } catch (error) {
         console.error('Błąd pobierania danych z API:', error);
         showToast('Nie udało się pobrać danych z serwera.', 'error');

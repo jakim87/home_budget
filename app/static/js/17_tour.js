@@ -142,6 +142,36 @@ const TOURS = {
     ],
 };
 
+// Propozycja samouczka przy pierwszym wejściu. Model User nie ma znacznika pierwszego
+// logowania, więc „nowego użytkownika" rozpoznajemy po jedynym sygnale, jaki mamy:
+// zero kont i zero operacji. Odpowiedź zapamiętuje przeglądarka, żeby nie pytać dwa razy.
+//
+// To wciąż nie jest auto-start: użytkownik świadomie decyduje, czy wejść w tour —
+// samo pytanie nie łamie zasady, że samouczek nie uruchamia się sam.
+const TOUR_OFFER_KEY = 'budget.tourOffered';
+
+window.maybeOfferTour = function() {
+    if (accounts.length || transactions.length) return;
+
+    try {
+        if (localStorage.getItem(TOUR_OFFER_KEY)) return;
+        // Zapis PRZED pytaniem — odmowa liczy się tak samo jak zgoda, inaczej
+        // pytalibyśmy przy każdym wejściu kogoś, kto raz powiedział „nie".
+        localStorage.setItem(TOUR_OFFER_KEY, '1');
+    } catch (e) {
+        // Przeglądarka bez dostępu do pamięci (tryb prywatny) — odpuszczamy pytanie.
+        // Lepiej nie zapytać wcale niż pytać przy każdym odświeżeniu.
+        return;
+    }
+
+    if (confirm(
+        'Witaj! Wygląda na to, że zaczynasz — chcesz przejść krótki samouczek?\n\n' +
+        'Możesz go uruchomić w dowolnym momencie przyciskiem „?" u góry strony.'
+    )) {
+        startTour();
+    }
+};
+
 // Uruchamiany wyłącznie kliknięciem „?" — samouczek startujący sam kończy dwa razy
 // mniej osób niż wywołany świadomie.
 function startTour() {

@@ -131,9 +131,9 @@ def test_update_transaction_splits(logged_in_client, app, test_user_token):
 def test_update_transaction_rejects_malformed_amount(logged_in_client, app, test_user_token):
     """Błędna kwota w PUT to 400 (walidacja wejścia), nie 500.
 
-    decimal.InvalidOperation NIE dziedziczy po ValueError, więc bez schematu
-    Marshmallow ten przypadek wychodził globalnym handlerem jako 500 — patrz
-    przegląd kodu 2026-08-16, punkt B4."""
+    Regresja: `decimal.InvalidOperation` NIE dziedziczy po `ValueError`, więc
+    `except ValueError` w blueprincie go nie łapał i przypadek wychodził globalnym
+    handlerem jako 500. Stąd `TransactionSchema(partial=True)` w tym endpoincie."""
     account = Account(name="Konto", bank_name="Bank", balance=Decimal("100.00"), user_token=test_user_token)
     db.session.add(account)
     db.session.commit()

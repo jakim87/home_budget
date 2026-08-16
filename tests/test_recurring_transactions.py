@@ -188,8 +188,9 @@ def test_weekly_aligns_to_day_of_week(app, setup_for_recurring):
 def test_api_update_recurring_rejects_invalid_payload(logged_in_client, app, setup_for_recurring):
     """Błędne dane w PUT to 400 (jak w POST), nie 500.
 
-    PUT łapał tylko ValueError, więc ValidationError z Marshmallow wychodził
-    globalnym handlerem jako 500 — patrz przegląd kodu 2026-08-16, punkt B5."""
+    Regresja: PUT łapał tylko `ValueError`, więc `ValidationError` z Marshmallow
+    wychodził globalnym handlerem jako 500 — w przeciwieństwie do POST, który
+    obsługiwał go od początku."""
     user_token, account_id, category_id = setup_for_recurring
     rec_tx = RecurringTransaction(
         user_token=user_token, account_id=account_id, title="Czynsz",

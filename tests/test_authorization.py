@@ -194,8 +194,10 @@ def test_intruder_cannot_create_transaction_with_foreign_contractor(intruder_cli
 def test_intruder_cannot_set_foreign_contractor_on_own_transaction(intruder_client, owner_data, other_user):
     """Intruz edytuje WŁASNĄ transakcję, ale podaje CUDZY contractor_id — odrzucone (#127).
 
-    Odtwarza SONDĘ A z przeglądu kodu 2026-08-16: przed poprawką PUT zwracał 200
-    i podpinał cudzego kontrahenta, którego nazwa potem wyciekała przez /api/init."""
+    Regresja: przed poprawką PUT zwracał 200 i podpinał cudzego kontrahenta, którego
+    nazwa potem wyciekała do intruza przez `contractor_name` w /api/init. Ten kształt
+    luki — własny zasób, cudze ID w treści żądania — omijał wszystkie testy IDOR
+    sprawdzające dostęp po ID w adresie."""
     my_acc = Account(name="Konto Intruza", bank_name="Bank", balance=Decimal("0.00"), user_token=other_user.token)
     db.session.add(my_acc)
     db.session.commit()
@@ -217,8 +219,9 @@ def test_intruder_cannot_set_foreign_category_on_recurring_or_planned(intruder_c
     Kategoria musi być prywatna (user_token != NULL) — globalne kategorie (owner_data
     tworzy taką domyślnie) są celowo widoczne dla wszystkich, więc nie testują luki.
 
-    Odtwarza SONDĘ C z przeglądu kodu 2026-08-16: przed poprawką POST zwracał 201
-    i zapisywał cudzy category_id wprost do definicji harmonogramu."""
+    Regresja: przed poprawką POST zwracał 201 i zapisywał cudzy category_id wprost do
+    definicji harmonogramu — obie ścieżki brały ID liczbą ze schematu, bez sprawdzenia
+    właściciela."""
     my_acc = Account(name="Konto Intruza", bank_name="Bank", balance=Decimal("0.00"), user_token=other_user.token)
     private_cat = Category(name="Prywatna kategoria ofiary", type="expense", user_token=test_user.token)
     db.session.add_all([my_acc, private_cat])
@@ -246,10 +249,11 @@ def test_intruder_cannot_set_foreign_category_on_recurring_or_planned(intruder_c
 def test_intruder_cannot_import_to_foreign_account(intruder_client, owner_data, other_user):
     """Intruz wgrywa wyciąg wskazując CUDZE account_id w formularzu — odrzucone (#127).
 
-    Odtwarza SONDĘ D z przeglądu kodu 2026-08-16: przed poprawką import na CSV bez
-    wykrywalnego IBAN-u (ing, plik jednokontowy) w ogóle nie sprawdzał właściciela
-    konta — powstawał wiersz stagingu ORAZ wpis w statement_imports na cudzym koncie,
-    co po cichu wyłączało generowanie lustra przelewu wewnętrznego na koncie ofiary."""
+    Regresja: przed poprawką import CSV bez wykrywalnego IBAN-u (ING, plik jednokontowy)
+    w ogóle nie sprawdzał właściciela konta — powstawał wiersz stagingu ORAZ wpis
+    w statement_imports na cudzym koncie. Ten drugi jest groźniejszy: to sygnał pokrycia
+    dla account_has_statement_imports(), więc zatrucie go po cichu wyłączało generowanie
+    lustra przelewu wewnętrznego na koncie ofiary — błędne saldo bez komunikatu."""
     import io
     victim_acc = owner_data['account']
     csv_content = (
@@ -287,9 +291,11 @@ def test_dev_reset_wipes_only_current_user_data(intruder_client, owner_data, tes
     """POST /api/dev/reset kasuje WYŁĄCZNIE dane wołającego — dane ofiary nietknięte.
 
     Najbardziej destrukcyjny endpoint w aplikacji (kasuje transakcje, staging, archiwum,
-    harmonogramy, budżety, kontrahentów i zeruje salda) — patrz przegląd kodu
-    2026-08-16, punkt D2. Test sprawdza obie strony: że reset faktycznie zadziałał
-    u wołającego ORAZ że nie ruszył cudzych wierszy w żadnej z tych tabel."""
+    harmonogramy, budżety, kontrahentów i zeruje salda) — przez długi czas bez żadnego
+    testu. Sprawdzamy obie strony: że reset faktycznie zadziałał u wołającego ORAZ że
+    nie ruszył cudzych wierszy w żadnej z tych tabel.
+
+    Uwaga: reset NIE czyści statement_imports — patrz #136."""
     # Ofiara dostaje jeszcze archiwum i budżet — obu owner_data nie zakłada,
     # a reset ich dotyka.
     victim_archive = TransactionArchive(original_id=999, title="Usunięta", amount=Decimal("-30.00"),

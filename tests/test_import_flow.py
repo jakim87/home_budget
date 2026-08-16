@@ -343,9 +343,8 @@ def test_staging_preview_resolves_destination_account(logged_in_client, app, tes
     (linked_account_id), jak i po nazwie konta.
 
     list_pending_staging rozwiązuje konto docelowe w pamięci, z już pobranej listy kont
-    (bez N+1 — patrz przegląd kodu 2026-08-16, punkt E3). Wynik musi być identyczny
-    z rozwiązaniem po bazie, bo podgląd nie może pokazywać czego innego niż zrobi
-    zatwierdzenie.
+    (bez N+1). Wynik musi być identyczny z rozwiązaniem po bazie, bo podgląd nie może
+    pokazywać czego innego niż zrobi zatwierdzenie — stąd obie ścieżki w jednym teście.
     """
     src = Account(name="ING Osobiste", bank_name="ING", account_number="PL61109010140000071219812874",
                   balance=Decimal("500.00"), user_token=test_user.token)

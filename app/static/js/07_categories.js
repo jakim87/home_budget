@@ -134,49 +134,37 @@ window.preferredFormAccountId = function() {
     return defaultAcc ? defaultAcc.id : null;
 }
 
+// Wypełnia listę kont, ZACHOWUJĄC dotychczasowy wybór. Podmiana <option> kasuje
+// zaznaczenie, a updateAccountSelects() biegnie po każdej mutacji (fetchInitialData) —
+// bez zapamiętania wyboru formularz wracałby do „Wybierz konto..." po każdym zapisie.
+// Konto podpowiadamy tylko przy pierwszym wypełnieniu: jeśli użytkownik świadomie
+// wybierze pustą pozycję, kolejne odświeżenie nie ma mu jej nadpisywać.
+function fillAccountSelect(elementId, optionsHtml, fallbackAccountId) {
+    const sel = document.getElementById(elementId);
+    if (!sel) return;
+
+    const previous = sel.value;
+    sel.innerHTML = optionsHtml;
+
+    if (previous) {
+        // Konto usunięte lub dezaktywowane nie ma już swojej <option> — przypisanie
+        // po cichu nie zadziała i lista wróci do pustej pozycji. To poprawne.
+        sel.value = previous;
+    } else if (fallbackAccountId && !sel.dataset.initialized) {
+        sel.value = fallbackAccountId;
+        sel.dataset.initialized = 'true';
+    }
+}
+
 function updateAccountSelects() {
     const defaultAcc = accounts.find(a => a.is_default) || (accounts.length > 0 ? accounts[0] : null);
     let html = '<option value="">Wybierz konto...</option>';
     accounts.forEach(a => html += `<option value="${a.id}">${a.name} ${a.bank_name ? `(${a.bank_name})` : ''} ${a.is_default ? '(Główne)' : ''}</option>`);
-    
-    const txAcc = document.getElementById('tx-account');
-    if (txAcc) {
-        txAcc.innerHTML = html;
-        if (!txAcc.dataset.initialized) {
-            const preferred = preferredFormAccountId();
-            if (preferred) {
-                txAcc.value = preferred;
-                txAcc.dataset.initialized = 'true';
-            }
-        }
-    }
-    
-    const impAcc = document.getElementById('import-account-select');
-    if (impAcc) {
-        impAcc.innerHTML = html;
-        if (defaultAcc && !impAcc.dataset.initialized) {
-            impAcc.value = defaultAcc.id;
-            impAcc.dataset.initialized = 'true';
-        }
-    }
 
-    const recAcc = document.getElementById('rec-account');
-    if (recAcc) {
-        recAcc.innerHTML = html;
-        if (defaultAcc && !recAcc.dataset.initialized) {
-            recAcc.value = defaultAcc.id;
-            recAcc.dataset.initialized = 'true';
-        }
-    }
-
-    const plannedAcc = document.getElementById('planned-account');
-    if (plannedAcc) {
-        plannedAcc.innerHTML = html;
-        if (defaultAcc && !plannedAcc.dataset.initialized) {
-            plannedAcc.value = defaultAcc.id;
-            plannedAcc.dataset.initialized = 'true';
-        }
-    }
+    fillAccountSelect('tx-account', html, preferredFormAccountId());
+    fillAccountSelect('import-account-select', html, defaultAcc ? defaultAcc.id : null);
+    fillAccountSelect('rec-account', html, defaultAcc ? defaultAcc.id : null);
+    fillAccountSelect('planned-account', html, defaultAcc ? defaultAcc.id : null);
 
     const globalAcc = document.getElementById('global-account-filter');
     if (globalAcc) {

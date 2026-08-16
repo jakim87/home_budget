@@ -98,9 +98,8 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
             document.getElementById('tx-contractor-input').value = '';
             document.getElementById('tx-comment').value = '';
             delete document.getElementById('tx-category').dataset.userSet;
-
-            const preferredAcc = preferredFormAccountId();
-            if (preferredAcc) document.getElementById('tx-account').value = preferredAcc;
+            // Konto zostaje takie, jakie wybrał użytkownik — kolejne transakcje zwykle
+            // idą na to samo konto. Nie nadpisujemy go kontem z „Widoku konta".
 
             showToast('Transakcja została zapisana pomyślnie.');
             fetchInitialData(); // Pobiera na nowo dane by odświeżyć globalne saldo

@@ -53,9 +53,14 @@
                 <button onclick="startTour()" title="Samouczek tej zakładki" class="p-2.5 bg-white border border-slate-200 text-slate-500 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600 rounded-xl shadow-sm transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 </button>
+                {# Kosz tylko tam, gdzie dev_bp jest zarejestrowany (patrz DEV_RESET_ENABLED
+                   w create_app). Bez tego przycisk widnieje na produkcji, a klikniecie
+                   konczy sie 404 — endpoint nie istnieje. #}
+                {% if config.DEV_RESET_ENABLED %}
                 <button onclick="resetDevData()" title="Wyczyść wszystkie dane testowe" class="p-2.5 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 hover:border-rose-400 rounded-xl shadow-sm transition-colors" >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                 </button>
+                {% endif %}
                 <button onclick="logout()" title="Wyloguj się" class="p-2.5 bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-700 rounded-xl shadow-sm transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                 </button>

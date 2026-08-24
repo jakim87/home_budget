@@ -1,0 +1,83 @@
+{% extends 'legal_base.html' %}
+
+{% block title %}Regulamin{% endblock %}
+{% block heading %}Regulamin aplikacji „Budżet domowy”{% endblock %}
+
+{% block content %}
+<h2>§ 1. Postanowienia ogólne</h2>
+<ol>
+    <li>Regulamin określa zasady korzystania z aplikacji webowej „Budżet domowy” (dalej: <strong>Aplikacja</strong>), służącej do prowadzenia domowego budżetu: ewidencji kont, importu wyciągów bankowych, kategoryzacji transakcji oraz raportowania.</li>
+    <li>Autorem Aplikacji jest <strong>{{ config.APP_AUTHOR }}</strong>. Kod źródłowy udostępniany jest na licencji MIT — treść licencji znajduje się w pliku <code>LICENSE</code> w repozytorium projektu.</li>
+    <li>Usługodawcą i administratorem tej instancji Aplikacji jest <strong>{{ config.APP_ADMIN_NAME }}</strong>, kontakt: <a href="mailto:{{ config.APP_CONTACT_EMAIL }}">{{ config.APP_CONTACT_EMAIL }}</a> (dalej: <strong>Usługodawca</strong>). Aplikację można uruchomić samodzielnie na własnym serwerze — wtedy Usługodawcą jest osoba, która to zrobiła.</li>
+    <li><strong>Użytkownik</strong> to osoba fizyczna, która założyła konto w Aplikacji.</li>
+    <li>Korzystanie z Aplikacji jest <strong>bezpłatne</strong> i ma charakter niekomercyjny. Projekt jest rozwijany również w celach edukacyjnych.</li>
+    <li>Zawarcie umowy o świadczenie usługi drogą elektroniczną następuje z chwilą założenia konta, a jej rozwiązanie — z chwilą usunięcia konta.</li>
+</ol>
+
+<h2>§ 2. Zakres usługi</h2>
+<ol>
+    <li>W ramach Aplikacji Użytkownik może w szczególności: prowadzić listę kont (bankowych, gotówkowych, oszczędnościowych, kredytowych), ręcznie dodawać transakcje, importować wyciągi bankowe (CSV, PDF, HTML), kategoryzować operacje, definiować transakcje cykliczne i zaplanowane, przeglądać dashboard i raporty.</li>
+    <li>Aplikacja <strong>nie łączy się z bankami</strong>: nie pobiera danych z rachunków automatycznie, nie zleca ani nie realizuje żadnych płatności. Dane trafiają do niej wyłącznie przez ręczne wprowadzenie albo wgranie pliku wyciągu przez Użytkownika.</li>
+    <li>Aplikacja nie jest instytucją finansową ani płatniczą i nie świadczy usług doradztwa finansowego, podatkowego ani inwestycyjnego.</li>
+    <li>Zakres funkcji może się zmieniać w kolejnych wersjach projektu.</li>
+</ol>
+
+<h2>§ 3. Warunki techniczne i założenie konta</h2>
+<ol>
+    <li>Do korzystania z Aplikacji potrzebna jest aktualna przeglądarka internetowa z włączoną obsługą JavaScriptu i plików cookie oraz dostęp do internetu.</li>
+    <li>Rejestracja wymaga podania nazwy użytkownika, adresu e-mail i hasła o długości co najmniej 10 znaków. Hasło przechowywane jest wyłącznie w postaci skrótu (hasha).</li>
+    <li><strong>Aplikacja nie wysyła wiadomości e-mail</strong>, w tym nie oferuje automatycznego odzyskiwania hasła. Utrata hasła może oznaczać utratę dostępu do konta — odzyskanie dostępu wymaga kontaktu z Usługodawcą.</li>
+    <li>Jeden Użytkownik prowadzi jedno konto. Dane jednego Użytkownika są odseparowane od danych pozostałych i nie są dla nich widoczne.</li>
+</ol>
+
+<h2>§ 4. Obowiązki Użytkownika</h2>
+<ol>
+    <li>Użytkownik zobowiązuje się zachować hasło w poufności i nie udostępniać konta osobom trzecim.</li>
+    <li>Użytkownik odpowiada za poprawność danych, które wprowadza lub importuje, oraz za ich zgodność z rzeczywistością.</li>
+    <li>Zabronione jest:
+        <ul>
+            <li>podejmowanie prób dostępu do danych innych Użytkowników,</li>
+            <li>zakłócanie działania Aplikacji, w tym zautomatyzowane, masowe odpytywanie serwera,</li>
+            <li>wgrywanie plików zawierających złośliwe oprogramowanie lub treści bezprawne,</li>
+            <li>wykorzystywanie Aplikacji do celów sprzecznych z prawem.</li>
+        </ul>
+    </li>
+    <li>Ze względów wydajnościowych i bezpieczeństwa obowiązują limity techniczne: maksymalny rozmiar wgrywanego pliku wynosi 10 MB, a liczba prób logowania i rejestracji z jednego adresu IP jest ograniczona. Przekroczenie limitu skutkuje czasową odmową obsługi żądania.</li>
+    <li>Rażące lub uporczywe naruszenie Regulaminu upoważnia Usługodawcę do zablokowania albo usunięcia konta, po uprzednim poinformowaniu Użytkownika — chyba że naruszenie zagraża bezpieczeństwu danych innych osób.</li>
+</ol>
+
+<h2>§ 5. Odpowiedzialność</h2>
+<ol>
+    <li>Aplikacja udostępniana jest w stanie, w jakim jest („as is”), zgodnie z licencją MIT, bez gwarancji w zakresie dopuszczalnym przez prawo.</li>
+    <li>Wyniki obliczeń (salda, sumy, raporty, wykrywanie przelewów wewnętrznych, automatyczna kategoryzacja) mają charakter <strong>pomocniczy</strong>. Użytkownik powinien weryfikować je z wyciągiem bankowym i nie opierać na nich wyłącznie decyzji finansowych ani rozliczeń podatkowych.</li>
+    <li>Usługodawca nie gwarantuje nieprzerwanej dostępności Aplikacji. Usługa może być czasowo niedostępna z powodu prac technicznych, aktualizacji lub awarii.</li>
+    <li>Usługodawca nie gwarantuje wykonywania kopii zapasowych danych Użytkownika. Zaleca się samodzielne zachowywanie oryginalnych wyciągów bankowych.</li>
+    <li>Powyższe ograniczenia nie wyłączają ani nie ograniczają odpowiedzialności w zakresie, w jakim nie może ona zostać wyłączona zgodnie z bezwzględnie obowiązującymi przepisami prawa, w szczególności wobec konsumentów.</li>
+</ol>
+
+<h2>§ 6. Reklamacje i zgłaszanie błędów</h2>
+<ol>
+    <li>Uwagi, reklamacje i zgłoszenia błędów można kierować na adres <a href="mailto:{{ config.APP_CONTACT_EMAIL }}">{{ config.APP_CONTACT_EMAIL }}</a> lub przez system zgłoszeń w repozytorium projektu.</li>
+    <li>Zgłoszenie powinno zawierać opis problemu oraz — jeśli to możliwe — kroki pozwalające go odtworzyć.</li>
+    <li>Usługodawca odpowiada na reklamacje w terminie do 30 dni od ich otrzymania.</li>
+</ol>
+
+<h2>§ 7. Usunięcie konta i danych</h2>
+<ol>
+    <li>Użytkownik może w każdej chwili zrezygnować z korzystania z Aplikacji.</li>
+    <li>Transakcje, konta, kategorie i kontrahentów Użytkownik usuwa samodzielnie w Aplikacji. Usunięte transakcje trafiają do archiwum (na potrzeby audytu i cofnięcia pomyłki) i są trwale kasowane po 60 dniach.</li>
+    <li>Aplikacja <strong>nie ma jeszcze przycisku „usuń konto”</strong>. Żądanie usunięcia konta wraz ze wszystkimi danymi należy zgłosić na adres <a href="mailto:{{ config.APP_CONTACT_EMAIL }}">{{ config.APP_CONTACT_EMAIL }}</a>; zostanie ono zrealizowane bez zbędnej zwłoki.</li>
+</ol>
+
+<h2>§ 8. Zmiany Regulaminu</h2>
+<ol>
+    <li>Usługodawca może zmienić Regulamin z ważnych przyczyn, w szczególności zmiany zakresu funkcji Aplikacji lub zmiany przepisów prawa.</li>
+    <li>O zmianie Usługodawca informuje przez publikację nowej treści na tej stronie wraz z datą aktualizacji. Dalsze korzystanie z Aplikacji po tej dacie oznacza akceptację zmian.</li>
+</ol>
+
+<h2>§ 9. Postanowienia końcowe</h2>
+<ol>
+    <li>Zasady przetwarzania danych osobowych opisuje <a href="{{ url_for('legal.polityka_prywatnosci') }}">Polityka prywatności (RODO)</a>.</li>
+    <li>W sprawach nieuregulowanych Regulaminem stosuje się przepisy prawa polskiego, w szczególności Kodeksu cywilnego oraz ustawy o świadczeniu usług drogą elektroniczną.</li>
+</ol>
+{% endblock %}

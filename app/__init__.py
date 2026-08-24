@@ -74,6 +74,7 @@ def create_app(config_class=Config):
     from app.blueprints.recurring_bp import recurring_bp # NEW
     from app.blueprints.planned_transactions_bp import planned_bp # NEW
     from app.blueprints.import_bp import import_bp
+    from app.blueprints.legal_bp import legal_bp
     from app.blueprints.dev_bp import dev_bp
 
     app.register_blueprint(auth_bp)
@@ -85,6 +86,7 @@ def create_app(config_class=Config):
     app.register_blueprint(recurring_bp) # NEW
     app.register_blueprint(planned_bp) # NEW
     app.register_blueprint(import_bp)
+    app.register_blueprint(legal_bp)
     # dev_bp zawiera destrukcyjny endpoint resetu danych — rejestrujemy go tylko
     # w trybie debug/testów lub gdy jawnie włączony zmienną ENABLE_DEV_RESET.
     if app.debug or app.testing or os.getenv('ENABLE_DEV_RESET') == '1':

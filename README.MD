@@ -19,6 +19,7 @@ Zrealizowane:
 - Ręczne wprowadzanie transakcji, również gotówkowych
 - Uwierzytelnianie użytkownika (logowanie, rejestracja)
 - Interaktywny samouczek w aplikacji
+- Regulamin, polityka prywatności (RODO) i informacja o autorze — strony `/regulamin`, `/polityka-prywatnosci`, `/o-aplikacji`
 
 Planowane:
 
@@ -193,7 +194,9 @@ budget/
 │   │   │                         #   prefiksów: 01_state.js … 17_tour.js, 99_bootstrap.js
 │   │   └── style.css             # Style uzupełniające Tailwind
 │   ├── templates/
-│   │   └── base.html             # Główny szablon HTML
+│   │   ├── base.html             # Główny szablon HTML (SPA)
+│   │   ├── legal_base.html       # Layout stron informacyjnych
+│   │   └── regulamin.html …      # Regulamin, polityka prywatności (RODO), O aplikacji
 │   ├── __init__.py               # Fabryka aplikacji Flask
 │   ├── models.py                 # Modele tabel bazy danych
 │   ├── schemas.py                # Schematy Marshmallow

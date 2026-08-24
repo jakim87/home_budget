@@ -72,6 +72,8 @@ pip install -r requirements.txt
 #            LOG_LEVEL=DEBUG|INFO|... (opcjonalny; domyślnie INFO — patrz Logging & Diagnostyka)
 #            ENABLE_DEV_RESET=1       (opcjonalny; włącza destrukcyjny endpoint /api/dev/reset poza debug/test)
 #            TRUST_PROXY=1            (opcjonalny; TYLKO za reverse proxy — patrz niżej)
+#            APP_ADMIN_NAME=...       (opcjonalny; administrator danych na stronach Regulamin/RODO)
+#            APP_CONTACT_EMAIL=...    (opcjonalny; adres kontaktowy na tych stronach)
 flask db upgrade
 flask seed
 ```
@@ -112,6 +114,7 @@ app/
 ├── blueprints/        # HTTP layer — route handlers call services, translate exceptions to HTTP
 │   ├── import_bp.py   # CSV upload → staging approval flow
 │   ├── transactions_bp.py
+│   ├── legal_bp.py    # Regulamin, polityka prywatności (RODO), O aplikacji — strony publiczne
 │   └── *.py           # auth, accounts, categories, contractors, recurring, planned, home
 └── templates/         # Jinja2 HTML
 ```
@@ -152,6 +155,8 @@ Frontend to **18 modułów w `app/static/js/`**, ładowanych w kolejności prefi
 **Wygląd „Classical"**: `app/static/classical.css` to warstwa **nadpisująca**, ładowana w `base.html` po `style.css` — zmienia typografię, kolory i promienie we wszystkich zakładkach naraz. Nie edytuj jej razem ze `style.css`: przy zmianach wyglądu ustal najpierw, która warstwa wygrywa. Wycofanie = usunięcie dwóch `<link>` z `<head>`. Źródło i trzy opcjonalne patche JS (wykresy Chart.js, sumy dnia, panel szczegółów) leżą w `UI mockups for Classical/deploy/`.
 
 **XSS**: dane użytkownika wstawiane do `innerHTML` MUSZĄ przechodzić przez `escapeHtml()` — tytuł przelewu przychodzącego ustala nadawca, więc to nie jest tylko self-XSS.
+
+**Strony informacyjne**: `legal_bp.py` serwuje `/regulamin`, `/polityka-prywatnosci` i `/o-aplikacji` — statyczne szablony dziedziczące po `legal_base.html`, BEZ `@login_required` (linkujemy je z modalu rejestracji). Nazwa administratora i adres kontaktowy pochodzą z `config.APP_ADMIN_NAME` / `APP_CONTACT_EMAIL` (nadpisywalne z `.env`), autor z `APP_AUTHOR` — nie wpisuj tych danych na sztywno w szablonach. Linki żyją w dwóch partialach: `_footer.html` (stopka SPA i stron informacyjnych) oraz `_auth_legal_links.html` (modal logowania/rejestracji).
 
 **Dev Reset** (tylko dev/test): `app/blueprints/dev_bp.py` → `POST /api/dev/reset` (przycisk „Wyczyść wszystkie dane testowe") kasuje dane WYŁĄCZNIE bieżącego użytkownika i zeruje salda kont; kategorie są globalne, więc ich nie usuwa. Blueprint rejestrowany tylko gdy `app.debug`/`app.testing` lub `ENABLE_DEV_RESET=1`. Operacja destrukcyjna — nie wołać w trakcie zwykłej pracy.
 

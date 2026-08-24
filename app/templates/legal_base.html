@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %} — Budżet domowy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='classical.css') }}">
+    <style>
+        /* Typografia dokumentu. Tailwind z CDN nie ma wtyczki `prose`, a dopisywanie
+           klas do kazdego <p>/<li> zasmiecaloby tresc — dlatego jeden zestaw regul
+           zawezony do .legal-doc (nie dotyka reszty aplikacji). */
+        .legal-doc h2 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: #1e293b; }
+        .legal-doc h2:first-child { margin-top: 0; }
+        .legal-doc h3 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 0.5rem; color: #334155; }
+        .legal-doc p { margin-bottom: 0.85rem; color: #475569; }
+        .legal-doc ul, .legal-doc ol { margin: 0 0 0.85rem 1.35rem; color: #475569; }
+        .legal-doc ul { list-style: disc; }
+        .legal-doc ol { list-style: decimal; }
+        .legal-doc li { margin-bottom: 0.4rem; }
+        .legal-doc a { color: #2563eb; text-decoration: underline; }
+        .legal-doc a:hover { color: #1e40af; }
+        .legal-doc strong { color: #1e293b; font-weight: 600; }
+        .legal-doc table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem; }
+        .legal-doc th, .legal-doc td { border: 1px solid #e2e8f0; padding: 0.5rem 0.65rem; text-align: left; vertical-align: top; color: #475569; }
+        .legal-doc th { background: #f8fafc; font-weight: 600; color: #334155; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <a href="/" class="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium mb-6">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Wróć do aplikacji
+        </a>
+
+        <header class="mb-6">
+            <h1 class="text-3xl font-bold text-slate-900">{% block heading %}{% endblock %}</h1>
+            <p class="text-sm text-slate-500 mt-2">Ostatnia aktualizacja: {{ last_updated }}</p>
+        </header>
+
+        <article class="legal-doc bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
+            {% block content %}{% endblock %}
+        </article>
+
+        {% include '_footer.html' %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,34 @@
+{% extends 'legal_base.html' %}
+
+{% block title %}O aplikacji{% endblock %}
+{% block heading %}O aplikacji{% endblock %}
+
+{% block content %}
+<h2>Autor</h2>
+<p>Autorem i twórcą aplikacji „Budżet domowy” jest <strong>{{ config.APP_AUTHOR }}</strong> — profil: <a href="{{ config.APP_AUTHOR_URL }}" target="_blank" rel="noopener noreferrer">{{ config.APP_AUTHOR_URL }}</a>.</p>
+<p>Kontakt w sprawach aplikacji, błędów i danych osobowych: <a href="mailto:{{ config.APP_CONTACT_EMAIL }}">{{ config.APP_CONTACT_EMAIL }}</a>.</p>
+<p>Administratorem tej instancji aplikacji jest <strong>{{ config.APP_ADMIN_NAME }}</strong>. Jeśli aplikacja została uruchomiona na cudzym serwerze, autor kodu i administrator danych to dwie różne role — szczegóły w <a href="{{ url_for('legal.polityka_prywatnosci') }}">Polityce prywatności</a>.</p>
+
+<h2>Czym jest ta aplikacja</h2>
+<p>„Budżet domowy” to webowa aplikacja do prowadzenia domowych finansów: śledzenia sald kont, importu wyciągów bankowych (ING, mBank — CSV, PDF, HTML), kategoryzacji wydatków, transakcji cyklicznych i zaplanowanych, transferów wewnętrznych oraz raportów z wykresami i monitorowania wartości netto.</p>
+<p>Projekt powstaje jako aplikacja edukacyjna i niekomercyjna, rozwijana krok po kroku. Korzystanie z niej jest bezpłatne.</p>
+
+<h2>Licencja</h2>
+<p>Kod źródłowy udostępniany jest na <strong>licencji MIT</strong> (© {{ config.APP_AUTHOR }}). Oznacza to swobodę używania, modyfikowania i rozpowszechniania oprogramowania, przy zachowaniu informacji o autorstwie i licencji, oraz brak gwarancji — pełna treść znajduje się w pliku <code>LICENSE</code> w repozytorium.</p>
+
+<h2>Technologie</h2>
+<ul>
+    <li><strong>Backend:</strong> Python, Flask, SQLAlchemy, Flask-Migrate (Alembic), Flask-Login, Marshmallow</li>
+    <li><strong>Baza danych:</strong> PostgreSQL</li>
+    <li><strong>Frontend:</strong> Jinja2, Tailwind CSS, Chart.js, driver.js (samouczek)</li>
+</ul>
+
+<h2>Zgłaszanie błędów i pomysłów</h2>
+<p>Uwagi, błędy i propozycje zmian najlepiej zgłaszać w systemie zgłoszeń repozytorium projektu albo mailem na <a href="mailto:{{ config.APP_CONTACT_EMAIL }}">{{ config.APP_CONTACT_EMAIL }}</a>. Pomocny opis zawiera to, co się stało, czego oczekiwano i jak odtworzyć problem.</p>
+
+<h2>Dokumenty</h2>
+<ul>
+    <li><a href="{{ url_for('legal.regulamin') }}">Regulamin aplikacji</a></li>
+    <li><a href="{{ url_for('legal.polityka_prywatnosci') }}">Polityka prywatności (RODO)</a></li>
+</ul>
+{% endblock %}

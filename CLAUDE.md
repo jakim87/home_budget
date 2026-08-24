@@ -71,6 +71,7 @@ pip install -r requirements.txt
 #            SECRET_KEY=...           (opcjonalny; fallback 'dev-key-123' w config.py)
 #            LOG_LEVEL=DEBUG|INFO|... (opcjonalny; domyślnie INFO — patrz Logging & Diagnostyka)
 #            ENABLE_DEV_RESET=1       (opcjonalny; włącza destrukcyjny endpoint /api/dev/reset poza debug/test)
+#            TRUST_PROXY=1            (opcjonalny; TYLKO za reverse proxy — patrz niżej)
 flask db upgrade
 flask seed
 ```
@@ -168,6 +169,14 @@ TDD workflow: RED (write failing test) → GREEN (minimal implementation) → RE
 2. **Service**: Add to `app/services/your_service.py` following the services contract above
 3. **Blueprint**: Add route to existing or new `app/blueprints/` file → register in `app/__init__.py`
 4. **Test**: Add `tests/test_feature.py` using conftest fixtures
+
+## Za reverse proxy (produkcja)
+
+`TRUST_PROXY=1` opakowuje aplikację w `ProxyFix` (`x_for=1`, `x_proto=1`). Bez tego za nginx-em `request.remote_addr` to zawsze `127.0.0.1`, więc logi logowań i każdy limit per-IP są bezwartościowe. **Nie włączać przy bezpośrednim wystawieniu na świat** — pozwoliłoby podszyć się pod dowolne IP nagłówkiem `X-Forwarded-For`.
+
+Ograniczenie prób logowania realizuje `fail2ban`, nie kod aplikacji (serwer i tak go używa dla SSH): pliki w `deploy/fail2ban/`, filtr dopasowuje wpisy `Nieudana próba logowania` z `logs/app.log`. Zmiana formatu tego logu w `auth_bp.py` psuje filtr — trzeba wtedy zaktualizować `deploy/fail2ban/budget-auth.conf`.
+
+`MAX_CONTENT_LENGTH` = 10 MB (drugą warstwą jest `client_max_body_size` w nginx).
 
 ## Logging & Diagnostyka
 

@@ -37,3 +37,16 @@ class Config:
     # z obcej strony) — domyka lukę CSRF na endpointach importu (multipart/form-data),
     # które nie mają preflightu CORS jak żądania JSON.
     SESSION_COOKIE_SAMESITE = 'Lax'
+
+    # Górny limit rozmiaru żądania. Upload wyciągu jest wczytywany do pamięci
+    # (file.read() w import_bp), więc bez limitu wystarczy jeden duży plik, by
+    # wyczerpać RAM procesu. Nginx ma własne client_max_body_size 10M — to jest
+    # druga warstwa, działająca też lokalnie i niezależna od konfiguracji proxy.
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024
+
+    # Aplikacja stoi za reverse proxy (nginx) — bez tego request.remote_addr to
+    # zawsze 127.0.0.1, więc logi logowań i każdy limit per-IP są bezwartościowe.
+    # Włączać WYŁĄCZNIE gdy przed aplikacją faktycznie stoi zaufane proxy: przy
+    # bezpośrednim wystawieniu na świat pozwoliłoby podszyć się pod dowolne IP
+    # nagłówkiem X-Forwarded-For.
+    TRUST_PROXY = os.getenv('TRUST_PROXY') == '1'

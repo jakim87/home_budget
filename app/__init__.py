@@ -8,6 +8,7 @@ from sqlalchemy.orm import DeclarativeBase
 from flask_login import LoginManager, current_user
 from flask_marshmallow import Marshmallow
 from werkzeug.exceptions import HTTPException
+from werkzeug.middleware.proxy_fix import ProxyFix
 from app.logging_config import configure_logging
 
 class Base(DeclarativeBase):
@@ -34,6 +35,11 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     configure_logging(app)
+
+    # Zaufanie nagłówkom proxy MUSI być opakowane przed obsługą żądań — inaczej
+    # remote_addr pokazuje adres nginxa zamiast klienta (patrz TRUST_PROXY w config).
+    if app.config.get('TRUST_PROXY'):
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     db.init_app(app)
     migrate.init_app(app, db)

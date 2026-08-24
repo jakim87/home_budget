@@ -95,6 +95,21 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     }
 });
 
+// --- WYLOGOWANIE ---
+
+window.logout = async function() {
+    try {
+        await fetch('/api/logout', { method: 'POST' });
+    } catch (e) {
+        // Brak sieci — sesja i tak zostanie porzucona po przeladowaniu, bo /api/init
+        // odpowie 401 i pokaze modal logowania. Nie blokujemy uzytkownika komunikatem.
+    }
+    // Przeladowanie zamiast czyszczenia stanu w pamieci: globalne tablice
+    // (transactions, accounts...) trzymaja dane poprzedniego uzytkownika, a na
+    // wspoldzielonym komputerze nie moga zostac w zasiegu nastepnej osoby.
+    window.location.reload();
+};
+
 // --- REJESTRACJA ---
 
 // Ustawiane po udanej rejestracji, konsumowane w fetchInitialData(): świeże konto

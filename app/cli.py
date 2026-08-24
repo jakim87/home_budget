@@ -61,6 +61,35 @@ def register_commands(app):
         db.session.commit()
         click.echo("Database seeded successfully.")
 
+    @app.cli.command('reset-password')
+    @click.option('--user', 'username', required=True, help='Nazwa użytkownika, któremu zmieniamy hasło.')
+    @click.password_option('--password', 'new_password', help='Nowe hasło (bez tej opcji zapyta interaktywnie, bez echa).')
+    @with_appcontext
+    def reset_password_command(username, new_password):
+        """Ustawia nowe hasło użytkownika.
+
+        Jedyna droga odzyskania konta, dopóki aplikacja nie wysyła maili — nie ma
+        mechanizmu "zapomniałem hasła" dla użytkownika. Wymaga dostępu do serwera
+        (SSH), więc z internetu nie da się tego wywołać.
+        """
+        from app import db
+        from app.models import User
+        from werkzeug.security import generate_password_hash
+
+        if len(new_password) < 10:
+            click.echo("Hasło musi mieć co najmniej 10 znaków (tak jak przy rejestracji).")
+            return
+
+        user = db.session.query(User).filter_by(username=username).first()
+        if not user:
+            click.echo(f"Nie znaleziono użytkownika '{username}'.")
+            return
+
+        user.password_hash = generate_password_hash(new_password)
+        db.session.commit()
+        logger.info("CLI reset-password: zmieniono hasło użytkownika %s", username)
+        click.echo(f"Hasło użytkownika '{username}' zostało zmienione.")
+
     @app.cli.command('cleanup-archive')
     @with_appcontext
     def cleanup_archive():

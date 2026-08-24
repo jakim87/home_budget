@@ -57,6 +57,50 @@ def list_active(user_token):
     )
 
 
+# Zestaw kategorii zakladanych nowemu uzytkownikowi. Celowo krotki: skasowanie
+# zbednej kategorii to jedno klikniecie, a wymyslenie brakujacej wymaga najpierw
+# zrozumienia, ze w ogole mozna. Nazwy spojne z konwencja uzywana w aplikacji.
+#
+# "Przelew wewnetrzny" (typ transfer) jest OBOWIAZKOWY — bez kategorii tego typu
+# mechanizm przelewow miedzy kontami wlasnymi w ogole sie nie uruchamia
+# (patrz budget_service._handle_internal_transfer).
+STARTER_CATEGORIES = [
+    ('Zakupy spożywcze', 'expense'),
+    ('Paliwo', 'expense'),
+    ('Rachunki', 'expense'),
+    ('Zdrowie', 'expense'),
+    ('Rozrywka', 'expense'),
+    ('Subskrypcje', 'expense'),
+    ('Inne', 'expense'),
+    ('Wynagrodzenie', 'income'),
+    ('Inne przychody', 'income'),
+    ('Przelew wewnętrzny', 'transfer'),
+]
+
+
+def create_starter_categories(user_token, commit=True):
+    """Zaklada nowemu uzytkownikowi komplet kategorii startowych.
+
+    Bez tego swiezo zarejestrowana osoba widzi pusta aplikacje i nie moze dodac
+    ani jednej transakcji (transakcja wymaga kategorii, a jedyna globalna to
+    techniczne "Uzgadnianie salda").
+
+    Kategorie sa PRYWATNE (user_token wypelniony), nie globalne — dzieki temu
+    kazdy moze skasowac te, ktorych nie uzywa, nie ruszajac cudzych.
+
+    commit=False pozwala wolajacemu (rejestracja) domknac utworzenie uzytkownika
+    i jego kategorii jednym commitem.
+    """
+    utworzone = [
+        Category(name=name, type=cat_type, user_token=user_token)
+        for name, cat_type in STARTER_CATEGORIES
+    ]
+    db.session.add_all(utworzone)
+    if commit:
+        db.session.commit()
+    return utworzone
+
+
 def create_category(user_token, data):
     try:
         if find_by_name(user_token, data['name']):

@@ -4,12 +4,17 @@ from flask_login import login_user, logout_user, login_required, current_user
 from marshmallow import ValidationError
 from app.schemas import RegisterSchema, LoginSchema
 from app.services.auth_service import register_user, authenticate_user
+from app import limiter
 
 logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
 
+# Limity dobrane pod realne uzycie: czlowiek rejestruje sie raz, loguje kilka razy
+# dziennie. Automat probujacy hasel albo zakladajacy konta masowo odbija sie od nich
+# natychmiast. Odpowiedz przy przekroczeniu: 429 Too Many Requests.
 @auth_bp.route('/api/register', methods=['POST'])
+@limiter.limit("5 per hour")
 def register():
     try:
         data = RegisterSchema().load(request.get_json() or {})
@@ -21,6 +26,7 @@ def register():
         return jsonify({'error': str(err)}), 400
 
 @auth_bp.route('/api/login', methods=['POST'])
+@limiter.limit("10 per minute; 50 per hour")
 def login():
     try:
         data = LoginSchema().load(request.get_json() or {})

@@ -30,19 +30,21 @@ Planowane:
 
 Aktualnie obsługiwane formaty wyciągów:
 
-| Bank | CSV | PDF | HTML |
-|---|:---:|:---:|:---:|
-| **ING Bank Śląski** | ✅ | ✅ | — |
-| **mBank** | ✅ | ✅ | ✅ |
+| Bank                        | CSV | PDF | HTML |
+| --------------------------- | :-: | :-: | :--: |
+| **ING Bank Śląski** | ✅ | ✅ |  —  |
+| **mBank**             | ✅ | ✅ |  ✅  |
 
 Pliki CSV i HTML są dekodowane z UTF-8-sig lub Windows-1250 (oba warianty eksportu z banku).
 
 Import ma dwa tryby:
+
 - **Automatyczny** (`POST /api/import/auto`) — bank i format rozpoznawane po zawartości pliku,
   konto po numerze rachunku z nagłówka wyciągu.
 - **Ręczny** (`POST /api/import/<bank>`) — użytkownik wskazuje bank i konto docelowe (tylko CSV).
 
 Poza importem z banku dostępne są:
+
 - Ręczne dodawanie transakcji (również gotówkowych)
 - Jednorazowa migracja historii sald z arkusza XLSX (`flask import-excel-balance-history`)
 

@@ -23,6 +23,10 @@ class TestConfig(Config):
     # UWAGA: TEST_DATABASE_URL musi wskazywać na osobną bazę testową (tabele są
     # tworzone i KASOWANE przy każdym teście) — nigdy na produkcyjną budget_db!
     SQLALCHEMY_DATABASE_URI = os.getenv('TEST_DATABASE_URL', 'sqlite:///:memory:')
+    # Limity ruchu wylaczone domyslnie: testy wolaja /api/login wielokrotnie w jednym
+    # przebiegu i odbijalyby sie od 429. Testy samych limitow wlaczaja je punktowo
+    # (patrz tests/test_rate_limiting.py).
+    RATELIMIT_ENABLED = False
 
 @pytest.fixture
 def app():

@@ -5,25 +5,25 @@ from app.models import User
 
 def test_register_success(client, app):
     resp = client.post('/api/register', json={
-        'username': 'nowy_user', 'email': 'nowy@test.com', 'password': 'sekret123',
+        'username': 'nowy_user', 'email': 'nowy@test.com', 'password': 'sekret12345',
     })
     assert resp.status_code == 201
     user = db.session.query(User).filter_by(username='nowy_user').first()
     assert user is not None
-    assert user.password_hash != 'sekret123'  # hasło zahaszowane, nie plaintext
+    assert user.password_hash != 'sekret12345'  # hasło zahaszowane, nie plaintext
     assert user.token  # token UUID nadany automatycznie
 
 
 def test_register_duplicate_username_rejected(client, app, test_user):
     resp = client.post('/api/register', json={
-        'username': 'testuser', 'email': 'inny@test.com', 'password': 'sekret123',
+        'username': 'testuser', 'email': 'inny@test.com', 'password': 'sekret12345',
     })
     assert resp.status_code == 400
 
 
 def test_register_duplicate_email_rejected(client, app, test_user):
     resp = client.post('/api/register', json={
-        'username': 'zupelnie_inny', 'email': 'test@test.com', 'password': 'sekret123',
+        'username': 'zupelnie_inny', 'email': 'test@test.com', 'password': 'sekret12345',
     })
     assert resp.status_code == 400
 
@@ -33,6 +33,19 @@ def test_register_short_password_rejected(client, app):
         'username': 'krotki', 'email': 'krotki@test.com', 'password': '123',
     })
     assert resp.status_code == 400
+
+
+def test_register_password_ponizej_10_znakow_odrzucone(client, app):
+    """Granica wymogu dlugosci: 9 znakow odrzucone, 10 przyjete."""
+    resp = client.post('/api/register', json={
+        'username': 'dziewiec', 'email': 'dziewiec@test.com', 'password': 'a' * 9,
+    })
+    assert resp.status_code == 400
+
+    resp = client.post('/api/register', json={
+        'username': 'dziesiec', 'email': 'dziesiec@test.com', 'password': 'a' * 10,
+    })
+    assert resp.status_code == 201
 
 
 def test_login_wrong_password_returns_401(client, app, test_user):

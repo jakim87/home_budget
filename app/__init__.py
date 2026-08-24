@@ -7,6 +7,8 @@ from config import Config
 from sqlalchemy.orm import DeclarativeBase
 from flask_login import LoginManager, current_user
 from flask_marshmallow import Marshmallow
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 from app.logging_config import configure_logging
@@ -18,6 +20,18 @@ db = SQLAlchemy(model_class=Base)
 migrate = Migrate()
 ma = Marshmallow()
 login_manager = LoginManager()
+
+# Limity ruchu na wrażliwych endpointach (logowanie, rejestracja). Klucz = adres IP,
+# więc SENSOWNIE DZIAŁA TYLKO przy TRUST_PROXY=1 — bez tego za nginx-em wszyscy
+# użytkownicy wyglądają jak jeden klient (127.0.0.1) i limit obejmuje wszystkich naraz.
+# ponytail: licznik w pamięci procesu — przy gunicornie z N workerami realny limit to
+# N-krotność ustawionego. Wystarczy przeciw automatom; przy większym ruchu storage_uri
+# na Redisa.
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[],  # limitujemy punktowo, nie globalnie
+    storage_uri="memory://",  # jawnie: licznik w pamieci procesu (patrz uwaga wyzej)
+)
 
 # Import modeli bezpośrednio po utworzeniu db gwarantuje ich wykrycie przez Flask-Migrate
 from app import models
@@ -45,6 +59,7 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     ma.init_app(app)
     login_manager.init_app(app)
+    limiter.init_app(app)
 
     # Rejestracja komend CLI
     from app import cli

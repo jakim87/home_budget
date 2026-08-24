@@ -3,9 +3,13 @@ from marshmallow import EXCLUDE, fields, validate, post_load
 from app.models import Frequency # Import models for nested schemas or enums
 
 class RegisterSchema(ma.Schema):
-    username = fields.String(required=True, validate=validate.Length(min=3))
+    username = fields.String(required=True, validate=validate.Length(min=3, max=64))
     email = fields.Email(required=True)
-    password = fields.String(required=True, validate=validate.Length(min=6))
+    # Minimum 10 znakow: aplikacja trzyma dane finansowe, a rejestracja jest publiczna.
+    # Swiadomie stawiamy na dlugosc zamiast wymogow "wielka litera + cyfra + znak
+    # specjalny" — dluzsze haslo jest trudniejsze do zlamania i latwiejsze do
+    # zapamietania, a wymuszanie znakow specjalnych pcha ludzi w "Haslo1!".
+    password = fields.String(required=True, validate=validate.Length(min=10, max=128))
 
 class LoginSchema(ma.Schema):
     username = fields.String(required=False)

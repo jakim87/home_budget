@@ -1,0 +1,18 @@
+# Jail fail2ban dla logowań do aplikacji budżetowej.
+# Instalacja: dopisz do /etc/fail2ban/jail.local, potem:
+#   sudo fail2ban-client reload
+#
+# Weryfikacja filtru PRZED włączeniem (nie banuje, tylko liczy trafienia):
+#   sudo fail2ban-regex /opt/budget/logs/app.log /etc/fail2ban/filter.d/budget-auth.conf
+# Sprawdzenie działającego jaila:
+#   sudo fail2ban-client status budget-auth
+
+[budget-auth]
+enabled  = true
+filter   = budget-auth
+logpath  = /opt/budget/logs/app.log
+backend  = polling
+port     = http,https
+maxretry = 5
+findtime = 10m
+bantime  = 1h

@@ -335,3 +335,37 @@ def test_dev_reset_wipes_only_current_user_data(intruder_client, owner_data, tes
     # Kategoria ofiary nietknięta wraz z powiązaniem — reset celowo nie rusza słownika.
     assert db.session.get(Category, owner_data['category'].id) is not None
     assert db.session.get(Transaction, owner_data['tx'].id).category_id == owner_data['category'].id
+
+
+def test_intruder_cannot_delete_foreign_category(intruder_client, owner_data, test_user):
+    """Kategoria prywatna ofiary nie może zostać usunięta przez intruza.
+
+    Endpoint adresuje kategorię NAZWĄ, nie ID — dlatego intruz nie musi niczego
+    zgadywać, wystarczy że zna nazwę (a nazwy są typowe: "Jedzenie", "Paliwo").
+    """
+    wlasna = Category(name="Prywatna Ofiary", type="expense", user_token=test_user.token)
+    db.session.add(wlasna)
+    db.session.commit()
+    cat_id = wlasna.id
+
+    resp = intruder_client.delete('/api/categories/Prywatna Ofiary')
+
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(Category, cat_id).is_active is True
+
+
+def test_intruder_cannot_delete_global_category(intruder_client, owner_data):
+    """Kategoria globalna (user_token IS NULL) jest współdzielona — nikt jej nie usuwa.
+
+    Wcześniej dowolny użytkownik mógł dezaktywować kategorię widoczną dla wszystkich.
+    """
+    globalna = owner_data['category']  # tworzona bez user_token = globalna
+    assert globalna.user_token is None
+    cat_id = globalna.id
+
+    resp = intruder_client.delete(f'/api/categories/{globalna.name}')
+
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(Category, cat_id).is_active is True

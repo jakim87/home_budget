@@ -377,7 +377,7 @@ function renderRecurringList() {
             row.className = 'hover:bg-slate-50 transition-colors group';
             row.innerHTML = `
                 <td class="p-3 border-b border-slate-100">
-                    <div class="font-medium text-slate-800">${rt.title}</div>
+                    <div class="font-medium text-slate-800">${escapeHtml(rt.title)}</div>
                     <div class="text-xs text-slate-500">${cat ? cat.name : 'Brak kategorii'}</div>
                 </td>
                 <td class="p-3 border-b border-slate-100 text-sm">
@@ -420,7 +420,7 @@ function renderPlannedList() {
             row.className = 'hover:bg-slate-50 transition-colors group';
             row.innerHTML = `
                 <td class="p-3 border-b border-slate-100">
-                    <div class="font-medium text-slate-800">${pt.title}</div>
+                    <div class="font-medium text-slate-800">${escapeHtml(pt.title)}</div>
                     <div class="text-xs text-slate-500">${cat ? cat.name : 'Brak kategorii'}</div>
                 </td>
                 <td class="p-3 border-b border-slate-100 text-sm">

@@ -434,7 +434,7 @@ function renderSplitRows() {
         row.className = 'flex gap-2 items-center bg-slate-50 p-3 rounded-lg border border-slate-200';
         row.innerHTML = `
             <div class="flex-1">
-                <input type="text" placeholder="Opis pozycji" value="${s.desc}" onchange="updateSplit(${s.id}, 'desc', this.value)" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                <input type="text" placeholder="Opis pozycji" value="${escapeHtml(s.desc)}" onchange="updateSplit(${s.id}, 'desc', this.value)" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
             </div>
             <div class="w-32">
                 <input type="number" placeholder="Kwota" value="${s.amount}" step="0.01" min="0" onchange="updateSplit(${s.id}, 'amount', this.value)" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">

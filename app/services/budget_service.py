@@ -376,6 +376,9 @@ def reconcile_account_balance(
 
         reconciliation_category = get_or_create_reconciliation_category()
 
+        # commit=False -> jedyny commit ponizej domyka utworzenie transakcji i
+        # (w get_or_create_reconciliation_category) ewentualne dodanie kategorii
+        # systemowej jedna atomowa operacja, zamiast dwoch osobnych commitow.
         reconciliation_tx = create_transaction(
             user_token=user_token,
             account_id=account_id,
@@ -385,7 +388,8 @@ def reconcile_account_balance(
             category_id=reconciliation_category.id,
             contractor="-",
             comment=comment or None,
-            origin='reconcile'
+            origin='reconcile',
+            commit=False
         )
         db.session.commit()
         return reconciliation_tx

@@ -28,7 +28,10 @@ def register_commands(app):
         db.session.commit()
         click.echo("Created default_user with password 'password'.")
 
-        account = Account(name="Portfel", bank_name="Gotówka", balance=Decimal('1500.00'), user_token=user.token, is_default=True)
+        # Saldo startowe = 0; transakcje ponizej same je ustala (2000.00 - 150.50 =
+        # 1849.50), zamiast zaczynac konto od niezgodnej z historia liczby "z powietrza"
+        # — myli przy testowaniu uzgadniania salda.
+        account = Account(name="Portfel", bank_name="Gotówka", balance=Decimal('0.00'), user_token=user.token, is_default=True)
         db.session.add(account)
 
         cat_income = Category(name="Wynagrodzenie", type="income", user_token=user.token)
@@ -54,6 +57,7 @@ def register_commands(app):
                 contractor_id=cont_biedronka.id
             ),
         ])
+        account.balance = Decimal('1849.50')
         db.session.commit()
         click.echo("Database seeded successfully.")
 

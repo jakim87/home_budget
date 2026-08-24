@@ -1,5 +1,6 @@
 import pytest
 from datetime import date
+from dateutil.relativedelta import relativedelta
 from app import db
 from app.models import User, Account, Category, RecurringTransaction, Transaction, Frequency
 from app.services.recurring_service import (
@@ -226,3 +227,75 @@ def test_process_deactivates_recurring_after_end_date(app, setup_for_recurring):
     assert created == 0
     assert db.session.get(RecurringTransaction, rec.id).is_active is False
     assert db.session.query(Transaction).filter_by(source_recurring_id=rec.id).count() == 0
+
+
+def test_process_catches_up_all_overdue_occurrences(app, setup_for_recurring):
+    """Zaległe wystąpienia nadrabiane są w JEDNYM przebiegu, nie po jednym na uruchomienie.
+
+    Scenariusz z produkcji: cron nie działał przez kilka miesięcy. Bez nadrabiania
+    salda pozostają nieprawidłowe tak długo, ile brakuje wystąpień.
+    """
+    user_token, account_id, category_id = setup_for_recurring
+    today = date.today()
+    start = today - relativedelta(months=3)
+
+    rec = RecurringTransaction(
+        user_token=user_token, account_id=account_id, category_id=category_id,
+        title="Abonament zaległy", amount=Decimal("-30.00"),
+        frequency=Frequency.MONTHLY, day_of_month=start.day,
+        start_date=start, next_run_date=start,
+    )
+    db.session.add(rec)
+    db.session.commit()
+
+    created = process_recurring_transactions()
+
+    # 3 miesiące wstecz + dzisiejsze wystąpienie = 4
+    assert created == 4
+    assert db.session.query(Transaction).filter_by(source_recurring_id=rec.id).count() == 4
+    assert db.session.get(RecurringTransaction, rec.id).next_run_date > today
+
+
+def test_catchup_stops_at_end_date(app, setup_for_recurring):
+    """Nadrabianie nie przekracza end_date i dezaktywuje definicję."""
+    user_token, account_id, category_id = setup_for_recurring
+    today = date.today()
+    start = today - relativedelta(months=5)
+    end = today - relativedelta(months=3)
+
+    rec = RecurringTransaction(
+        user_token=user_token, account_id=account_id, category_id=category_id,
+        title="Subskrypcja zakończona", amount=Decimal("-10.00"),
+        frequency=Frequency.MONTHLY, day_of_month=start.day,
+        start_date=start, next_run_date=start, end_date=end,
+    )
+    db.session.add(rec)
+    db.session.commit()
+
+    created = process_recurring_transactions()
+
+    # wystąpienia: start, +1m, +2m (= end). Kolejne wypada po end_date.
+    assert created == 3
+    assert db.session.get(RecurringTransaction, rec.id).is_active is False
+
+
+def test_catchup_does_not_duplicate_already_created(app, setup_for_recurring):
+    """Ponowne uruchomienie po nadrobieniu nie tworzy niczego (idempotentność)."""
+    user_token, account_id, category_id = setup_for_recurring
+    start = date.today() - relativedelta(months=2)
+
+    rec = RecurringTransaction(
+        user_token=user_token, account_id=account_id, category_id=category_id,
+        title="Abonament", amount=Decimal("-15.00"),
+        frequency=Frequency.MONTHLY, day_of_month=start.day,
+        start_date=start, next_run_date=start,
+    )
+    db.session.add(rec)
+    db.session.commit()
+
+    first = process_recurring_transactions()
+    second = process_recurring_transactions()
+
+    assert first == 3
+    assert second == 0
+    assert db.session.query(Transaction).filter_by(source_recurring_id=rec.id).count() == 3

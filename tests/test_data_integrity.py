@@ -45,10 +45,15 @@ def test_recurring_processing_is_idempotent(app):
         db.session.add(account)
         db.session.commit()
 
+        # Termin na dziś, nie w przeszłości: przetwarzanie nadrabia WSZYSTKIE zaległe
+        # wystąpienia (patrz test_process_catches_up_all_overdue_occurrences), więc
+        # data wsteczna dałaby tu tyle transakcji, ile miesięcy minęło — co badałoby
+        # nadrabianie, nie idempotentność.
+        dzis = date.today()
         rec = RecurringTransaction(
             user_token=user.token, account_id=account.id, title="Czynsz",
-            amount=Decimal("-1000.00"), frequency=Frequency.MONTHLY, day_of_month=1,
-            start_date=date(2024, 1, 1), next_run_date=date(2024, 1, 1),
+            amount=Decimal("-1000.00"), frequency=Frequency.MONTHLY, day_of_month=dzis.day,
+            start_date=dzis, next_run_date=dzis,
         )
         db.session.add(rec)
         db.session.commit()

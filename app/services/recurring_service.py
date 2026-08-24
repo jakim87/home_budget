@@ -226,6 +226,12 @@ def delete_recurring_transaction(user_token, rec_tx_id):
         db.session.rollback()
         raise
 
+# Górny limit zaległych wystąpień domykanych w jednym przebiegu. Chroni przed
+# zapętleniem na uszkodzonej definicji; 500 to ~1,5 roku dla harmonogramu dziennego,
+# czyli więcej niż jakakolwiek realna przerwa w działaniu crona.
+_MAX_CATCHUP_OCCURRENCES = 500
+
+
 def process_recurring_transactions():
     """
     Processes all due recurring transactions and creates standard transactions.
@@ -255,25 +261,45 @@ def process_recurring_transactions():
             continue
 
         try:
-            already_created = db.session.query(Transaction).filter_by(
-                source_recurring_id=rec_tx.id, date=rec_tx.next_run_date
-            ).first()
+            # Nadrabianie zaległości: jedno uruchomienie domyka WSZYSTKIE zaległe
+            # wystąpienia. Bez tego przerwa w cronie oznacza tyle dni niepoprawnego
+            # salda, ile brakuje wystąpień.
+            for _ in range(_MAX_CATCHUP_OCCURRENCES):
+                if rec_tx.next_run_date > today:
+                    break
+                if rec_tx.end_date and rec_tx.next_run_date > rec_tx.end_date:
+                    rec_tx.is_active = False
+                    break
 
-            if not already_created:
-                create_standard_transaction(
-                    user_token=rec_tx.user_token,
-                    account_id=rec_tx.account_id,
-                    amount=rec_tx.amount,
-                    title=rec_tx.title,
-                    transaction_date=rec_tx.next_run_date,
-                    category_id=rec_tx.category_id,
-                    contractor_id=rec_tx.contractor_id,
-                    source_recurring_id=rec_tx.id,
-                    commit=False
-                )
-                created_count += 1
+                already_created = db.session.query(Transaction).filter_by(
+                    source_recurring_id=rec_tx.id, date=rec_tx.next_run_date
+                ).first()
 
-            rec_tx.next_run_date = _calculate_next_run_date_for_recurring(rec_tx, rec_tx.next_run_date)
+                if not already_created:
+                    create_standard_transaction(
+                        user_token=rec_tx.user_token,
+                        account_id=rec_tx.account_id,
+                        amount=rec_tx.amount,
+                        title=rec_tx.title,
+                        transaction_date=rec_tx.next_run_date,
+                        category_id=rec_tx.category_id,
+                        contractor_id=rec_tx.contractor_id,
+                        source_recurring_id=rec_tx.id,
+                        commit=False
+                    )
+                    created_count += 1
+
+                next_date = _calculate_next_run_date_for_recurring(rec_tx, rec_tx.next_run_date)
+                if next_date <= rec_tx.next_run_date:
+                    # Harmonogram nie posuwa się do przodu (np. interval=0 w danych
+                    # historycznych) — przerywamy zamiast kręcić się w nieskończoność.
+                    logger.error(
+                        "Harmonogram ID %s nie posuwa się do przodu (next_run_date=%s, interval=%s) — pomijam.",
+                        rec_tx.id, rec_tx.next_run_date, rec_tx.interval
+                    )
+                    break
+                rec_tx.next_run_date = next_date
+
             rec_tx.updated_at = datetime.now(timezone.utc)
             db.session.commit()
 

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
-from sqlalchemy import String, Text, Numeric, Date, ForeignKey, Enum as SQLAlchemyEnum, event
+from sqlalchemy import String, Text, Numeric, Date, ForeignKey, Enum as SQLAlchemyEnum, event, CheckConstraint
 from datetime import date
 from typing import Optional, List
 from app import db
@@ -17,6 +17,12 @@ class Frequency(enum.Enum):
 
 class RecurringTransaction(db.Model):
     __tablename__ = 'recurring_transactions'
+    __table_args__ = (
+        # interval=0 zapetla process_recurring_transactions (next_run_date sie nie
+        # posuwa) — patrz bezpiecznik w recurring_service.process_recurring_transactions.
+        # Niezmiennik wymuszony w bazie, nie tylko w schemacie Marshmallow.
+        CheckConstraint('interval >= 1', name='ck_recurring_transactions_interval_positive'),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False, index=True)

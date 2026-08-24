@@ -982,23 +982,94 @@
 
     {% include 'reconcile_modal.html' %}
 
-    <!-- Login Modal -->
+    <!-- Modal logowania / rejestracji. Jeden modal, dwa widoki przelaczane przez
+         showAuthView() — nie ma osobnej strony /register, cala aplikacja to jeden
+         szablon (patrz home_bp.index). -->
     <div id="login-modal" class="hidden fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[100] backdrop-blur-sm">
         <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm">
-            <h2 class="text-2xl font-bold text-slate-800 text-center mb-2">Witaj w aplikacji!</h2>
-            <p class="text-slate-500 text-center mb-6">Zaloguj się, aby kontynuować.</p>
-            <form id="login-form">
+
+            <!-- WIDOK: logowanie -->
+            <div id="auth-view-login">
+                <h2 class="text-2xl font-bold text-slate-800 text-center mb-2">Witaj ponownie!</h2>
+                <p class="text-slate-500 text-center mb-6">Zaloguj się, aby kontynuować.</p>
+                <form id="login-form">
+                    <div class="mb-4">
+                        <label for="login-username" class="block text-sm font-medium text-slate-700 mb-1">Nazwa użytkownika lub e-mail</label>
+                        <input type="text" id="login-username" autocomplete="username" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                    </div>
+                    <div class="mb-6">
+                        <label for="login-password" class="block text-sm font-medium text-slate-700 mb-1">Hasło</label>
+                        <input type="password" id="login-password" autocomplete="current-password" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                        <p id="login-error" class="text-rose-500 text-sm mt-2 hidden"></p>
+                    </div>
+                    <button type="submit" class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow-lg focus:ring-4 focus:ring-blue-300">Zaloguj się</button>
+                </form>
+                <p class="text-center text-sm text-slate-500 mt-5">
+                    Nie masz jeszcze konta?
+                    <button type="button" onclick="showAuthView(&#39;register&#39;)" class="text-blue-600 hover:text-blue-800 font-medium hover:underline">Zarejestruj się</button>
+                </p>
+            </div>
+
+            <!-- WIDOK: rejestracja -->
+            <div id="auth-view-register" class="hidden">
+                <h2 class="text-2xl font-bold text-slate-800 text-center mb-2">Załóż konto</h2>
+                <p class="text-slate-500 text-center mb-6">Zacznij panować nad swoim budżetem.</p>
+                <form id="register-form">
+                    <div class="mb-4">
+                        <label for="register-username" class="block text-sm font-medium text-slate-700 mb-1">Nazwa użytkownika</label>
+                        <input type="text" id="register-username" autocomplete="username" required minlength="3" maxlength="64" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                    </div>
+                    <div class="mb-4">
+                        <label for="register-email" class="block text-sm font-medium text-slate-700 mb-1">Adres e-mail</label>
+                        <input type="email" id="register-email" autocomplete="email" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                    </div>
+                    <div class="mb-4">
+                        <label for="register-password" class="block text-sm font-medium text-slate-700 mb-1">Hasło</label>
+                        <input type="password" id="register-password" autocomplete="new-password" required minlength="10" maxlength="128" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                        <p class="text-xs text-slate-400 mt-1">Co najmniej 10 znaków. Dłuższe hasło jest bezpieczniejsze niż skomplikowane.</p>
+                    </div>
+                    <div class="mb-4">
+                        <label for="register-password2" class="block text-sm font-medium text-slate-700 mb-1">Powtórz hasło</label>
+                        <input type="password" id="register-password2" autocomplete="new-password" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                        <p id="register-error" class="text-rose-500 text-sm mt-2 hidden"></p>
+                    </div>
+                    <!-- Aplikacja nie wysyla maili, wiec nie ma mechanizmu "zapomnialem hasla".
+                         Mowimy o tym wprost PRZED zalozeniem konta, nie po fakcie. -->
+                    <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-5">
+                        Zapamiętaj hasło — aplikacja nie wysyła jeszcze e-maili, więc nie ma automatycznego odzyskiwania dostępu.
+                    </p>
+                    <button type="submit" class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow-lg focus:ring-4 focus:ring-blue-300">Załóż konto</button>
+                </form>
+                <p class="text-center text-sm text-slate-500 mt-5">
+                    Masz już konto?
+                    <button type="button" onclick="showAuthView(&#39;login&#39;)" class="text-blue-600 hover:text-blue-800 font-medium hover:underline">Zaloguj się</button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kreator pierwszego konta. Pokazywany po rejestracji: bez konta nie da sie
+         dodac zadnej transakcji, wiec pusta aplikacja jest slepym zaulkiem. -->
+    <div id="first-account-modal" class="hidden fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[100] backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+            <h2 class="text-2xl font-bold text-slate-800 text-center mb-2">Dodaj pierwsze konto</h2>
+            <p class="text-slate-500 text-center mb-6">Konto to miejsce, w którym trzymasz pieniądze — rachunek w banku, portfel z gotówką albo cel oszczędnościowy.</p>
+            <form id="first-account-form">
                 <div class="mb-4">
-                    <label for="login-username" class="block text-sm font-medium text-slate-700 mb-1">Nazwa użytkownika lub e-mail</label>
-                    <input type="text" id="login-username" value="default_user" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                    <label for="first-account-name" class="block text-sm font-medium text-slate-700 mb-1">Nazwa konta</label>
+                    <input type="text" id="first-account-name" required maxlength="100" placeholder="np. Konto osobiste, Portfel" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                 </div>
-                <div class="mb-6">
-                    <label for="login-password" class="block text-sm font-medium text-slate-700 mb-1">Hasło</label>
-                    <input type="password" id="login-password" value="password" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                    <p id="login-error" class="text-rose-500 text-sm mt-2 hidden"></p>
+                <div class="mb-4">
+                    <label for="first-account-balance" class="block text-sm font-medium text-slate-700 mb-1">Ile masz teraz na tym koncie?</label>
+                    <input type="number" id="first-account-balance" step="0.01" value="0.00" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                    <p class="text-xs text-slate-400 mt-1">Możesz wpisać 0 i uzupełnić później — saldo da się w każdej chwili uzgodnić.</p>
+                    <p id="first-account-error" class="text-rose-500 text-sm mt-2 hidden"></p>
                 </div>
-                <button type="submit" class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow-lg focus:ring-4 focus:ring-blue-300">Zaloguj się</button>
+                <button type="submit" class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow-lg focus:ring-4 focus:ring-blue-300">Gotowe, zaczynamy</button>
             </form>
+            <p class="text-center text-sm text-slate-400 mt-4">
+                <button type="button" onclick="skipFirstAccount()" class="hover:text-slate-600 hover:underline">Pominę na razie</button>
+            </p>
         </div>
     </div>
 

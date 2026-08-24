@@ -1,0 +1,277 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Classical — warstwa wyglądu dla Budżetu domowego
+   ────────────────────────────────────────────────────────────────────────
+   Wdrożenie: w app/templates/base.html, w <head>, PO linii z style.css:
+
+     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+     <link rel="stylesheet" href="{{ url_for('static', filename='classical.css') }}">
+
+   Nic więcej nie trzeba zmieniać — plik nadpisuje klasy Tailwinda używane
+   w base.html, więc wszystkie zakładki zmieniają wygląd naraz.
+   Aby wrócić do starego wyglądu: usuń te dwie linijki.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-text: #201f1d;
+  --color-accent: #b68235;
+  --color-divider: color-mix(in srgb, #201f1d 16%, transparent);
+
+  --color-neutral-100: #f8f4f4;
+  --color-neutral-200: #eae7e7;
+  --color-neutral-300: #d7d3d3;
+  --color-neutral-400: #bab6b6;
+  --color-neutral-500: #9b9797;
+  --color-neutral-600: #7d7979;
+  --color-neutral-700: #605d5d;
+  --color-neutral-800: #444141;
+  --color-neutral-900: #2d2b2b;
+
+  --color-accent-100: #fff3e4;
+  --color-accent-200: #ffe3bf;
+  --color-accent-300: #facb8d;
+  --color-accent-400: #e1ad66;
+  --color-accent-500: #c28d41;
+  --color-accent-600: #a06f24;
+  --color-accent-700: #7d5411;
+  --color-accent-800: #5a3b0a;
+  --color-accent-900: #3a270d;
+
+  --font-heading: "Cormorant Garamond", Georgia, serif;
+  --font-body: "Lora", Georgia, serif;
+
+  --radius-md: 4px;
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+}
+
+/* ── podłoże i typografia ─────────────────────────────────────────────── */
+
+body {
+  font-family: var(--font-body) !important;
+  background-color: var(--color-bg) !important;
+  color: var(--color-text) !important;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading) !important;
+  letter-spacing: -0.015em;
+  line-height: 1.14;
+}
+/* Duże napisy schodzą do lżejszego cięcia — im większy tekst, tym cieńszy */
+h1, .text-3xl, .text-4xl, .text-5xl { font-weight: 400 !important; }
+h2, h3, h4 { font-weight: 600 !important; }
+.font-bold, .font-extrabold, .font-black { font-weight: 600 !important; }
+
+/* liczby zawsze tabularnie — kolumny kwot muszą się pionowo zgadzać */
+.tabular-nums, td, th, input[type="number"],
+[class*="text-right"] { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* ── kolory: niebieski Tailwinda → złoto Classical ────────────────────── */
+
+.text-blue-400, .text-blue-500, .text-blue-600, .text-blue-700,
+.text-indigo-500, .text-indigo-600 { color: var(--color-accent-700) !important; }
+.text-blue-100, .text-blue-200 { color: var(--color-accent-200) !important; }
+
+.bg-blue-50, .bg-indigo-50 { background-color: var(--color-accent-100) !important; }
+.bg-blue-100 { background-color: var(--color-accent-200) !important; }
+.bg-blue-500, .bg-blue-600, .bg-blue-700,
+.bg-indigo-500, .bg-indigo-600 { background-color: var(--color-accent-600) !important; }
+
+.border-blue-200, .border-blue-300 { border-color: var(--color-accent-300) !important; }
+.border-blue-400, .border-blue-500, .border-blue-600 { border-color: var(--color-accent) !important; }
+
+.ring-blue-500, .focus\:ring-blue-500:focus { --tw-ring-color: var(--color-accent) !important; }
+
+/* gradienty znikają — Classical rysuje krawędzią, nie plamą */
+[class*="bg-gradient-to"] {
+  background-image: none !important;
+  background-color: var(--color-neutral-900) !important;
+  color: var(--color-neutral-100) !important;
+  border: 1px solid var(--color-accent-700);
+}
+[class*="bg-gradient-to"] .text-blue-100,
+[class*="bg-gradient-to"] .text-white { color: var(--color-accent-200) !important; }
+
+/* ── neutralne: chłodny slate → ciepła szarość ────────────────────────── */
+
+.text-slate-400, .text-gray-400 { color: var(--color-neutral-500) !important; }
+.text-slate-500, .text-gray-500 { color: var(--color-neutral-600) !important; }
+.text-slate-600, .text-gray-600 { color: var(--color-neutral-700) !important; }
+.text-slate-700, .text-gray-700 { color: var(--color-neutral-800) !important; }
+.text-slate-800, .text-slate-900,
+.text-gray-800, .text-gray-900 { color: var(--color-text) !important; }
+
+.bg-slate-50, .bg-gray-50 { background-color: var(--color-neutral-100) !important; }
+.bg-slate-100, .bg-gray-100 { background-color: var(--color-neutral-200) !important; }
+.bg-slate-200 { background-color: var(--color-neutral-300) !important; }
+.bg-white { background-color: var(--color-bg) !important; }
+
+.border-slate-100, .border-gray-100 { border-color: var(--color-neutral-200) !important; }
+.border-slate-200, .border-gray-200,
+.border-slate-300, .border-gray-300 { border-color: var(--color-divider) !important; }
+
+/* ── promienie i cienie: 4 px i szept ─────────────────────────────────── */
+
+.rounded, .rounded-md, .rounded-lg, .rounded-xl,
+.rounded-2xl, .rounded-3xl { border-radius: var(--radius-md) !important; }
+.rounded-full { border-radius: 999px !important; }
+
+.shadow, .shadow-sm { box-shadow: var(--shadow-sm) !important; }
+.shadow-md, .shadow-lg { box-shadow: var(--shadow-md) !important; }
+.shadow-xl, .shadow-2xl { box-shadow: var(--shadow-lg) !important; }
+
+/* ── przyciski: obrys, nie wypełnienie ───────────────────────────────── */
+
+button, .btn, a[role="button"] {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* akcja główna — złoty obrys na przezroczystym tle */
+button.bg-blue-600, button.bg-blue-500, button.bg-blue-700,
+button.bg-indigo-600, .btn-primary,
+a.bg-blue-600, a.bg-blue-500 {
+  background-color: transparent !important;
+  color: var(--color-accent-700) !important;
+  border: 1px solid var(--color-accent) !important;
+  box-shadow: none !important;
+  transition: background-color .15s, border-color .15s;
+}
+button.bg-blue-600:hover, button.bg-blue-500:hover, button.bg-blue-700:hover,
+button.bg-indigo-600:hover, .btn-primary:hover,
+a.bg-blue-600:hover, a.bg-blue-500:hover {
+  background-color: var(--color-accent-100) !important;
+}
+button.bg-blue-600:active, button.bg-blue-500:active,
+button.bg-indigo-600:active, .btn-primary:active {
+  background-color: var(--color-accent-200) !important;
+  border-color: var(--color-accent-600) !important;
+}
+
+/* akcje destrukcyjne zostają czytelnie odrębne, ale też jako obrys */
+button.bg-rose-500, button.bg-rose-600, button.bg-red-500, button.bg-red-600 {
+  background-color: transparent !important;
+  color: #8a2f2f !important;
+  border: 1px solid #b25a5a !important;
+  box-shadow: none !important;
+}
+button.bg-rose-500:hover, button.bg-rose-600:hover,
+button.bg-red-500:hover, button.bg-red-600:hover {
+  background-color: #f7ecec !important;
+}
+
+/* akcje potwierdzające (zielone) — obrys w tonie akcentu */
+button.bg-emerald-500, button.bg-emerald-600,
+button.bg-green-500, button.bg-green-600 {
+  background-color: transparent !important;
+  color: var(--color-accent-800) !important;
+  border: 1px solid var(--color-accent-500) !important;
+  box-shadow: none !important;
+}
+
+/* ── zakładki: złota kreska pod aktywną ──────────────────────────────── */
+
+nav.flex { border-bottom-color: var(--color-divider) !important; }
+.tab-active {
+  border-bottom: 2px solid var(--color-accent) !important;
+  color: var(--color-accent-700) !important;
+  font-family: var(--font-heading);
+  font-weight: 600 !important;
+}
+.tab-inactive { color: var(--color-neutral-600) !important; }
+.tab-inactive:hover { color: var(--color-text) !important; }
+
+.dict-nav-btn { color: var(--color-neutral-700) !important; }
+.dict-nav-btn:hover { background-color: var(--color-accent-100) !important; color: var(--color-text) !important; }
+.dict-nav-active {
+  background-color: var(--color-accent-100) !important;
+  color: var(--color-accent-800) !important;
+  font-weight: 600 !important;
+}
+
+/* ── pola formularzy ─────────────────────────────────────────────────── */
+
+input, select, textarea {
+  font-family: var(--font-body) !important;
+  border-radius: var(--radius-md) !important;
+  background-color: var(--color-neutral-100) !important;
+  border-color: var(--color-divider) !important;
+  color: var(--color-text) !important;
+}
+input:hover, select:hover, textarea:hover { border-color: var(--color-neutral-400) !important; }
+input::placeholder, textarea::placeholder { color: var(--color-neutral-500); font-style: italic; }
+select { font-weight: 400 !important; }
+
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--color-accent) !important;
+  outline-offset: 2px;
+  box-shadow: none !important;
+}
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent); }
+
+/* ── tabele: nagłówek kapitalikami, wiersze na kreskach ──────────────── */
+
+table { border-collapse: collapse; }
+table thead th {
+  font-family: var(--font-body) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600 !important;
+  color: var(--color-neutral-600) !important;
+  background: transparent !important;
+  border-bottom: 1px solid var(--color-text) !important;
+  padding: 8px 9px !important;
+}
+table tbody tr { border-bottom: 1px solid var(--color-divider); }
+table tbody tr:hover td {
+  background-color: color-mix(in srgb, var(--color-accent) 7%, transparent) !important;
+}
+table tbody td { padding: 9px !important; }
+table tbody tr.bg-blue-50 td,
+table tbody tr.bg-slate-50 td { background-color: var(--color-accent-100) !important; }
+
+/* ── plakietki i etykiety ────────────────────────────────────────────── */
+
+#staging-badge, .rounded-full.text-xs {
+  background-color: var(--color-accent-100) !important;
+  color: var(--color-accent-800) !important;
+  border: 1px solid var(--color-accent-300);
+  font-family: var(--font-body) !important;
+  font-weight: 600 !important;
+}
+
+/* ── toasty i modale ─────────────────────────────────────────────────── */
+
+.toast {
+  font-family: var(--font-body);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-accent-700);
+}
+.toast.success { background-color: #2d2b2b !important; }
+.toast.info    { background-color: #2d2b2b !important; }
+.toast.error   { background-color: #4a2020 !important; }
+
+.fixed.inset-0 { background-color: color-mix(in srgb, #201f1d 45%, transparent) !important; }
+
+/* ── wykresy Chart.js ────────────────────────────────────────────────── */
+/* Kolory serii ustawia JS; tu tylko rama płótna trzyma się siatki. */
+canvas { max-width: 100%; }
+
+/* ── zdjęcia i ilustracje ────────────────────────────────────────────── */
+.plate {
+  filter: sepia(0.22) saturate(0.82) contrast(1.05);
+  box-sizing: border-box;
+  border: 6px solid var(--color-surface);
+  outline: 1px solid var(--color-divider);
+}

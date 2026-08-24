@@ -87,7 +87,12 @@ def create_app(config_class=Config):
     app.register_blueprint(import_bp)
     # dev_bp zawiera destrukcyjny endpoint resetu danych — rejestrujemy go tylko
     # w trybie debug/testów lub gdy jawnie włączony zmienną ENABLE_DEV_RESET.
-    if app.debug or app.testing or os.getenv('ENABLE_DEV_RESET') == '1':
+    # Wynik trafia do config, bo szablon musi ukryć przycisk dokładnie wtedy, gdy
+    # endpoint nie istnieje — inaczej użytkownik klika kosz i dostaje 404.
+    app.config['DEV_RESET_ENABLED'] = bool(
+        app.debug or app.testing or os.getenv('ENABLE_DEV_RESET') == '1'
+    )
+    if app.config['DEV_RESET_ENABLED']:
         app.register_blueprint(dev_bp)
 
     # --- Logowanie żądań HTTP ---

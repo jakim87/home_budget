@@ -18,25 +18,31 @@ W pliku `dashboard_bp.py` umieść poniższy kod jako szablon startowy. Pamięta
 
 ```python
 from flask import Blueprint, jsonify
+from flask_login import login_required, current_user
+
+from app.services.your_service import summarize_net_worth
 
 # 1. Zdefiniuj blueprint. Nazwa 'dashboard' będzie używana wewnątrz Flaska.
 #    url_prefix sprawi, że wszystkie trasy w tym pliku będą zaczynać się od /api/dashboard
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/api/dashboard')
 
 @dashboard_bp.route('/summary', methods=['GET'])
+@login_required
 def get_dashboard_summary():
     """
-    Przykładowy endpoint, który w przyszłości zwróci dane
-    dla głównego panelu analitycznego.
+    Przykładowy endpoint, który zwraca dane dla panelu analitycznego.
+
+    Dwie rzeczy obowiązkowe w każdym endpoincie: `@login_required` oraz
+    przekazanie `current_user.token` do serwisu. Blueprint sam nie sięga do bazy
+    — liczy serwis, a token jest tym, co ogranicza wynik do danych właściciela.
     """
-    # Tutaj znajdzie się logika pobierania i agregowania danych
-    summary_data = {
-        'total_net_worth': 150000.75,
-        'monthly_change': 1250.20
-    }
-    return jsonify(summary_data)
+    return jsonify(summarize_net_worth(current_user.token))
 
 ```
+
+> Endpoint przyjmujący ID w URL (`/items/<int:item_id>`) dostaje test IDOR
+> w `tests/test_authorization.py` — sprawdzający, że właściciel dostaje 200,
+> a obcy użytkownik 403/404. To konwencja projektu, nie sugestia.
 
 ### Krok 3: Zarejestruj nowy Blueprint w aplikacji
 

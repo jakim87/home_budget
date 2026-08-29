@@ -44,6 +44,10 @@ class Config:
     # druga warstwa, działająca też lokalnie i niezależna od konfiguracji proxy.
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024
 
+    # Wersja pokazywana w nagłówku. Flask sam udostępnia `config` w szablonach,
+    # więc wyświetlenie nie wymaga ani kontekstu, ani endpointa. Podbijaj ręcznie.
+    APP_VERSION = '0.9.0-beta'
+
     # Aplikacja stoi za reverse proxy (nginx) — bez tego request.remote_addr to
     # zawsze 127.0.0.1, więc logi logowań i każdy limit per-IP są bezwartościowe.
     # Włączać WYŁĄCZNIE gdy przed aplikacją faktycznie stoi zaufane proxy: przy

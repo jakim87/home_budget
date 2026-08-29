@@ -179,6 +179,79 @@ async function saveInlineEdit(id) {
     }
 }
 
+// --- SALDO PO OPERACJI ---
+// Liczone w locie, bez kolumny w bazie. `Account.balance` jest sumą wszystkich
+// transakcji konta (rozjazdy domyka transakcja uzgadniająca), więc idąc wstecz od
+// bieżącego salda dostajemy stan po każdej operacji. Transakcja dopisana z datą
+// wsteczną niczego nie psuje — mapa powstaje od nowa przy każdym renderze, zamiast
+// wymagać przeliczenia ogona, jak zapisana kolumna `balance_after`.
+//
+// Liczymy po PEŁNEJ historii konta, nie po widocznym miesiącu — inaczej każdy miesiąc
+// zaczynałby się od złej podstawy. Wartości w groszach, żeby łańcuchowe odejmowanie
+// po tysiącach wierszy nie dryfowało.
+function balanceAfterByTxId(accountId) {
+    const map = new Map();
+    const acc = accounts.find(a => a.id == accountId);
+    if (!acc) return map;
+    const history = transactions
+        .filter(t => t.account_id == accountId)
+        .sort((a, b) => (a.date !== b.date ? b.date.localeCompare(a.date) : b.id - a.id));
+    let running = Math.round(acc.balance * 100);
+    for (const t of history) {
+        map.set(t.id, running);
+        running -= Math.round(t.amount * 100);
+    }
+    return map;
+}
+
+const WEEKDAYS = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
+const collapsedDays = new Set();
+
+// Zwijanie dnia operuje na klasach już wyrenderowanych wierszy — bez przerysowywania
+// całej tabeli. Stan przeżywa render, bo wiersze pytają o niego przy tworzeniu.
+window.toggleDay = function(day) {
+    if (collapsedDays.has(day)) collapsedDays.delete(day);
+    else collapsedDays.add(day);
+    const hidden = collapsedDays.has(day);
+    document.querySelectorAll(`#transaction-list tr[data-day="${day}"]`)
+        .forEach(r => r.classList.toggle('hidden', hidden));
+    const icon = document.getElementById(`day-icon-${day}`);
+    if (icon) icon.textContent = hidden ? '▸' : '▾';
+};
+
+// Suma dnia pomija projekcje cykliczne (jeszcze się nie wydarzyły) oraz przelewy
+// wewnętrzne — te przenoszą pieniądze między własnymi kontami i zawyżałyby obrót,
+// tak samo jak w zakładce Raporty, gdzie są wyłączone domyślnie.
+function dayHeaderRow(day, rows, colspan) {
+    const sumGrosze = rows.reduce((s, t) => {
+        if (t.isVirtual) return s;
+        const cat = categories.find(c => c.name === t.category);
+        if (cat && cat.type === 'transfer') return s;
+        return s + Math.round(t.amount * 100);
+    }, 0);
+    const sum = sumGrosze / 100;
+    const n = rows.length;
+    const opsLabel = n === 1 ? 'operacja' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'operacje' : 'operacji');
+    const [y, m, d] = day.split('-').map(Number);
+    const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()];
+    const collapsed = collapsedDays.has(day);
+
+    const tr = document.createElement('tr');
+    tr.className = 'bg-slate-50/80 cursor-pointer select-none hover:bg-slate-100';
+    tr.setAttribute('onclick', `toggleDay('${day}')`);
+    tr.innerHTML = `
+        <td colspan="${colspan}" class="px-4 py-2 border-b border-slate-200">
+            <span class="inline-flex items-baseline gap-2 text-sm">
+                <span id="day-icon-${day}" class="text-slate-400 w-3 inline-block">${collapsed ? '▸' : '▾'}</span>
+                <span class="font-semibold text-slate-700">${weekday}, ${day}</span>
+                <span class="text-slate-400 text-xs">${n} ${opsLabel} · suma dnia
+                    <span class="tabular-nums font-medium ${sum < 0 ? 'text-rose-600' : 'text-emerald-600'}">${sum >= 0 ? '+' : ''}${sum.toFixed(2)} PLN</span>
+                </span>
+            </span>
+        </td>`;
+    return tr;
+}
+
 function renderTransactions() {
     const list = document.getElementById('transaction-list');
     const emptyState = document.getElementById('empty-state');
@@ -202,6 +275,13 @@ function renderTransactions() {
     const showAccountColumn = !globalAccountFilter;
     document.getElementById('th-tx-account').classList.toggle('hidden', !showAccountColumn);
 
+    // „Saldo po" istnieje tylko dla jednego konta — przy widoku zbiorczym byłoby
+    // sumą stanów różnych rachunków, czyli liczbą bez znaczenia.
+    const showBalance = !!globalAccountFilter;
+    document.getElementById('th-tx-balance').classList.toggle('hidden', !showBalance);
+    const balanceMap = showBalance ? balanceAfterByTxId(globalAccountFilter) : null;
+    const colCount = 6 + (showAccountColumn ? 1 : 0) + (showBalance ? 1 : 0) + 1;
+
     // Nazwa miesiąca w nagłówku
     const monthNames = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
     document.getElementById('current-month-display').innerText = `${monthNames[viewDate.getMonth()]} ${viewDate.getFullYear()}`;
@@ -213,9 +293,26 @@ function renderTransactions() {
         emptyState.classList.add('hidden');
         list.parentElement.classList.remove('hidden');
 
+        // Nagłówek dnia przed pierwszą operacją każdej daty. `filtered` jest już
+        // posortowane malejąco po dacie, więc wystarczy pilnować zmiany wartości.
+        const byDay = filtered.reduce((acc, t) => ((acc[t.date] ||= []).push(t), acc), {});
+        let lastDay = null;
+
         filtered.forEach(t => {
+            if (t.date !== lastDay) {
+                lastDay = t.date;
+                list.appendChild(dayHeaderRow(t.date, byDay[t.date], colCount));
+            }
             const isSplit = t.splits && t.splits.length > 0;
             const row = document.createElement('tr');
+            row.dataset.day = t.date;
+            if (collapsedDays.has(t.date)) row.classList.add('hidden');
+            const balanceCellHtml = !showBalance ? '' : (() => {
+                const g = balanceMap.get(t.id);
+                // Projekcje cykliczne nie są jeszcze pieniędzmi — nie mają salda.
+                if (g === undefined) return `<td class="p-4 border-b border-slate-100 text-right text-slate-300">—</td>`;
+                return `<td class="p-4 border-b border-slate-100 text-right text-sm text-slate-600 tabular-nums whitespace-nowrap">${(g / 100).toFixed(2)}</td>`;
+            })();
             const accountCellHtml = showAccountColumn
                 ? `<td class="p-4 border-b border-slate-100 text-sm text-slate-600 break-words whitespace-normal">${escapeHtml(accountLabelById(t.account_id))}</td>`
                 : '';
@@ -253,6 +350,7 @@ function renderTransactions() {
                     <td class="p-2 border-b border-blue-100">
                         <input type="number" id="edit-amount-${t.id}" value="${Math.abs(t.amount).toFixed(2)}" step="0.01" min="0.01" ${isSplit ? 'readonly title="Kwota wynika z podziału"' : ''} class="w-full p-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white ${isSplit ? 'bg-slate-100 text-slate-500' : ''}">
                     </td>
+                    ${showBalance ? '<td class="p-2 border-b border-blue-100"></td>' : ''}
                     <td class="p-2 border-b border-blue-100 text-center">
                         <div class="flex justify-center items-center gap-1">
                             <button onclick="saveInlineEdit(${t.id})" title="Zapisz" class="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-md transition-colors bg-white border border-emerald-200">
@@ -298,7 +396,7 @@ function renderTransactions() {
 
                 row.className = `transition-colors group hover:bg-slate-50 ${isVirtual ? 'bg-indigo-50/30' : ''}`;
                 row.innerHTML = `
-                    <td class="p-4 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
+                    <td class="p-4 border-b border-slate-100 text-sm text-slate-400 whitespace-nowrap tabular-nums" title="${t.date}">${Number(t.date.slice(8))}</td>
                     ${accountCellHtml}
                     <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${iconHtml}${escapeHtml(t.contractor_name || t.contractor || '-')}
@@ -313,6 +411,7 @@ function renderTransactions() {
                     <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${escapeHtml(t.desc)}${t.transfer_unmatched ? ` <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider align-middle" title="Przelew wewnętrzny bez drugiej strony — powiąże się automatycznie po zaimportowaniu wyciągu drugiego konta">Do zmapowania</span>` : ''}</td>
                     <td class="p-4 border-b border-slate-100 text-sm">${commentHtml}</td>
                     <td class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
+                    ${balanceCellHtml}
                     <td class="p-4 border-b border-slate-100 text-center">
                         ${isVirtual ? `
                             <span class="text-xs font-semibold text-indigo-500 bg-indigo-100 px-2 py-1 rounded-md inline-block">Zaplanowana</span>

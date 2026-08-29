@@ -1,0 +1,11 @@
+<!-- Linki do dokumentow w modalu logowania/rejestracji. Modal zakrywa cala strone,
+     wiec stopka aplikacji jest wtedy niedostepna — bez tego niezalogowany uzytkownik
+     nie mialby jak przeczytac regulaminu ani polityki prywatnosci.
+     target="_blank": otwarcie w nowej karcie nie kasuje wpisanych danych formularza. -->
+<p class="text-center text-xs text-slate-400 mt-4 pt-4 border-t border-slate-100">
+    <a href="{{ url_for('legal.regulamin') }}" target="_blank" rel="noopener" class="hover:text-slate-600 hover:underline">Regulamin</a>
+    <span class="mx-1.5">·</span>
+    <a href="{{ url_for('legal.polityka_prywatnosci') }}" target="_blank" rel="noopener" class="hover:text-slate-600 hover:underline">Polityka prywatności (RODO)</a>
+    <span class="mx-1.5">·</span>
+    <a href="{{ url_for('legal.o_aplikacji') }}" target="_blank" rel="noopener" class="hover:text-slate-600 hover:underline">O aplikacji</a>
+</p>

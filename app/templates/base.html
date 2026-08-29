@@ -648,6 +648,8 @@
             </div><!-- end tab-reports -->
 
         </main>
+
+        {% include '_footer.html' %}
     </div>
 
     <!-- Modal Importu CSV -->
@@ -996,7 +998,10 @@
          showAuthView() — nie ma osobnej strony /register, cala aplikacja to jeden
          szablon (patrz home_bp.index). -->
     <div id="login-modal" class="hidden fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[100] backdrop-blur-sm">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm">
+        <!-- max-h/overflow: formularz rejestracji jest wyzszy niz niskie okno (ok. 770 px),
+             a modal jest wysrodkowany w warstwie fixed — bez tego jego gora (naglowek i
+             pole nazwy uzytkownika) wychodzi poza ekran i nie da sie do niej doscrollowac. -->
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
 
             <!-- WIDOK: logowanie -->
             <div id="auth-view-login">
@@ -1018,6 +1023,7 @@
                     Nie masz jeszcze konta?
                     <button type="button" onclick="showAuthView(&#39;register&#39;)" class="text-blue-600 hover:text-blue-800 font-medium hover:underline">Zarejestruj się</button>
                 </p>
+                {% include '_auth_legal_links.html' %}
             </div>
 
             <!-- WIDOK: rejestracja -->
@@ -1049,11 +1055,18 @@
                         Zapamiętaj hasło — aplikacja nie wysyła jeszcze e-maili, więc nie ma automatycznego odzyskiwania dostępu.
                     </p>
                     <button type="submit" class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow-lg focus:ring-4 focus:ring-blue-300">Załóż konto</button>
+                    <p class="text-xs text-slate-500 text-center mt-3">
+                        Zakładając konto akceptujesz
+                        <a href="{{ url_for('legal.regulamin') }}" target="_blank" rel="noopener" class="text-blue-600 hover:underline">Regulamin</a>
+                        i potwierdzasz zapoznanie się z
+                        <a href="{{ url_for('legal.polityka_prywatnosci') }}" target="_blank" rel="noopener" class="text-blue-600 hover:underline">Polityką prywatności</a>.
+                    </p>
                 </form>
                 <p class="text-center text-sm text-slate-500 mt-5">
                     Masz już konto?
                     <button type="button" onclick="showAuthView(&#39;login&#39;)" class="text-blue-600 hover:text-blue-800 font-medium hover:underline">Zaloguj się</button>
                 </p>
+                {% include '_auth_legal_links.html' %}
             </div>
         </div>
     </div>

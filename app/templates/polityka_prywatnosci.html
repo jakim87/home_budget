@@ -1,0 +1,104 @@
+{% extends 'legal_base.html' %}
+
+{% block title %}Polityka prywatności (RODO){% endblock %}
+{% block heading %}Polityka prywatności (RODO){% endblock %}
+
+{% block content %}
+<p>Dokument opisuje, jakie dane osobowe przetwarza aplikacja „Budżet domowy”, w jakim celu i na jakiej podstawie — zgodnie z rozporządzeniem Parlamentu Europejskiego i Rady (UE) 2016/679 (RODO).</p>
+
+<h2>1. Administrator danych</h2>
+<p>Administratorem danych przetwarzanych w tej instancji Aplikacji jest <strong>{{ config.APP_ADMIN_NAME }}</strong>. Kontakt w sprawach dotyczących danych osobowych: <a href="mailto:{{ config.APP_CONTACT_EMAIL }}">{{ config.APP_CONTACT_EMAIL }}</a>.</p>
+<p>Aplikacja jest oprogramowaniem open source (licencja MIT), które każdy może uruchomić na własnym serwerze. Administratorem jest wówczas osoba lub podmiot prowadzący daną instancję, a nie autor kodu.</p>
+<p>Administrator nie wyznaczył inspektora ochrony danych — we wszystkich sprawach należy pisać na adres podany wyżej.</p>
+
+<h2>2. Jakie dane są przetwarzane</h2>
+<table>
+    <tr><th>Kategoria</th><th>Zakres</th></tr>
+    <tr>
+        <td>Dane konta</td>
+        <td>nazwa użytkownika, adres e-mail, skrót (hash) hasła, techniczny identyfikator użytkownika, data założenia konta</td>
+    </tr>
+    <tr>
+        <td>Dane finansowe</td>
+        <td>nazwy i typy kont, nazwa banku, numer rachunku (jeśli zostanie podany), saldo, waluta, oznaczenie właściciela i współwłaściciela konta; transakcje (data, tytuł, kwota, kategoria, kontrahent, komentarz, oryginalny opis z wyciągu), podziały transakcji, transakcje cykliczne i zaplanowane, budżety</td>
+    </tr>
+    <tr>
+        <td>Dane o imporcie</td>
+        <td>metadane wgranych wyciągów: nazwa pliku, bank, format, zakres dat, liczba zaimportowanych i pominiętych pozycji, data importu</td>
+    </tr>
+    <tr>
+        <td>Dane techniczne</td>
+        <td>logi serwera: data, metoda i ścieżka żądania, kod odpowiedzi, czas obsługi, nazwa zalogowanego użytkownika; przy logowaniu i nieudanych próbach logowania również adres IP; techniczne ciasteczko sesji</td>
+    </tr>
+</table>
+<p><strong>Plik wyciągu nie jest przechowywany</strong> — po przetworzeniu zostają wyłącznie transakcje i wymienione wyżej metadane importu. Hasło nie jest nigdzie zapisywane w postaci jawnej.</p>
+<p>Dane finansowe wprowadza sam Użytkownik. To on decyduje, jak szczegółowe informacje trafiają do Aplikacji — nazwy kontrahentów i tytuły przelewów mogą pośrednio ujawniać np. stan zdrowia czy przekonania, dlatego warto ograniczać je do niezbędnego minimum.</p>
+
+<h2>3. Cele i podstawy prawne</h2>
+<table>
+    <tr><th>Cel</th><th>Podstawa prawna</th></tr>
+    <tr>
+        <td>Prowadzenie konta i świadczenie usługi (przechowywanie i prezentacja danych budżetowych)</td>
+        <td>art. 6 ust. 1 lit. b RODO — wykonanie umowy zawartej przez akceptację Regulaminu</td>
+    </tr>
+    <tr>
+        <td>Bezpieczeństwo usługi: logi serwera, ograniczanie liczby prób logowania, blokowanie nadużyć</td>
+        <td>art. 6 ust. 1 lit. f RODO — prawnie uzasadniony interes administratora polegający na ochronie danych przed nieuprawnionym dostępem</td>
+    </tr>
+    <tr>
+        <td>Obsługa zgłoszeń i reklamacji</td>
+        <td>art. 6 ust. 1 lit. f RODO — prawnie uzasadniony interes polegający na komunikacji z Użytkownikiem</td>
+    </tr>
+    <tr>
+        <td>Ustalenie, dochodzenie lub obrona roszczeń</td>
+        <td>art. 6 ust. 1 lit. f RODO</td>
+    </tr>
+</table>
+<p>Podanie danych jest dobrowolne, ale niezbędne do korzystania z Aplikacji — bez konta i bez danych finansowych usługa nie może być świadczona.</p>
+
+<h2>4. Okres przechowywania</h2>
+<ul>
+    <li><strong>Dane konta i dane finansowe</strong> — do czasu usunięcia ich przez Użytkownika albo usunięcia konta na jego żądanie.</li>
+    <li><strong>Usunięte transakcje</strong> — trafiają do archiwum (możliwość odtworzenia i ślad audytowy) i są trwale kasowane po <strong>60 dniach</strong>.</li>
+    <li><strong>Logi serwera</strong> — podlegają rotacji; przechowywanych jest sześć kolejnych plików po ok. 2 MB, więc najstarsze wpisy są nadpisywane na bieżąco (w praktyce od kilku dni do kilku tygodni, zależnie od ruchu).</li>
+</ul>
+
+<h2>5. Odbiorcy danych</h2>
+<ul>
+    <li>Dane <strong>nie są sprzedawane, wynajmowane ani udostępniane</strong> podmiotom trzecim w celach marketingowych. Aplikacja nie zawiera reklam ani narzędzi analitycznych śledzących Użytkownika.</li>
+    <li>Odbiorcą danych może być dostawca serwera (hostingu), na którym działa instancja Aplikacji — jako podmiot przetwarzający, w zakresie niezbędnym do jej utrzymania.</li>
+    <li>Interfejs Aplikacji ładuje biblioteki i czcionki z zewnętrznych sieci CDN: <em>cdn.tailwindcss.com</em>, <em>cdn.jsdelivr.net</em> (Chart.js, driver.js) oraz <em>fonts.googleapis.com</em> i <em>fonts.gstatic.com</em> (Google Fonts). Przy pobieraniu tych plików przeglądarka przekazuje ich dostawcom adres IP oraz standardowe informacje o żądaniu. Nie są im przekazywane żadne dane finansowe ani dane konta. Może się to wiązać z przekazaniem adresu IP poza Europejski Obszar Gospodarczy, na zasadach określonych przez tych dostawców.</li>
+</ul>
+
+<h2>6. Profilowanie i decyzje automatyczne</h2>
+<p>Aplikacja automatycznie podpowiada kategorię i kontrahenta dla importowanych transakcji oraz wykrywa przelewy wewnętrzne. Są to proste reguły dopasowania tekstu, działające wyłącznie na danych Użytkownika i możliwe do poprawienia ręcznie. Nie podejmujemy zautomatyzowanych decyzji wywołujących skutki prawne ani w podobny sposób istotnie wpływających na Użytkownika w rozumieniu art. 22 RODO. Dane nie są wykorzystywane do oceny zdolności kredytowej ani do profilowania marketingowego.</p>
+
+<h2>7. Prawa Użytkownika</h2>
+<p>Przysługuje Ci prawo do:</p>
+<ul>
+    <li><strong>dostępu</strong> do danych i otrzymania ich kopii (art. 15 RODO),</li>
+    <li><strong>sprostowania</strong> danych nieprawidłowych (art. 16),</li>
+    <li><strong>usunięcia</strong> danych (art. 17),</li>
+    <li><strong>ograniczenia przetwarzania</strong> (art. 18),</li>
+    <li><strong>przenoszenia danych</strong> w ustrukturyzowanym formacie (art. 20),</li>
+    <li><strong>sprzeciwu</strong> wobec przetwarzania opartego na prawnie uzasadnionym interesie (art. 21).</li>
+</ul>
+<p>Znaczną część tych praw realizujesz samodzielnie w Aplikacji: dane przeglądasz, poprawiasz i usuwasz w zakładkach Transakcje oraz Słowniki. Aplikacja <strong>nie ma jeszcze funkcji eksportu danych ani samodzielnego usunięcia konta</strong> — do czasu ich dodania żądanie w tych sprawach realizuje administrator po zgłoszeniu na adres <a href="mailto:{{ config.APP_CONTACT_EMAIL }}">{{ config.APP_CONTACT_EMAIL }}</a>, bez zbędnej zwłoki, nie później niż w ciągu miesiąca.</p>
+<p>Masz też prawo wnieść skargę do organu nadzorczego — Prezesa Urzędu Ochrony Danych Osobowych (ul. Stawki 2, 00-193 Warszawa, <a href="https://uodo.gov.pl" target="_blank" rel="noopener noreferrer">uodo.gov.pl</a>).</p>
+
+<h2>8. Bezpieczeństwo danych</h2>
+<ul>
+    <li>Hasła przechowywane są wyłącznie jako skróty kryptograficzne — administrator nie zna Twojego hasła i nie jest w stanie go odczytać.</li>
+    <li>Dane każdego Użytkownika są odseparowane własnym identyfikatorem; każde zapytanie do bazy jest do niego zawężane.</li>
+    <li>Ciasteczko sesji ma flagi <em>HttpOnly</em>, <em>SameSite=Lax</em>, a poza trybem deweloperskim również <em>Secure</em> (przesyłane tylko po HTTPS).</li>
+    <li>Liczba prób logowania i rejestracji z jednego adresu IP jest ograniczona, a nieudane próby są logowane i mogą skutkować czasową blokadą adresu.</li>
+</ul>
+
+<h2>9. Pliki cookie</h2>
+<p>Aplikacja używa <strong>wyłącznie niezbędnego, technicznego ciasteczka sesji</strong>, które utrzymuje stan zalogowania. Nie stosujemy ciasteczek analitycznych, reklamowych ani śledzących, dlatego nie jest wyświetlany baner zgody. Usunięcie ciasteczka w przeglądarce oznacza wylogowanie.</p>
+
+<h2>10. Zmiany Polityki</h2>
+<p>Polityka może być aktualizowana wraz z rozwojem Aplikacji lub zmianą przepisów. Nowa treść publikowana jest na tej stronie wraz z datą aktualizacji widoczną na górze dokumentu.</p>
+
+<p>Zasady korzystania z Aplikacji opisuje <a href="{{ url_for('legal.regulamin') }}">Regulamin</a>.</p>
+{% endblock %}

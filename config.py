@@ -48,6 +48,15 @@ class Config:
     # więc wyświetlenie nie wymaga ani kontekstu, ani endpointa. Podbijaj ręcznie.
     APP_VERSION = '0.9.0-beta'
 
+    # --- Dane wyświetlane w Regulaminie / Polityce prywatności / O aplikacji ---
+    # Autor projektu jest stały (fakt o repozytorium), ale administratorem danych
+    # w rozumieniu RODO jest osoba, która uruchomiła DANĄ instancję aplikacji —
+    # dlatego nazwa i adres kontaktowy dają się nadpisać z .env.
+    APP_AUTHOR = 'jakim87'
+    APP_AUTHOR_URL = 'https://github.com/jakim87'
+    APP_ADMIN_NAME = os.getenv('APP_ADMIN_NAME', 'jakim87')
+    APP_CONTACT_EMAIL = os.getenv('APP_CONTACT_EMAIL', 'jakim87@gmail.com')
+
     # Aplikacja stoi za reverse proxy (nginx) — bez tego request.remote_addr to
     # zawsze 127.0.0.1, więc logi logowań i każdy limit per-IP są bezwartościowe.
     # Włączać WYŁĄCZNIE gdy przed aplikacją faktycznie stoi zaufane proxy: przy

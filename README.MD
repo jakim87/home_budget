@@ -19,6 +19,7 @@ Zrealizowane:
 - Ręczne wprowadzanie transakcji, również gotówkowych
 - Uwierzytelnianie użytkownika (logowanie, rejestracja)
 - Interaktywny samouczek w aplikacji
+- Regulamin, polityka prywatności (RODO) i informacja o autorze — strony `/regulamin`, `/polityka-prywatnosci`, `/o-aplikacji`
 
 Planowane:
 

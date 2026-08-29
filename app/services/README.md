@@ -26,7 +26,7 @@ from app import db
 from app.models import YourModel, SomeOtherModel
 from decimal import Decimal
 
-def your_new_service_function(user_id: int, data: dict) -> YourModel:
+def your_new_service_function(user_token: str, data: dict) -> YourModel:
     """
     Zwięzły opis, co robi ta funkcja.
     Przyjmuje proste typy danych, zwraca obiekt modelu lub rzuca wyjątek.
@@ -38,12 +38,17 @@ def your_new_service_function(user_id: int, data: dict) -> YourModel:
             raise ValueError("Pole 'required_field' jest wymagane.")
 
         # 2. Interakcja z bazą danych (odczyt, zapis)
-        related_object = db.session.get(SomeOtherModel, data.get('related_id'))
+        #    Każde pobranie cudzego obiektu po ID filtruj po user_token — inaczej
+        #    użytkownik podstawi ID sąsiada (IDOR). Ten filtr jest jedyną barierą,
+        #    blueprint go nie doda za Ciebie.
+        related_object = db.session.query(SomeOtherModel).filter_by(
+            id=data.get('related_id'), user_token=user_token
+        ).first()
         if not related_object:
             raise ValueError("Obiekt powiązany nie istnieje.")
 
         new_object = YourModel(
-            user_id=user_id,
+            user_token=user_token,
             some_field=required_field,
             # ... inne pola
         )
@@ -72,14 +77,15 @@ Blueprint jest odpowiedzialny za wywołanie serwisu i przetworzenie jego wyniku 
 # w pliku app/blueprints/some_bp.py
 
 from flask import request, jsonify
+from flask_login import login_required, current_user
 from app.services.your_service import your_new_service_function
 
 @some_bp.route('/items', methods=['POST'])
+@login_required
 def create_item():
-    user_id = get_current_user_id() # Funkcja pomocnicza
     try:
         # Blueprint przekazuje dane do serwisu i obsługuje odpowiedź
-        new_item = your_new_service_function(user_id, request.get_json())
+        new_item = your_new_service_function(current_user.token, request.get_json())
         return jsonify({'id': new_item.id, 'message': 'Utworzono pomyślnie'}), 201
     except ValueError as e:
         # Serwis rzucił błąd, blueprint zwraca go jako odpowiedź 400

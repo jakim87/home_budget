@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Home Budget App** — Flask + PostgreSQL web app for personal finance management. Features: bank account tracking, CSV import from ING Bank Śląski, transaction categorization, recurring/planned transactions, internal transfers, dashboard z Net Worth i wykresami Chart.js. Codebase and UI are in **Polish**.
+**Home Budget App** — Flask + PostgreSQL web app for personal finance management. Features: bank account tracking, import wyciągów z ING i mBanku (CSV/PDF/HTML, z automatyczną detekcją banku i formatu), transaction categorization, recurring/planned transactions, internal transfers, dashboard z Net Worth i zakładka Raporty (oba na Chart.js), publiczna rejestracja użytkowników. Codebase and UI are in **Polish**.
 
 ## Zasady pracy nad tym repo
 
@@ -52,9 +52,12 @@ flask seed                       # Populate DB with default_user + test data
 # CLI tasks
 flask process-scheduled          # Execute due recurring & planned transactions
 flask cleanup-archive            # Remove archived transactions older than 60 days
+flask reset-password             # Ustawia nowe hasło użytkownika (jedyna droga odzyskania
+                                 #   konta — aplikacja nie wysyła maili)
+flask import-excel-balance-history  # Jednorazowa migracja historii sald z XLSX (domyślnie dry-run)
 
 # Tests
-pytest                           # Run all tests (~9 min for full suite, ~90 tests — nie mylić z zawieszeniem)
+pytest                           # Run all tests (~250 testów w 28 plikach; kilkanaście minut — nie mylić z zawieszeniem)
 pytest tests/test_file.py        # Single file
 pytest tests/test_file.py::test_name -vv --tb=long  # Single test, verbose
 
@@ -76,20 +79,16 @@ flask db upgrade
 flask seed
 ```
 
-Default dev credentials after `flask seed`: **default_user / password**
-
-> **Uwaga**: Jeśli `flask seed` nie uruchomiono ponownie, hasło w bazie może być zapisane jako niezahaszowany plaintext `"secret"`. W takim przypadku należy zaktualizować hash ręcznie:
-> ```bash
-> python -c "from app import create_app, db; from app.models import User; from werkzeug.security import generate_password_hash; app = create_app(); ctx = app.app_context(); ctx.push(); u = db.session.query(User).filter_by(username='default_user').first(); u.password_hash = generate_password_hash('password'); db.session.commit()"
-> ```
+Default dev credentials after `flask seed`: **default_user / password**. Hasło zapomniane → `flask reset-password`.
 
 ## Tech Stack
 
 - **Backend**: Python 3.12+, Flask 3.1.3, SQLAlchemy 2.0 (`Mapped` type hints), Flask-Migrate
 - **Database**: PostgreSQL (prod), in-memory SQLite (tests via `tests/conftest.py`)
-- **Auth**: Flask-Login
+- **Auth**: Flask-Login + Flask-Limiter (limity per-IP na `/api/login` i `/api/register`)
 - **Serialization**: Marshmallow + flask-marshmallow
-- **Frontend**: Jinja2 + Tailwind CSS + HTMX + Chart.js (CDN, dashboard only)
+- **Parsowanie wyciągów**: PyMuPDF (PDF), BeautifulSoup4 (HTML mBanku), `csv` ze stdlib
+- **Frontend**: Jinja2 (jeden szablon `base.html` = SPA z zakładkami) + Tailwind CSS + Chart.js (dashboard i Raporty) + driver.js (samouczek) — wszystko z CDN
 
 ## Architecture
 
@@ -99,35 +98,48 @@ Three-layer design: **Models → Services → Blueprints**
 app/
 ├── models.py          # SQLAlchemy ORM: User, Account, Transaction, Category, Contractor,
 │                      #   TransactionSplit, TransactionStaging, TransactionArchive,
-│                      #   RecurringTransaction, PlannedTransaction, Budget
+│                      #   RecurringTransaction, PlannedTransaction, Budget, StatementImport
 ├── schemas.py         # Marshmallow serializers (request/response validation)
 ├── cli.py             # Flask CLI commands
 ├── services/          # Business logic — decoupled from HTTP/Flask
-│   ├── budget_service.py           # Core CRUD, CSV import, balance reconciliation
+│   ├── budget_service.py           # Core CRUD, parsery CSV (ING/mBank), uzgadnianie salda
+│   ├── statement_parsers.py        # detect_bank_and_format + parsery PDF/HTML
+│   ├── import_history_service.py   # Historia importów (model StatementImport)
+│   ├── excel_history_import_service.py  # Jednorazowa migracja historii sald z XLSX
 │   ├── init_service.py             # Payload dla GET /api/init (cały stan frontu)
 │   ├── transaction_service.py      # Transaction archive & cleanup
 │   ├── recurring_service.py        # Recurring transaction execution
 │   ├── planned_transaction_service.py
 │   └── *.py                        # Category, Contractor, Account, Auth services
 ├── blueprints/        # HTTP layer — route handlers call services, translate exceptions to HTTP
-│   ├── import_bp.py   # CSV upload → staging approval flow
+│   ├── import_bp.py   # Upload wyciągu → staging approval flow; mapa STATEMENT_PARSERS
 │   ├── transactions_bp.py
 │   └── *.py           # auth, accounts, categories, contractors, recurring, planned, home
-└── templates/         # Jinja2 HTML
+└── templates/         # base.html (cała aplikacja) + reconcile_modal.html
 ```
 
 ### Services Layer Contract
 
 - Accept primitive types (int, dict, Decimal); return model objects or raise `ValueError`
+- Właścicielem danych jest `user_token: str` (nie `user_id`) — bierz go pierwszym argumentem i filtruj nim **każde** zapytanie o cudzy obiekt po ID. To jedyna bariera przed IDOR; blueprint jej nie doda
 - Own their DB transaction: `db.session.commit()` on success, `db.session.rollback()` in except
 - Blueprints catch `ValueError` and return appropriate HTTP status codes
 
 ### Key Patterns
 
-**CSV Import Flow** (2-stage):
+**Import wyciągów** (2-stage):
 
 1. Parse → save to `TransactionStaging` with auto-categorization (contractor matching, internal transfer detection)
 2. User reviews pending staging rows → approves → moves to `Transaction`, updates account balance
+
+Bank i format rozpoznaje `detect_bank_and_format()` (`statement_parsers.py`) **po zawartości pliku, nie po rozszerzeniu**. Mapa `STATEMENT_PARSERS` w `import_bp.py:24` wiąże parę `(bank, format)` z parserem i trybem wejścia (`'text'` po zdekodowaniu / `'bytes'` surowo):
+
+| Bank | CSV | PDF | HTML |
+| ---- | --- | --- | ---- |
+| ING Bank Śląski | ✅ | ✅ | — |
+| mBank | ✅ | ✅ | ✅ |
+
+Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie. Każdy import zapisuje ślad w `StatementImport` (historia importów).
 
 **Internal Transfers**: Category type `"transfer"` + contractor name matching `"Moje konto: {account_name}"` automatically creates a mirror transaction on the destination account.
 
@@ -143,9 +155,13 @@ app/
 
 **Dashboard**: Zakładka otwierana domyślnie. Dane obliczane po stronie klienta z już załadowanego `transactions` + `accounts` (brak dodatkowego endpointa). Funkcje: `renderDashboard()`, `renderDashboardChart()`, `setDashboardView('monthly'|'yearly')` w `13_dashboard.js`. Wykresy Chart.js ładowane z CDN.
 
+**Raporty**: osobna zakładka (`16_reports.js`, `renderReports()`), również licząca po stronie klienta z globalnego stanu. Ma własne wykresy Chart.js (`rptBarChart`, `rptLineChart`), presety zakresu dat, sortowanie tabeli i domyślnie **wyklucza przelewy wewnętrzne** (checkbox `#rpt-exclude-transfers`) — bez tego transfery podwajałyby obroty. Tabela ograniczona do `RPT_TABLE_MAX` wierszy.
+
 **Contractor Combobox**: Pole kontrahenta w formularzu transakcji to combobox (nie `<select>`): `#tx-contractor-input` (text, widoczny) + `#tx-contractor` (hidden, przechowuje ID). Inicjalizacja: `initContractorCombobox()`. Pozostałe miejsca (inline edit w tabeli, staging, formularze cykliczne) nadal używają `<select>`.
 
 **Frontend = globalny stan z `/api/init`**: `home_bp.py` jednym zapytaniem ładuje `transactions`, `categories`, `contractors`, `accounts` do zmiennych globalnych zadeklarowanych w `01_state.js`; cały rendering i przeliczenia dzieją się po stronie klienta (brak osobnych endpointów read). Po mutacji (POST/PUT/DELETE) front woła `fetchInitialData()`, by odświeżyć globalny stan.
+
+Logowanie i rejestracja to modal w `base.html` (`#login-modal`, widoki `#auth-view-login` / `#auth-view-register`) obsługiwany przez `15_init.js` — nie ma osobnych szablonów ani tras GET; cała aplikacja to jedno `base.html`.
 
 Frontend to **18 modułów w `app/static/js/`**, ładowanych w kolejności prefiksów liczbowych (`01_state.js` … `17_tour.js`, `99_bootstrap.js`) — nie ma pliku `main.js`. Kolejność ma znaczenie: `01_state.js` deklaruje stan globalny, `99_bootstrap.js` startuje aplikację. Funkcje pomocnicze ogólnego przeznaczenia (np. `escapeHtml`) należą do `04_helpers.js`, żeby były dostępne dla modułów ładowanych później. Szukaj funkcji `render*()` / `update*()` w module odpowiadającym zakładce.
 
@@ -158,6 +174,8 @@ Frontend to **18 modułów w `app/static/js/`**, ładowanych w kolejności prefi
 ### Testing
 
 Tests use in-memory SQLite by default, defined in `tests/conftest.py` (fixtures: `app`, `client`, `test_user`, `test_user_id`, `test_user_token`, `other_user`, `logged_in_client`, helper `login_as`). Setting env var `TEST_DATABASE_URL` runs the **same suite on PostgreSQL** (CI does this via `.github/workflows/tests.yml` — jobs: SQLite + coverage, PostgreSQL). SQLite behavior differs from PostgreSQL — notably no JSON column support and relaxed constraints.
+
+Drugi workflow, `.github/workflows/jakosc.yml`, dokłada dwie bramki: **ruff** (konfiguracja w `ruff.toml` — świadomie wąski zestaw `E9` + `F`, nie sprzątanie stylu) i **drift migracji** (`flask db check` na PostgreSQL — czerwony, gdy model zmieniono bez wygenerowania migracji). Narzędzia deweloperskie siedzą w `requirements-dev.txt`, nie w `requirements.txt`.
 
 Test conventions: amounts as `Decimal("...")` (never float; exception: assertions on JSON API responses), API-mutating tests assert both HTTP status **and** DB state, every endpoint with an ID gets an IDOR test in `tests/test_authorization.py`.
 
@@ -174,7 +192,14 @@ TDD workflow: RED (write failing test) → GREEN (minimal implementation) → RE
 
 `TRUST_PROXY=1` opakowuje aplikację w `ProxyFix` (`x_for=1`, `x_proto=1`). Bez tego za nginx-em `request.remote_addr` to zawsze `127.0.0.1`, więc logi logowań i każdy limit per-IP są bezwartościowe. **Nie włączać przy bezpośrednim wystawieniu na świat** — pozwoliłoby podszyć się pod dowolne IP nagłówkiem `X-Forwarded-For`.
 
-Ograniczenie prób logowania realizuje `fail2ban`, nie kod aplikacji (serwer i tak go używa dla SSH): pliki w `deploy/fail2ban/`, filtr dopasowuje wpisy `Nieudana próba logowania` z `logs/app.log`. Zmiana formatu tego logu w `auth_bp.py` psuje filtr — trzeba wtedy zaktualizować `deploy/fail2ban/budget-auth.conf`.
+Nadużycia logowania i rejestracji ogranicza **kod aplikacji ORAZ fail2ban** — dwie niezależne warstwy:
+
+1. **Flask-Limiter** (`app/__init__.py:30`, dekoratory w `auth_bp.py`): `/api/login` — `10 per minute; 50 per hour`, `/api/register` — `5 per hour`, klucz = adres IP. Odpowiedź przy przekroczeniu: `429`. Limity są **punktowe**, `default_limits` jest puste. Licznik trzymany jest w pamięci procesu (`storage_uri="memory://"`), więc przy gunicornie z N workerami realny limit to N-krotność ustawionego; przy większym ruchu `storage_uri` na Redisa. Działa sensownie tylko przy `TRUST_PROXY=1` — bez tego wszyscy dzielą jeden licznik dla `127.0.0.1`.
+2. **fail2ban** (serwer i tak go używa dla SSH): pliki w `deploy/fail2ban/`, filtr dopasowuje wpisy `Nieudana próba logowania` z `logs/app.log`. Zmiana formatu tego logu w `auth_bp.py` psuje filtr — trzeba wtedy zaktualizować `deploy/fail2ban/budget-auth.conf`.
+
+Rejestracja pod `POST /api/register` jest **publiczna** — bez zaproszeń i bez CAPTCHY, limit per-IP to jedyna bariera. Testy: `tests/test_rate_limiting.py`, `tests/test_onboarding.py`.
+
+**CSRF nie jest włączony** (brak `CSRFProtect`). Zapisano tu świadomie, żeby nie sprawdzać tego za każdym razem od nowa.
 
 `MAX_CONTENT_LENGTH` = 10 MB (drugą warstwą jest `client_max_body_size` w nginx).
 
@@ -198,7 +223,13 @@ Konfiguracja w `app/logging_config.py` (`configure_logging()`, wołane raz w `cr
 | `.env`                 | Secrets — gitignored; contains `DATABASE_URL`, `SECRET_KEY`, `LOG_LEVEL` |
 | `.flaskenv`            | Public Flask env (`FLASK_DEBUG=1`)                              |
 | `migrations/versions/` | Alembic migration scripts — always review before committing      |
+| `ruff.toml`            | Konfiguracja lintera — celowo wąska, patrz Testing                |
+| `requirements-dev.txt` | Narzędzia CI (ruff); nie instalowane na produkcji                 |
+| `README.md`            | Opis dla ludzi — trzymaj zgodny z tym plikiem                     |
+| `docs/`                | `DOCUMENTATION.md` (procesy biznesowe), `PRZEWODNIK_UZYTKOWNIKA.md` |
 
-## CSV Encoding
+**Uruchamianie produkcji**: gunicorn dostaje fabrykę wprost (`"app:create_app()"`). **Nigdy przez `run.py`** — ten plik ustawia `FLASK_DEBUG=1` przy imporcie, a przy `app.debug` rejestruje się `dev_bp` z destrukcyjnym `/api/dev/reset`.
 
-ING Bank Śląski exports use UTF-8-sig or windows-1250 encoding — both handled in `parse_ing_csv()` in `budget_service.py`.
+## Kodowanie plików wejściowych
+
+Eksporty z ING i mBanku (CSV, HTML) bywają w UTF-8-sig albo windows-1250 — oba warianty obsługuje `decode_statement_bytes()` (`statement_parsers.py`), wołane w `import_bp.py` dla parserów w trybie `'text'`. Parsery PDF dostają surowe bajty i dekodują je same przez PyMuPDF.

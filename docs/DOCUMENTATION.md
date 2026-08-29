@@ -11,7 +11,7 @@
 2. [Słownik pojęć](#2-słownik-pojęć)
 3. [Role i użytkownicy](#3-role-i-użytkownicy)
 4. [Procesy biznesowe](#4-procesy-biznesowe)
-   - 4.1 [Import wyciągu bankowego (CSV)](#41-import-wyciągu-bankowego-csv)
+   - 4.1 [Import wyciągu bankowego](#41-import-wyciągu-bankowego)
    - 4.2 [Zatwierdzanie transakcji ze stagingu](#42-zatwierdzanie-transakcji-ze-stagingu)
    - 4.3 [Ręczne dodawanie transakcji](#43-ręczne-dodawanie-transakcji)
    - 4.4 [Przelew wewnętrzny](#44-przelew-wewnętrzny)
@@ -33,13 +33,14 @@
 ### Główne funkcje
 
 - **Śledzenie kont bankowych i portfeli** — wiele kont na użytkownika (konto bankowe, portfel gotówkowy, konto oszczędnościowe), każde z osobnym saldem aktualizowanym automatycznie przy każdej transakcji
-- **Import wyciągów CSV z ING Bank Śląski** — dwuetapowy przepływ: parsowanie → staging → zatwierdzenie przez użytkownika
+- **Import wyciągów bankowych** — ING Bank Śląski i mBank, w formatach CSV, PDF i HTML, z automatycznym rozpoznaniem banku i formatu po zawartości pliku; dwuetapowy przepływ: parsowanie → staging → zatwierdzenie przez użytkownika
 - **Automatyczne rozpoznawanie kontrahentów** — trójstopniowy algorytm dopasowania: numer rachunku kontrahenta → reguły mapowania → dopasowanie rozmyte (fuzzy match)
 - **Kategoryzacja transakcji** — własne kategorie wydatków, przychodów i transferów; obsługa podziałów transakcji (split) na wiele kategorii
 - **Transakcje cykliczne** — definicje automatycznie wykonywanych transakcji wg harmonogramu (dziennie, tygodniowo, miesięcznie, rocznie)
 - **Transakcje zaplanowane** — jednorazowe transakcje z określoną datą wykonania w przyszłości
 - **Przelewu wewnętrzne** — automatyczne tworzenie lustrzanej transakcji na koncie docelowym przy przelewie między własnymi kontami
 - **Dashboard** — przegląd Net Worth, wykresy miesięczne i roczne wydatków/przychodów, bilans kont
+- **Raporty** — osobna zakładka z filtrowaniem po zakresie dat, kategoriach i kontach; wykresy słupkowe i liniowe, domyślnie z wyłączeniem przelewów wewnętrznych (inaczej podwajałyby obroty)
 - **Budżetowanie** — limity miesięczne per kategoria
 - **Archiwum** — usuwane transakcje trafiają do archiwum (soft delete) z datą usunięcia
 
@@ -53,7 +54,7 @@
 | **Konto** | Rachunek bankowy, konto oszczędnościowe lub portfel gotówkowy użytkownika; posiada pola `owner` i `co_owner` (dane właścicieli) oraz flagę `is_default` (konto wybierane automatycznie w formularzach) |
 | **Kategoria** | Klasyfikacja transakcji: `expense` (wydatek), `income` (przychód), `transfer` (przelew wewnętrzny) |
 | **Kontrahent** | Słownikowy wpis reprezentujący sklep, osobę lub instytucję; zawiera reguły automatycznego mapowania |
-| **Staging** | Strefa buforowa dla transakcji zaimportowanych z CSV, oczekujących na weryfikację użytkownika |
+| **Staging** | Strefa buforowa dla transakcji zaimportowanych z wyciągu, oczekujących na weryfikację użytkownika |
 | **Split** | Podział jednej transakcji na kilka pozycji z różnymi kategoriami i kwotami |
 | **Przelew wewnętrzny** | Transfer między własnymi kontami — generuje dwie sprzężone transakcje (rozchód + przychód) |
 | **Transakcja cykliczna** | Definicja automatycznie powtarzającej się transakcji (np. czynsz co miesiąc) |
@@ -70,28 +71,46 @@ Aplikacja obsługuje wielu użytkowników w izolacji — każdy użytkownik widz
 
 | Rola | Opis |
 |------|------|
-| **Użytkownik zarejestrowany** | Pełny dostęp do własnych danych: konta, transakcje, import CSV, kontrahenci, kategorie, budżety |
+| **Użytkownik zarejestrowany** | Pełny dostęp do własnych danych: konta, transakcje, import wyciągów, kontrahenci, kategorie, budżety |
 | **System** | Automatyczne wykonywanie transakcji cyklicznych i zaplanowanych przez `flask process-scheduled` |
 
-Architektura nie przewiduje ról administracyjnych w UI — zarządzanie użytkownikami odbywa się bezpośrednio w bazie danych.
+Konto zakłada się samodzielnie — rejestracja jest publiczna i kończy się kreatorem pierwszego konta oraz zestawem kategorii startowych. Liczba prób logowania i rejestracji jest ograniczana per adres IP.
+
+Architektura nie przewiduje ról administracyjnych w UI. Aplikacja nie wysyła e-maili, więc **jedyną drogą odzyskania zapomnianego hasła jest komenda `flask reset-password` uruchomiona przez administratora serwera.**
 
 ---
 
 ## 4. Procesy biznesowe
 
-### 4.1 Import wyciągu bankowego (CSV)
+### 4.1 Import wyciągu bankowego
 
 **Cel:** Zaimportowanie historii transakcji z pliku eksportu banku bez ręcznego przepisywania.
 
-**Obsługiwany format:** ING Bank Śląski — CSV z separatorem `;`, kodowanie UTF-8-sig lub windows-1250. Nagłówek transakcji zaczyna się od wiersza `Data transakcji`.
+**Obsługiwane formaty:**
+
+| Bank | CSV | PDF | HTML |
+|------|-----|-----|------|
+| **ING Bank Śląski** | ✅ | ✅ | — |
+| **mBank** | ✅ | ✅ | ✅ |
+
+Bank i format rozpoznawane są **po zawartości pliku, nie po rozszerzeniu** — użytkownik nie musi ich wskazywać. Pliki tekstowe (CSV, HTML) dekodowane są z UTF-8-sig lub windows-1250; oba warianty pojawiają się w eksportach z banków. CSV z ING ma separator `;`, a nagłówek tabeli zaczyna się od wiersza `Data transakcji`.
+
+Konto docelowe rozpoznawane jest po numerze rachunku z nagłówka wyciągu — chroni przed zaimportowaniem transakcji na niewłaściwe konto. Gdy numeru nie da się dopasować, użytkownik wskazuje konto ręcznie.
+
+Każdy import zapisuje ślad w historii importów (nazwa pliku, bank, format, liczba wierszy), dzięki czemu widać, co i kiedy zostało wciągnięte.
 
 **Przepływ:**
 
 ```
-Użytkownik wybiera plik CSV + konto
+Użytkownik wybiera plik wyciągu
          │
          ▼
-  Parsowanie pliku (parse_ing_csv)
+  Rozpoznanie banku i formatu (detect_bank_and_format)
+  - Analiza zawartości pliku, nie rozszerzenia
+  - Wybór parsera z mapy STATEMENT_PARSERS
+         │
+         ▼
+  Parsowanie pliku (parser właściwy dla banku i formatu)
   - Wykrycie nagłówka tabeli transakcji
   - Mapowanie kolumn: data, kontrahent, tytuł, nr rachunku kontrahenta, kwota
   - Obsługa dwóch wariantów nazwy kolumny kwoty
@@ -223,7 +242,7 @@ Transakcja źródłowa (np. -1000 PLN na Koncie A)
          └── Konto docelowe ISTNIEJE (i różne od źródłowego):
               │
               ├── Sprawdza czy lustrzana transakcja już istnieje
-              │   (deduplikacja przy imporcie CSV obustronnego wyciągu)
+              │   (deduplikacja przy imporcie obustronnego wyciągu)
               │
               └── Tworzy transakcję lustrzaną (+1000 PLN na Koncie B)
                   - kontrahent: "Moje konto: <nazwa Konta A>"
@@ -365,7 +384,7 @@ Archiwum jest czyszczone automatycznie przez `flask cleanup-archive` — usuwa w
 | 2 | Kwoty finansowe przechowywane jako `Decimal` (nigdy `float`) — precision 10, scale 2 |
 | 3 | Transakcja wychodzącą (wydatek) ma kwotę ujemną; przychodząca — dodatnią |
 | 4 | Przelew wewnętrzny wymaga koniecznie: kategorii `type=transfer` + kontrahenta w formacie `Moje konto: <nazwa>` |
-| 5 | Lustrzana transakcja przelewu wewnętrznego nie jest tworzona, jeśli już istnieje transakcja na koncie docelowym o tej samej kwocie i dacie (deduplikacja CSV) |
+| 5 | Lustrzana transakcja przelewu wewnętrznego nie jest tworzona, jeśli już istnieje transakcja na koncie docelowym o tej samej kwocie i dacie (deduplikacja importu) |
 | 6 | Kategorie i kontrahenci są miękko usuwani (`is_active=False`) — nigdy hard-delete; filtry zawsze stosują `is_active=True` |
 | 7 | Kontrahent może mieć tylko jedną domyślną kategorię; zmiana kategorii kontrahenta dotyczy tylko przyszłych importów |
 | 8 | Staging transakcji należy do konkretnego użytkownika i konta; rekord bez `account_id` (starszy import) nie może być zatwierdzony — należy go odrzucić i reimportować |
@@ -378,7 +397,7 @@ Archiwum jest czyszczone automatycznie przez `flask cleanup-archive` — usuwa w
 
 | Funkcja | Opis |
 |---------|------|
-| **Obsługa kolejnych banków** | Rozszerzenie parsera CSV o formaty PKO BP, mBank, Revolut i innych — aktualnie obsługiwany wyłącznie ING Bank Śląski |
+| **Obsługa kolejnych banków** | Rozszerzenie o formaty PKO BP, Revolut i innych — obecnie obsługiwane są ING Bank Śląski i mBank. Nowy format wymaga parsera i jednego wpisu w mapie `STATEMENT_PARSERS` |
 | **Tryb edycji zbiorczej transakcji** | Masowa zmiana kategorii/kontrahenta dla wielu zaznaczonych transakcji jednocześnie — funkcja zaznaczona jako TODO w repozytorium |
 
 ---
@@ -387,9 +406,10 @@ Archiwum jest czyszczone automatycznie przez `flask cleanup-archive` — usuwa w
 
 | Ograniczenie | Szczegóły |
 |--------------|-----------|
-| **Jeden format banku** | Import CSV obsługuje wyłącznie ING Bank Śląski; transakcje z innych banków należy wprowadzać ręcznie |
+| **Dwa banki** | Import obsługuje ING Bank Śląski i mBank; transakcje z innych banków należy wprowadzać ręcznie |
 | **Brak wielodostępu współbieżnego** | Brak mechanizmu blokad optymistycznych — równoczesna edycja tej samej transakcji przez dwóch użytkowników może prowadzić do wyścigu |
-| **Brak zarządzania rolami w UI** | Nie ma panelu administracyjnego; zakładanie kont i zarządzanie użytkownikami wymaga bezpośredniego dostępu do bazy |
+| **Brak zarządzania rolami w UI** | Nie ma panelu administracyjnego; rejestracja jest samoobsługowa, ale każda inna operacja na kontach wymaga dostępu do serwera |
+| **Brak resetu hasła przez e-mail** | Aplikacja nie wysyła wiadomości; zapomniane hasło ustawia administrator komendą `flask reset-password` |
 | **Transakcje cykliczne bez obsługi zaległości** | Jeśli `flask process-scheduled` nie był uruchamiany przez dłuższy czas, zaległe iteracje nie są nadrabiane — wykonywana jest tylko bieżąca |
 | **Waluta stała (PLN)** | Konta mogą mieć pole `currency`, ale logika sald i raportowania zakłada PLN; brak przeliczania kursów walut |
 | **Brak eksportu danych** | Aplikacja nie oferuje eksportu transakcji do CSV/PDF/Excel |

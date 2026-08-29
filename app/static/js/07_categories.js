@@ -25,6 +25,19 @@ function getCategoryOptionsHtml(selectedValue = null, byId = false) {
         html += `</optgroup>`;
     }
     if (!byId) {
+        // Gdy nie ma ani jednej kategorii do pokazania, „➕ Dodaj nową kategorię..."
+        // byłaby JEDYNĄ opcją — przeglądarka zaznacza ją od razu, więc kliknięcie w nią
+        // nie generuje zdarzenia `change` i modal się nie otwiera. Użytkownik, który
+        // skasował wszystkie kategorie, nie mógłby dodać pierwszej z formularza
+        // transakcji. Placeholder przejmuje domyślne zaznaczenie i odblokowuje wybór.
+        // Selecty z własnym placeholderem (rec-category, planned-category, staging)
+        // tego problemu nie mają — stąd warunek zamiast bezwarunkowego dopisania.
+        const visibleCount = expCategories.filter(c => !c.is_system_category).length
+            + incCategories.filter(c => !c.is_system_category).length
+            + transferCategories.length;
+        if (visibleCount === 0) {
+            html = `<option value="">Brak kategorii — dodaj pierwszą</option>` + html;
+        }
         html += `<option value="__NEW_CATEGORY__" class="font-bold text-blue-600">➕ Dodaj nową kategorię...</option>`;
     }
     return html;

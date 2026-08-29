@@ -28,6 +28,9 @@ local_data/
 # Prywatny notatnik na pomysły i klasyfikację premium/basic — repo jest publiczne
 IDEAS.md
 
+# Notatki o konkurencji (analiza rynku) — repo jest publiczne
+docs/konkurencja.md
+
 # Prywatne notatki o wdrożeniu na serwer (infrastruktura, hardening) — repo jest publiczne
 docs/wdrozenie/
 

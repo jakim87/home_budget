@@ -51,7 +51,7 @@ class Config:
     APP_AUTHOR = 'jakim87'
     APP_AUTHOR_URL = 'https://github.com/jakim87'
     APP_ADMIN_NAME = os.getenv('APP_ADMIN_NAME', 'jakim87')
-    APP_CONTACT_EMAIL = os.getenv('APP_CONTACT_EMAIL', 'jakim87@gmail.com')
+    APP_CONTACT_EMAIL = os.getenv('APP_CONTACT_EMAIL', 'jakimiuk.pawel@gmail.com')
 
     # Aplikacja stoi za reverse proxy (nginx) — bez tego request.remote_addr to
     # zawsze 127.0.0.1, więc logi logowań i każdy limit per-IP są bezwartościowe.

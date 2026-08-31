@@ -1,0 +1,12 @@
+[Unit]
+Description=Odtworzenie konta demo aplikacji budzetowej
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=budget
+WorkingDirectory=/opt/budget
+# Fabryke aplikacji CLI znajduje przez FLASK_APP z .env; katalog roboczy musi byc
+# /opt/budget, bo stamtad ladowany jest plik .env z DATABASE_URL i SECRET_KEY.
+ExecStart=/opt/budget/venv/bin/flask seed-demo

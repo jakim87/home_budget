@@ -52,3 +52,5 @@ tempCodeRunnerFile.py
 # Artefakty pytest-cov
 .coverage
 htmlcov/
+# Lokalna konfiguracja podgladu (sciezka do venv jest zalezna od systemu)
+.claude/launch.json

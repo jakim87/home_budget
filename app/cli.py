@@ -90,6 +90,30 @@ def register_commands(app):
         logger.info("CLI reset-password: zmieniono hasło użytkownika %s", username)
         click.echo(f"Hasło użytkownika '{username}' zostało zmienione.")
 
+    @app.cli.command('seed-demo')
+    @with_appcontext
+    def seed_demo_command():
+        """Odtwarza konto demo od zera — dane pokazowe dla osób bez konta.
+
+        Idempotentne: kasuje poprzedni stan konta demo (łącznie z tym, co
+        namieszali zwiedzający) i buduje historię na nowo. Nadaje się na nocny
+        timer. Nazwę i hasło bierze z konfiguracji (DEMO_USERNAME/DEMO_PASSWORD).
+        """
+        from flask import current_app
+        from app.services.demo_service import seed_demo
+
+        summary = seed_demo(
+            current_app.config['DEMO_USERNAME'],
+            current_app.config['DEMO_PASSWORD'],
+        )
+        click.echo(
+            f"Konto demo '{summary['user']}' odtworzone: "
+            f"{summary['accounts']} kont, {summary['categories']} kategorii, "
+            f"{summary['contractors']} kontrahentów, {summary['transactions']} transakcji."
+        )
+        if not current_app.config['DEMO_ENABLED']:
+            click.echo("Uwaga: DEMO_ENABLED nie jest ustawione — przycisk demo nie pokaże się na ekranie logowania.")
+
     @app.cli.command('cleanup-archive')
     @with_appcontext
     def cleanup_archive():

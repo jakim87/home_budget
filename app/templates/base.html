@@ -205,7 +205,7 @@
                                     <th class="p-4 font-semibold w-48">Komentarz</th>
                                     <th class="p-4 font-semibold w-32 text-right">Kwota</th>
                                     <th id="th-tx-balance" class="p-4 font-semibold w-32 text-right hidden">Saldo po</th>
-                                <th class="p-4 font-semibold w-32 text-center">Akcje</th>
+                                <th id="th-tx-actions" class="p-4 font-semibold w-32 text-center">Akcje</th>
                                 </tr>
                             </thead>
                             <tbody id="transaction-list" class="divide-y divide-slate-100">
@@ -224,7 +224,7 @@
             <div id="tab-staging" class="tab-hidden space-y-6">
                 <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                        <h2 class="font-semibold text-slate-800 flex items-center gap-2">Transakcje oczekujące na zatwierdzenie</h2>
+                        <h2 id="staging-heading" class="font-semibold text-slate-800 flex items-center gap-2">Transakcje oczekujące na zatwierdzenie</h2>
                         <div class="flex gap-4">
                             <button onclick="clearStaging()" class="text-sm text-rose-600 hover:text-rose-700 font-medium">Odrzuć wszystkie</button>
                             <button id="approve-all-btn" onclick="approveAllStaging()" class="text-sm text-emerald-600 hover:text-emerald-700 font-medium">Zatwierdź zmapowane</button>
@@ -246,7 +246,7 @@
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                     <th class="p-3 font-semibold w-[9%] cursor-pointer select-none whitespace-nowrap" onclick="toggleStagingSort('date')">Data <span id="sort-icon-date" class="ml-0.5 text-slate-300">↕</span></th>
                                     <th class="p-3 font-semibold cursor-pointer select-none" onclick="toggleStagingSort('title')">Tytuł z banku <span id="sort-icon-title" class="ml-0.5 text-slate-300">↕</span></th>
-                                    <th class="p-3 font-semibold w-[34%]">Kontrahent i Kategoria</th>
+                                    <th id="th-stg-mapping" class="p-3 font-semibold w-[34%]">Kontrahent i Kategoria</th>
                                     <th class="p-3 font-semibold w-[12%] text-right cursor-pointer select-none whitespace-nowrap" onclick="toggleStagingSort('amount')">Kwota <span id="sort-icon-amount" class="ml-0.5 text-slate-300">↕</span></th>
                                     <th class="p-3 font-semibold w-[11%] text-center">Akcja</th>
                                 </tr>
@@ -662,6 +662,21 @@
                 </button>
             </div>
             <div class="p-6">
+                {% if config.DEMO_ENABLED %}
+                <!-- Tryb demo: zwiedzający nie ma pod ręką wyciągu z banku, więc podsuwamy
+                     gotowy plik od razu na wejściu — bez niego cała zakładka importu jest
+                     dla niego ślepym zaułkiem. -->
+                <a href="/api/demo/przykladowy-wyciag.csv" download id="demo-sample-statement"
+                   class="flex items-center gap-3 mb-6 p-4 bg-amber-50 border-2 border-amber-300 rounded-xl hover:bg-amber-100 hover:border-amber-400 transition-colors group">
+                    <span class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-amber-400 rounded-lg">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"></path></svg>
+                    </span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-bold text-amber-900 group-hover:underline">Pobierz przykładowy wyciąg</span>
+                        <span class="block text-xs text-amber-800 mt-0.5">Nie masz pliku z banku? Weź nasz, wgraj go poniżej i wskaż konto „Konto osobiste".</span>
+                    </span>
+                </a>
+                {% endif %}
                 <form id="importForm">
                     <div class="mb-5">
                         <label for="import-bank-select" class="block text-sm font-medium text-slate-700 mb-2">
@@ -1019,6 +1034,19 @@
                     </div>
                     <button type="submit" class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow-lg focus:ring-4 focus:ring-blue-300">Zaloguj się</button>
                 </form>
+                {% if config.DEMO_ENABLED %}
+                <div class="mt-5 pt-5 border-t border-slate-200">
+                    <button type="button" id="demo-login-btn" onclick="loginAsDemo()"
+                            data-demo-user="{{ config.DEMO_USERNAME }}"
+                            data-demo-pass="{{ config.DEMO_PASSWORD }}"
+                            class="w-full px-6 py-2.5 border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium rounded-lg transition-all focus:ring-4 focus:ring-slate-200">
+                        Zobacz demo bez zakładania konta
+                    </button>
+                    <p class="text-xs text-slate-400 text-center mt-2">
+                        Gotowe konto z przykładowymi danymi. Każdy widzi te same dane, a wprowadzone zmiany znikają przy nocnym odświeżeniu.
+                    </p>
+                </div>
+                {% endif %}
                 <p class="text-center text-sm text-slate-500 mt-5">
                     Nie masz jeszcze konta?
                     <button type="button" onclick="showAuthView(&#39;register&#39;)" class="text-blue-600 hover:text-blue-800 font-medium hover:underline">Zarejestruj się</button>

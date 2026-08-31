@@ -95,6 +95,16 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     }
 });
 
+// Konto demo: wypełnia formularz jawnymi danymi z konfiguracji i wysyła go zwykłą
+// ścieżką logowania — requestSubmit() odpala handler powyżej, więc obsługa błędów
+// i pobranie danych po zalogowaniu działają bez powielania kodu.
+window.loginAsDemo = function() {
+    const btn = document.getElementById('demo-login-btn');
+    document.getElementById('login-username').value = btn.dataset.demoUser;
+    document.getElementById('login-password').value = btn.dataset.demoPass;
+    document.getElementById('login-form').requestSubmit();
+};
+
 // --- WYLOGOWANIE ---
 
 window.logout = async function() {

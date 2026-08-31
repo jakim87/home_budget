@@ -57,6 +57,15 @@ class Config:
     APP_ADMIN_NAME = os.getenv('APP_ADMIN_NAME', 'jakim87')
     APP_CONTACT_EMAIL = os.getenv('APP_CONTACT_EMAIL', 'jakim87@gmail.com')
 
+    # --- Konto demo ---
+    # Przycisk „Zobacz demo" na ekranie logowania pokazuje się tylko przy
+    # DEMO_ENABLED=1 — bez tego każde inne wdrożenie tej aplikacji miałoby przycisk
+    # prowadzący do nieistniejącego konta. Samo konto zakłada `flask seed-demo`.
+    # Hasło jest jawne z założenia: trafia do HTML strony logowania.
+    DEMO_ENABLED = os.getenv('DEMO_ENABLED') == '1'
+    DEMO_USERNAME = os.getenv('DEMO_USERNAME', 'demo')
+    DEMO_PASSWORD = os.getenv('DEMO_PASSWORD', 'demo-do-ogladania')
+
     # Aplikacja stoi za reverse proxy (nginx) — bez tego request.remote_addr to
     # zawsze 127.0.0.1, więc logi logowań i każdy limit per-IP są bezwartościowe.
     # Włączać WYŁĄCZNIE gdy przed aplikacją faktycznie stoi zaufane proxy: przy

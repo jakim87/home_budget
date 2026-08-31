@@ -1,8 +1,9 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, Response, current_app, request, jsonify
 from flask_login import login_required, current_user
 from marshmallow import ValidationError
 from app.schemas import StagingApproveSchema
 from app.services.account_service import resolve_statement_account
+from app.services.demo_service import build_sample_statement_csv
 from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging, dismiss_staging_as_duplicate
 from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf, parse_ing_pdf
 from app.services.import_history_service import list_import_history, record_batch
@@ -191,6 +192,25 @@ def import_csv(bank):
 @login_required
 def get_pending_staging_transactions():
     return jsonify(list_pending_staging(current_user.token)), 200
+
+@import_bp.route('/api/demo/przykladowy-wyciag.csv', methods=['GET'])
+@login_required
+def sample_statement():
+    """Przykładowy wyciąg do wypróbowania importu — dostępny tylko przy DEMO_ENABLED.
+
+    Generowany w locie (daty względem dzisiaj), więc nie starzeje się razem z
+    resztą danych demo. Kodowanie UTF-8 z BOM — tak jak prawdziwe eksporty z ING.
+    """
+    if not current_app.config['DEMO_ENABLED']:
+        return jsonify({'error': 'Przykładowy wyciąg jest dostępny tylko w trybie demo.'}), 404
+
+    csv_text = build_sample_statement_csv()
+    return Response(
+        csv_text.encode('utf-8-sig'),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=przykladowy-wyciag-ing.csv'},
+    )
+
 
 @import_bp.route('/api/staging/reanalyze', methods=['POST'])
 @login_required

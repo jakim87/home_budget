@@ -55,6 +55,7 @@ flask cleanup-archive            # Remove archived transactions older than 60 da
 flask reset-password             # Ustawia nowe hasło użytkownika (jedyna droga odzyskania
                                  #   konta — aplikacja nie wysyła maili)
 flask import-excel-balance-history  # Jednorazowa migracja historii sald z XLSX (domyślnie dry-run)
+flask seed-demo                  # Odtwarza konto demo od zera (idempotentne — pod nocny timer)
 
 # Tests
 pytest                           # Run all tests (~250 testów w 28 plikach; kilkanaście minut — nie mylić z zawieszeniem)
@@ -77,6 +78,8 @@ pip install -r requirements.txt
 #            TRUST_PROXY=1            (opcjonalny; TYLKO za reverse proxy — patrz niżej)
 #            APP_ADMIN_NAME=...       (opcjonalny; administrator danych na stronach Regulamin/RODO)
 #            APP_CONTACT_EMAIL=...    (opcjonalny; adres kontaktowy na tych stronach)
+#            DEMO_ENABLED=1           (opcjonalny; pokazuje przycisk „Zobacz demo" — patrz Konto demo)
+#            DEMO_USERNAME=/DEMO_PASSWORD=  (opcjonalne; domyślnie demo / demo-do-ogladania)
 flask db upgrade
 flask seed
 ```
@@ -171,7 +174,11 @@ Frontend to **18 modułów w `app/static/js/`**, ładowanych w kolejności prefi
 
 **XSS**: dane użytkownika wstawiane do `innerHTML` MUSZĄ przechodzić przez `escapeHtml()` — tytuł przelewu przychodzącego ustala nadawca, więc to nie jest tylko self-XSS.
 
+**Samouczek** (`17_tour.js`, treść przez `/samouczek`): `TOURS` trzyma kroki pod kluczem zakładki; jedyny klucz bez zakładki to `import` — dotyczy okna importu, wybierany przez `TOUR_MODAL_KEYS`, gdy modal jest otwarty. `startTour()` **odsiewa kroki wskazujące na elementy niewidoczne w danym momencie** (`krokWidoczny`, po `getClientRects()` — nie `offsetParent`, bo ten jest `null` dla wszystkiego w modalach). Dzięki temu krok może bezpiecznie celować w element warunkowy: listę poczekalni przed pierwszym importem, zwinięty panel filtrów, kafelek widoczny tylko przy `DEMO_ENABLED`. Zero widocznych kroków = komunikat zamiast pustego samouczka. Instancja driver.js trzymana jest w `aktywnyDriver` i zamykana przed startem nowej — bez tego nieukończony samouczek zostawia własną nakładkę pod dymkiem następnego.
+
 **Strony informacyjne**: `legal_bp.py` serwuje `/regulamin`, `/polityka-prywatnosci` i `/o-aplikacji` — statyczne szablony dziedziczące po `legal_base.html`, BEZ `@login_required` (linkujemy je z modalu rejestracji). Nazwa administratora i adres kontaktowy pochodzą z `config.APP_ADMIN_NAME` / `APP_CONTACT_EMAIL` (nadpisywalne z `.env`), autor z `APP_AUTHOR` — nie wpisuj tych danych na sztywno w szablonach. Linki żyją w dwóch partialach: `_footer.html` (stopka SPA i stron informacyjnych) oraz `_auth_legal_links.html` (modal logowania/rejestracji).
+
+**Konto demo**: `app/services/demo_service.py` + `flask seed-demo`. Zwykłe konto użytkownika (`demo`) z wygenerowaną historią 6 miesięcy — cztery konta, przelewy wewnętrzne, harmonogram. Zwiedzający ma **pełne prawa zapisu**; porządek robi dopiero ponowne uruchomienie `seed-demo`, które kasuje stan i buduje go od nowa (idempotentne, pod nocny timer). Dane są deterministyczne (`SEED`), ruchome są tylko daty — liczone wstecz od dnia uruchomienia. Przycisk „Zobacz demo" na ekranie logowania pojawia się wyłącznie przy `DEMO_ENABLED=1`; hasło jest jawne z założenia (trafia do HTML). Do wypróbowania importu służy `GET /api/demo/przykladowy-wyciag.csv` (`import_bp`, też tylko przy `DEMO_ENABLED`) — wyciąg ING generowany w locie z datami względem dziś, żeby nie starzał się razem z resztą; część pozycji pasuje do reguł kontrahentów, DECATHLON celowo nie. `wipe_user_data()` z tego samego modułu obsługuje też `/api/dev/reset` — jedno miejsce kasowania danych użytkownika dla obu ścieżek.
 
 **Dev Reset** (tylko dev/test): `app/blueprints/dev_bp.py` → `POST /api/dev/reset` (przycisk „Wyczyść wszystkie dane testowe") kasuje dane WYŁĄCZNIE bieżącego użytkownika i zeruje salda kont; kategorie są globalne, więc ich nie usuwa. Blueprint rejestrowany tylko gdy `app.debug`/`app.testing` lub `ENABLE_DEV_RESET=1`. Operacja destrukcyjna — nie wołać w trakcie zwykłej pracy.
 

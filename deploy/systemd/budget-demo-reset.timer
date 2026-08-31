@@ -1,0 +1,11 @@
+[Unit]
+Description=Nocne odtworzenie konta demo (kasuje zmiany zwiedzajacych)
+
+[Timer]
+# Serwer chodzi na UTC — 02:30 UTC to 04:30 czasu polskiego latem.
+OnCalendar=*-*-* 02:30:00
+# Nadrabia uruchomienie, jesli serwer byl wylaczony o wyznaczonej porze.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

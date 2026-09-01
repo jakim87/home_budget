@@ -88,17 +88,24 @@ def get_recurring_preview(user_token, year: int, month: int) -> list:
         candidate = rt.next_run_date
         while candidate <= month_end:
             if candidate >= month_start:
+                # Kształt MUSI odpowiadać _transaction_dict() z init_service — front
+                # skleja projekcje z prawdziwymi transakcjami w jedną listę i renderuje
+                # je tym samym kodem. Rozjazd nie kończy się brzydkim wyglądem:
+                # `title` zamiast `desc` dawało pusty opis, `category_id` zamiast nazwy
+                # — pustą kategorię, a kwota jako tekst wywracała `toFixed()` i przez
+                # to NIE renderowała się cała tabela operacji.
                 result.append({
                     'id': f'virt-{rt.id}-{candidate.strftime("%Y%m%d")}',
-                    'title': rt.title,
-                    'amount': str(rt.amount),
+                    'desc': rt.title,
+                    'amount': float(rt.amount),
                     'date': candidate.isoformat(),
-                    'category_id': rt.category_id,
-                    'account_id': rt.account_id,
+                    'category': rt.category.name if rt.category else 'Inne',
                     'contractor_id': rt.contractor_id,
+                    'contractor_name': rt.contractor.name if rt.contractor else None,
+                    'account_id': rt.account_id,
+                    'comment': '',
                     'isVirtual': True,
                     'recurring_id': rt.id,
-                    'frequency': rt.frequency.value if rt.frequency else None,
                 })
             candidate = _calculate_next_run_date_for_recurring(rt, candidate)
             if rt.end_date and candidate > rt.end_date:

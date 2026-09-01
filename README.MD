@@ -115,6 +115,10 @@ flask cleanup-archive               # Usuń zarchiwizowane transakcje starsze ni
 flask seed                          # Załaduj użytkownika domyślnego i dane testowe
 flask seed-demo                     # Odtwórz konto demo (kasuje jego poprzedni stan)
 
+# Uwagi użytkowników (odczyt tylko z serwera — aplikacja ich nie pokazuje)
+flask feedback-list                 # Wypisz zgłoszenia, od najnowszego
+flask feedback-delete --id 7        # Usuń zgłoszenie nr 7
+
 # Jednorazowa migracja historii sald z arkusza XLSX (domyślnie dry-run)
 flask import-excel-balance-history --file historia.xlsx --user default_user
 flask import-excel-balance-history --file historia.xlsx --user default_user --execute

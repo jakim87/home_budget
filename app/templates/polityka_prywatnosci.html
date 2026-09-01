@@ -27,12 +27,17 @@
         <td>metadane wgranych wyciągów: nazwa pliku, bank, format, zakres dat, liczba zaimportowanych i pominiętych pozycji, data importu</td>
     </tr>
     <tr>
+        <td>Zgłoszenia o działaniu Aplikacji</td>
+        <td>treść uwagi wpisana przez Użytkownika, nazwa otwartej zakładki i wersja Aplikacji w chwili wysłania, identyfikator przeglądarki (nagłówek User-Agent), data zgłoszenia oraz powiązanie z kontem autora</td>
+    </tr>
+    <tr>
         <td>Dane techniczne</td>
         <td>logi serwera: data, metoda i ścieżka żądania, kod odpowiedzi, czas obsługi, nazwa zalogowanego użytkownika; przy logowaniu i nieudanych próbach logowania również adres IP; techniczne ciasteczko sesji</td>
     </tr>
 </table>
 <p><strong>Plik wyciągu nie jest przechowywany</strong> — po przetworzeniu zostają wyłącznie transakcje i wymienione wyżej metadane importu. Hasło nie jest nigdzie zapisywane w postaci jawnej.</p>
 <p>Dane finansowe wprowadza sam Użytkownik. To on decyduje, jak szczegółowe informacje trafiają do Aplikacji — nazwy kontrahentów i tytuły przelewów mogą pośrednio ujawniać np. stan zdrowia czy przekonania, dlatego warto ograniczać je do niezbędnego minimum.</p>
+<p><strong>Zgłoszenie o działaniu Aplikacji czyta administrator.</strong> Formularz nie przyjmuje plików ani zrzutów ekranu, a wpisaną treść widzi administrator w postaci, w jakiej została wysłana — dlatego nie należy umieszczać w niej kwot, nazw kontrahentów ani innych danych ze swojego budżetu, jeśli nie są konieczne do opisania problemu.</p>
 
 <h2>3. Cele i podstawy prawne</h2>
 <table>
@@ -60,6 +65,7 @@
 <ul>
     <li><strong>Dane konta i dane finansowe</strong> — do czasu usunięcia ich przez Użytkownika albo usunięcia konta na jego żądanie.</li>
     <li><strong>Usunięte transakcje</strong> — trafiają do archiwum (możliwość odtworzenia i ślad audytowy) i są trwale kasowane po <strong>60 dniach</strong>.</li>
+    <li><strong>Zgłoszenia o działaniu Aplikacji</strong> — do czasu rozpatrzenia przez administratora i usunięcia przez niego; nie są kasowane automatycznie wraz z danymi konta, bo stanowią korespondencję z administratorem, a nie zawartość budżetu Użytkownika.</li>
     <li><strong>Logi serwera</strong> — podlegają rotacji; przechowywanych jest sześć kolejnych plików po ok. 2 MB, więc najstarsze wpisy są nadpisywane na bieżąco (w praktyce od kilku dni do kilku tygodni, zależnie od ruchu).</li>
 </ul>
 

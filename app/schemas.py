@@ -16,6 +16,19 @@ class LoginSchema(ma.Schema):
     email = fields.String(required=False)
     password = fields.String(required=True)
 
+class FeedbackSchema(ma.Schema):
+    class Meta:
+        unknown = EXCLUDE
+
+    # Dolna granica 10 znaków odsiewa przypadkowe wysłanie pustego formularza
+    # („ok", „test"), górna chroni bazę przed wklejeniem całej strony.
+    content = fields.String(required=True, validate=validate.Length(min=10, max=5000))
+    # Kontekst ustawia front (nazwa otwartej zakładki + wersja aplikacji). Nie ufamy
+    # mu — to pole od klienta, więc trafia do bazy przycięte i jest escapowane przy
+    # wyświetlaniu tak samo jak treść.
+    context = fields.String(load_default=None, allow_none=True, validate=validate.Length(max=120))
+
+
 class AccountSchema(ma.Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))
     bank_name = fields.String(load_default="")

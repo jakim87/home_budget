@@ -30,7 +30,7 @@ function initContractorCombobox() {
         }
         matched.forEach(c => {
             const escaped = c.name.replace(/"/g, '&quot;');
-            html += `<li data-id="${c.id}" data-name="${escaped}" class="px-3 py-2 hover:bg-blue-50 cursor-pointer text-slate-700">${c.name}</li>`;
+            html += `<li data-id="${c.id}" data-name="${escaped}" class="px-3 py-2 hover:bg-blue-50 cursor-pointer text-slate-700">${escapeHtml(c.name)}</li>`;
         });
         if (matched.length === 0 && q) {
             html += `<li class="px-3 py-2 text-slate-400 italic select-none">Brak wyników</li>`;

@@ -280,7 +280,7 @@ document.getElementById('first-account-form').addEventListener('submit', async (
 
 // --- RESET DANYCH TESTOWYCH ---
 window.resetDevData = async function() {
-    if (!confirm('Uwaga! Ta operacja nieodwracalnie usunie wszystkie transakcje, kategorie, kontrahentów i transakcje cykliczne. Salda kont zostaną wyzerowane.\n\nCzy na pewno chcesz kontynuować?')) return;
+    if (!confirm('Uwaga! Ta operacja nieodwracalnie usunie wszystkie transakcje, kontrahentów i transakcje cykliczne. Salda kont zostaną wyzerowane. Kategorie i konta zostają.\n\nCzy na pewno chcesz kontynuować?')) return;
     try {
         const response = await fetch('/api/dev/reset', { method: 'POST' });
         if (response.ok) {

@@ -8,19 +8,19 @@ function getCategoryOptionsHtml(selectedValue = null, byId = false) {
     let html = `<optgroup label="Wydatki">`;
     expCategories.filter(c => !c.is_system_category).forEach(c => { // Filtrujemy kategorie systemowe
         const sel = (byId ? c.id == selectedValue : c.name === selectedValue) ? 'selected' : '';
-        html += `<option value="${c[valueAttr]}" ${sel}>${c.name}</option>`;
+        html += `<option value="${escapeHtml(c[valueAttr])}" ${sel}>${escapeHtml(c.name)}</option>`;
     });
     html += `</optgroup><optgroup label="Przychody">`;
     incCategories.filter(c => !c.is_system_category).forEach(c => {
         const sel = (byId ? c.id == selectedValue : c.name === selectedValue) ? 'selected' : '';
-        html += `<option value="${c[valueAttr]}" ${sel}>${c.name}</option>`;
+        html += `<option value="${escapeHtml(c[valueAttr])}" ${sel}>${escapeHtml(c.name)}</option>`;
     });
     html += `</optgroup>`; // domknij grupę „Przychody" — <optgroup> nie może być zagnieżdżony; bez tego „Transfery" i „Dodaj kategorię" wchłaniały się w „Przychody"
     if (transferCategories.length > 0) {
         html += `<optgroup label="Transfery">`;
         transferCategories.forEach(c => {
             const sel = (byId ? c.id == selectedValue : c.name === selectedValue) ? 'selected' : '';
-            html += `<option value="${c[valueAttr]}" ${sel}>${c.name}</option>`;
+            html += `<option value="${escapeHtml(c[valueAttr])}" ${sel}>${escapeHtml(c.name)}</option>`;
         });
         html += `</optgroup>`;
     }

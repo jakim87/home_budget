@@ -117,6 +117,10 @@ def update_transaction(user_token, tx_id, data):
             tx.date = raw_date if isinstance(raw_date, date) else datetime.strptime(raw_date, '%Y-%m-%d').date()
         if 'category' in data:
             cat = find_category_by_name(user_token, data['category'])
+            # Podana, ale nierozpoznana nazwa to błąd — bez tego edycja po cichu
+            # zostawiała starą kategorię i mimo to zwracała 200.
+            if data['category'] and not cat:
+                raise ValueError(f"Kategoria '{data['category']}' nie istnieje lub jest nieaktywna.")
             tx.category_id = cat.id if cat else tx.category_id
         if 'contractor_id' in data:
             cid = data.get('contractor_id')

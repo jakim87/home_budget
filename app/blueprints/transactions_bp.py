@@ -19,7 +19,12 @@ def add_transaction():
             raise ValueError("Brakuje przypisanego konta.")
 
         title = data.get('title') or data.get('desc', 'Bez tytułu')
+        # Podana, ale nierozpoznana nazwa kategorii to błąd — bez tego transakcja
+        # zapisywała się bez kategorii i mimo to zwracała 201 (ciche pominięcie).
+        # Brak kategorii (None) jest dozwolony.
         category = find_category_by_name(current_user.token, data.get('category'))
+        if data.get('category') and not category:
+            raise ValueError(f"Kategoria '{data.get('category')}' nie istnieje lub jest nieaktywna.")
 
         new_tx = create_transaction(
             current_user.token, account_id, data.get('amount', 0),

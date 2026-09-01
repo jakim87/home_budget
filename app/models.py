@@ -281,8 +281,10 @@ class Feedback(db.Model):
     „Wyczyść dane testowe" ani przy odtwarzaniu konta demo — to korespondencja
     z autorem aplikacji, nie zawartość czyjegoś budżetu.
 
-    Treść pisze człowiek i czyta ją administrator w przeglądarce, więc przy
-    wyświetlaniu MUSI przejść przez escapowanie (patrz szablon zgloszenia.html).
+    Treść pisze człowiek i czyta ją osoba z dostępem do serwera przez
+    `flask feedback-list` (aplikacja nie ma trasy pokazującej zgłoszenia). Przy
+    wypisywaniu na terminal przechodzi przez `bezpieczny_tekst()` z `app/cli.py`,
+    który wycina znaki sterujące.
     """
     __tablename__ = 'feedback'
 

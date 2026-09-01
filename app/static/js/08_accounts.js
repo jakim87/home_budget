@@ -35,12 +35,12 @@ function renderAccounts() {
         li.innerHTML = `
             <div>
                 <span class="font-medium text-slate-700 flex items-center gap-2">
-                    ${a.name} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal">(${a.bank_name})</span>` : ''}
+                    ${escapeHtml(a.name)} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal">(${escapeHtml(a.bank_name)})</span>` : ''}
                     ${accountTypeBadge(a.account_type)}
                     ${a.is_default ? '<svg class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>' : ''}
                 </span>
                 ${a.account_number ? `<span class="text-xs text-slate-500 block break-all font-mono mt-0.5">${formatAccountNumber(a.account_number)}</span>` : ''}
-                ${(a.owner || a.co_owner) ? `<span class="text-xs text-slate-400 block mt-0.5">${[a.owner, a.co_owner].filter(Boolean).join(' / ')}</span>` : ''}
+                ${(a.owner || a.co_owner) ? `<span class="text-xs text-slate-400 block mt-0.5">${escapeHtml([a.owner, a.co_owner].filter(Boolean).join(' / '))}</span>` : ''}
             </div>
             <div class="flex gap-1 items-center">
                 <div class="flex flex-col opacity-0 group-hover:opacity-100">
@@ -83,7 +83,7 @@ function renderInactiveAccounts() {
         <li class="py-3 px-3 flex justify-between items-center gap-2">
             <div class="min-w-0">
                 <span class="font-medium text-slate-600 flex items-center gap-2 flex-wrap">
-                    ${a.name} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal">(${a.bank_name})</span>` : ''}
+                    ${escapeHtml(a.name)} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal">(${escapeHtml(a.bank_name)})</span>` : ''}
                     ${accountTypeBadge(a.account_type)}
                     <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">nieaktywne</span>
                 </span>

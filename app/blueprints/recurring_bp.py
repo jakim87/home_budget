@@ -22,8 +22,6 @@ def add_recurring_transaction():
         return jsonify({'error': err.messages}), 400
     except ValueError as err:
         return jsonify({'error': str(err)}), 400
-    except Exception as e:
-        return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 @recurring_bp.route('/', methods=['GET'])
 @login_required

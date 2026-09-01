@@ -299,3 +299,48 @@ def test_catchup_does_not_duplicate_already_created(app, setup_for_recurring):
     assert first == 3
     assert second == 0
     assert db.session.query(Transaction).filter_by(source_recurring_id=rec.id).count() == 3
+
+
+def test_preview_zwraca_kwote_jako_liczbe(logged_in_client, app, setup_for_recurring):
+    """Regresja: podgląd zwracał kwotę jako tekst i wywracał zakładkę Transakcje.
+
+    Front skleja te projekcje z transakcjami z /api/init (gdzie kwota jest liczbą)
+    i woła na nich toFixed(2). Tekst kończył się TypeError, przez co NIE renderowała
+    się cała tabela — w każdym miesiącu, w którym wypadła jakakolwiek projekcja.
+    """
+    user_token, account_id, category_id = setup_for_recurring
+    dzis = date.today()
+
+    db.session.add(RecurringTransaction(
+        user_token=user_token, account_id=account_id, category_id=category_id,
+        title='Abonament', amount=Decimal('-43.00'),
+        frequency=Frequency.MONTHLY, interval=1, day_of_month=dzis.day,
+        start_date=dzis, next_run_date=dzis,
+    ))
+    db.session.commit()
+
+    odpowiedz = logged_in_client.get(
+        f'/api/recurring-transactions/preview?year={dzis.year}&month={dzis.month}'
+    )
+    assert odpowiedz.status_code == 200
+
+    projekcje = odpowiedz.get_json()
+    assert projekcje, 'Oczekiwano co najmniej jednej projekcji w bieżącym miesiącu'
+
+    p = projekcje[0]
+    assert isinstance(p['amount'], (int, float)), (
+        f"amount ma być liczbą jak w /api/init, dostano {type(p['amount']).__name__}"
+    )
+    assert p['amount'] == -43.00
+
+    # Kształt musi się zgadzać z _transaction_dict() z init_service — front renderuje
+    # projekcje i prawdziwe transakcje tym samym kodem. Rozjazd nazw pól dawał
+    # pusty opis, pustą kategorię i pustego kontrahenta w tabeli operacji.
+    assert p['desc'] == 'Abonament'
+    assert p['category'] == 'Czynsz'
+    assert 'contractor_name' in p
+    assert p['isVirtual'] is True
+    for zabronione in ('title', 'category_id'):
+        assert zabronione not in p, (
+            f"'{zabronione}' to nazwa z rozjechanego kontraktu — front czyta desc/category"
+        )

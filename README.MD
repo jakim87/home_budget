@@ -115,6 +115,10 @@ flask cleanup-archive               # Usuń zarchiwizowane transakcje starsze ni
 flask seed                          # Załaduj użytkownika domyślnego i dane testowe
 flask seed-demo                     # Odtwórz konto demo (kasuje jego poprzedni stan)
 
+# Konta użytkowników
+flask reset-password --user NAZWA   # Ustaw nowe hasło (jedyna droga odzyskania konta —
+                                    #   aplikacja nie wysyła maili; wymaga dostępu do serwera)
+
 # Uwagi użytkowników (odczyt tylko z serwera — aplikacja ich nie pokazuje)
 flask feedback-list                 # Wypisz zgłoszenia, od najnowszego
 flask feedback-delete --id 7        # Usuń zgłoszenie nr 7

@@ -85,6 +85,16 @@ def test_intruder_cannot_delete_account(intruder_client, owner_data):
     assert db.session.get(Account, acc.id).is_active is True
 
 
+def test_intruder_cannot_reorder_foreign_account(intruder_client, owner_data):
+    """Reorder przyjmuje listę ID kont — cudze ID w liście to 400, bez zmiany sort_order."""
+    acc = owner_data['account']
+    original_order = acc.sort_order
+    resp = intruder_client.put('/api/accounts/reorder', json={'ordered_ids': [acc.id]})
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(Account, acc.id).sort_order == original_order
+
+
 def test_intruder_cannot_reconcile_account(intruder_client, owner_data):
     acc = owner_data['account']
     resp = intruder_client.post(f'/api/accounts/{acc.id}/reconcile', json={'new_balance': '0.00'})

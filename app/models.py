@@ -274,6 +274,35 @@ class TransactionStaging(db.Model):
     counterparty_account: Mapped[Optional[str]] = mapped_column(String(50))
 
 
+class Feedback(db.Model):
+    """Uwaga od użytkownika o działaniu aplikacji.
+
+    Zgłoszenie NIE jest danymi finansowymi użytkownika i celowo nie znika przy
+    „Wyczyść dane testowe" ani przy odtwarzaniu konta demo — to korespondencja
+    z autorem aplikacji, nie zawartość czyjegoś budżetu.
+
+    Treść pisze człowiek i czyta ją administrator w przeglądarce, więc przy
+    wyświetlaniu MUSI przejść przez escapowanie (patrz szablon zgloszenia.html).
+    """
+    __tablename__ = 'feedback'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False, index=True)
+
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Kontekst zbierany automatycznie, żeby nie wypytywać zgłaszającego „a gdzie
+    # to było": nazwa otwartej zakładki i wersja aplikacji z chwili wysłania.
+    context: Mapped[Optional[str]] = mapped_column(String(120))
+    user_agent: Mapped[Optional[str]] = mapped_column(String(255))
+
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc), server_default=db.func.now(), index=True
+    )
+
+    user: Mapped['User'] = relationship(foreign_keys=[user_token])
+
+
 class StatementImport(db.Model):
     """Ewidencja wgranych wyciągów — jeden wiersz na parę (plik, pokryte konto).
 

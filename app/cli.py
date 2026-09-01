@@ -1,10 +1,29 @@
 import click
 import logging
+import sys
 from flask.cli import with_appcontext
 from app.services.recurring_service import process_recurring_transactions
 from app.services.planned_transaction_service import process_planned_transactions
 
 logger = logging.getLogger(__name__)
+
+
+def bezpieczny_tekst(tekst: str) -> str:
+    """Przygotowuje tekst napisany przez użytkownika do wypisania na terminal.
+
+    Dwa zagrożenia, oba wynikają z tego, że treść pisze obca osoba:
+
+    1. Znaki sterujące (sekwencje ANSI) pozwoliłyby pokolorować, przesunąć albo
+       ukryć fragment wyniku — wycinamy wszystko poza tabulacją i nową linią.
+    2. Konsola Windows bywa w cp1250/cp852 i rzuca UnicodeEncodeError na znaku
+       spoza swojej strony kodowej. Jedno emoji w zgłoszeniu wywaliłoby całą
+       komendę, więc nieobsługiwane znaki zamieniamy na '?'.
+
+    Używane przez komendy czytające zgłoszenia (feedback-list, feedback-delete).
+    """
+    czysty = ''.join(c for c in tekst if c in '\n\t' or c >= ' ')
+    kodowanie = sys.stdout.encoding or 'utf-8'
+    return czysty.encode(kodowanie, errors='replace').decode(kodowanie, errors='replace')
 
 def register_commands(app):
     @app.cli.command('seed')
@@ -113,6 +132,73 @@ def register_commands(app):
         )
         if not current_app.config['DEMO_ENABLED']:
             click.echo("Uwaga: DEMO_ENABLED nie jest ustawione — przycisk demo nie pokaże się na ekranie logowania.")
+
+    @app.cli.command('feedback-list')
+    @click.option('--limit', default=50, show_default=True, help='Ile ostatnich zgłoszeń wypisać.')
+    @with_appcontext
+    def feedback_list_command(limit):
+        """Wypisuje uwagi użytkowników o aplikacji, od najnowszej.
+
+        Jedyna droga odczytu zgłoszeń — aplikacja webowa nie ma trasy, która by
+        je pokazywała, więc wymaga to dostępu do serwera.
+        """
+        from app.services.feedback_service import list_feedback
+
+        zgloszenia = list_feedback(limit=limit)
+        if not zgloszenia:
+            click.echo('Brak zgłoszeń.')
+            return
+
+        # Separator z myślników, nie z ramek unicode — ten sam powód co wyżej.
+        kreska = '-' * 72
+        for z in zgloszenia:
+            click.echo(kreska)
+            click.echo(bezpieczny_tekst(f"#{z.id}  {z.created_at:%Y-%m-%d %H:%M} UTC  |  {z.user.username}"))
+            if z.context:
+                click.echo(bezpieczny_tekst(f"   {z.context}"))
+            click.echo('')
+            for linia in bezpieczny_tekst(z.content).splitlines() or ['(pusto)']:
+                click.echo(f"   {linia}")
+            click.echo('')
+        click.echo(kreska)
+        click.echo(f'Razem: {len(zgloszenia)}')
+
+    @app.cli.command('feedback-delete')
+    @click.option('--id', 'ids', type=int, multiple=True, required=True,
+                  help='Numer zgłoszenia do usunięcia; można podać wielokrotnie.')
+    @click.option('--yes', is_flag=True, default=False, help='Nie pytaj o potwierdzenie.')
+    @with_appcontext
+    def feedback_delete_command(ids, yes):
+        """Usuwa zgłoszenia po numerze — do sprzątania śmieci i już załatwionych uwag.
+
+        Kasowanie jest trwałe: zgłoszenia nie mają archiwum, bo nie są danymi
+        finansowymi (w odróżnieniu od transakcji, które trafiają do TransactionArchive).
+        """
+        from app import db
+        from app.models import Feedback
+
+        znalezione = db.session.query(Feedback).filter(Feedback.id.in_(ids)).all()
+        if not znalezione:
+            click.echo('Nie znaleziono zgłoszeń o podanych numerach.')
+            return
+
+        for z in znalezione:
+            skrot = bezpieczny_tekst(' '.join(z.content.split())[:70])
+            click.echo(f"  #{z.id}  {z.user.username:16} {skrot}...")
+
+        brakujace = set(ids) - {z.id for z in znalezione}
+        if brakujace:
+            click.echo(f"Pominięto nieistniejące numery: {', '.join(map(str, sorted(brakujace)))}")
+
+        if not yes and not click.confirm(f'Usunąć trwale {len(znalezione)}?'):
+            click.echo('Przerwano, nic nie usunięto.')
+            return
+
+        for z in znalezione:
+            db.session.delete(z)
+        db.session.commit()
+        logger.info("CLI feedback-delete: usunieto %d zgloszen", len(znalezione))
+        click.echo(f'Usunięto {len(znalezione)}.')
 
     @app.cli.command('cleanup-archive')
     @with_appcontext

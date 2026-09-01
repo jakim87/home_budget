@@ -56,6 +56,8 @@ flask reset-password             # Ustawia nowe hasło użytkownika (jedyna drog
                                  #   konta — aplikacja nie wysyła maili)
 flask import-excel-balance-history  # Jednorazowa migracja historii sald z XLSX (domyślnie dry-run)
 flask seed-demo                  # Odtwarza konto demo od zera (idempotentne — pod nocny timer)
+flask feedback-list              # Wypisuje uwagi użytkowników (jedyna droga odczytu)
+flask feedback-delete --id N     # Kasuje zgłoszenie na stałe
 
 # Tests
 pytest                           # Run all tests (~250 testów w 28 plikach; kilkanaście minut — nie mylić z zawieszeniem)
@@ -168,13 +170,19 @@ Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie. Każdy i
 
 Logowanie i rejestracja to modal w `base.html` (`#login-modal`, widoki `#auth-view-login` / `#auth-view-register`) obsługiwany przez `15_init.js` — nie ma osobnych szablonów ani tras GET; cała aplikacja to jedno `base.html`.
 
-Frontend to **18 modułów w `app/static/js/`**, ładowanych w kolejności prefiksów liczbowych (`01_state.js` … `17_tour.js`, `99_bootstrap.js`) — nie ma pliku `main.js`. Kolejność ma znaczenie: `01_state.js` deklaruje stan globalny, `99_bootstrap.js` startuje aplikację. Funkcje pomocnicze ogólnego przeznaczenia (np. `escapeHtml`) należą do `04_helpers.js`, żeby były dostępne dla modułów ładowanych później. Szukaj funkcji `render*()` / `update*()` w module odpowiadającym zakładce.
+Frontend to **19 modułów w `app/static/js/`**, ładowanych w kolejności prefiksów liczbowych (`01_state.js` … `18_feedback.js`, `99_bootstrap.js`) — nie ma pliku `main.js`. Kolejność ma znaczenie: `01_state.js` deklaruje stan globalny, `99_bootstrap.js` startuje aplikację. Funkcje pomocnicze ogólnego przeznaczenia (np. `escapeHtml`) należą do `04_helpers.js`, żeby były dostępne dla modułów ładowanych później. Szukaj funkcji `render*()` / `update*()` w module odpowiadającym zakładce.
 
 **Wygląd „Classical"**: `app/static/classical.css` to warstwa **nadpisująca**, ładowana w `base.html` po `style.css` — zmienia typografię, kolory i promienie we wszystkich zakładkach naraz. Nie edytuj jej razem ze `style.css`: przy zmianach wyglądu ustal najpierw, która warstwa wygrywa. Wycofanie = usunięcie dwóch `<link>` z `<head>`. Źródło i trzy opcjonalne patche JS (wykresy Chart.js, sumy dnia, panel szczegółów) leżą w `UI mockups for Classical/deploy/`.
 
 **XSS**: dane użytkownika wstawiane do `innerHTML` MUSZĄ przechodzić przez `escapeHtml()` — tytuł przelewu przychodzącego ustala nadawca, więc to nie jest tylko self-XSS.
 
 **Samouczek** (`17_tour.js`, treść przez `/samouczek`): `TOURS` trzyma kroki pod kluczem zakładki; jedyny klucz bez zakładki to `import` — dotyczy okna importu, wybierany przez `TOUR_MODAL_KEYS`, gdy modal jest otwarty. `startTour()` **odsiewa kroki wskazujące na elementy niewidoczne w danym momencie** (`krokWidoczny`, po `getClientRects()` — nie `offsetParent`, bo ten jest `null` dla wszystkiego w modalach). Dzięki temu krok może bezpiecznie celować w element warunkowy: listę poczekalni przed pierwszym importem, zwinięty panel filtrów, kafelek widoczny tylko przy `DEMO_ENABLED`. Zero widocznych kroków = komunikat zamiast pustego samouczka. Instancja driver.js trzymana jest w `aktywnyDriver` i zamykana przed startem nowej — bez tego nieukończony samouczek zostawia własną nakładkę pod dymkiem następnego.
+
+**Zgłoszenia użytkowników**: `feedback_bp.py` + `feedback_service.py` + model `Feedback`. Aplikacja webowa **wyłącznie zapisuje** — jedyna trasa to `POST /api/feedback` (każdy zalogowany, limit 10/godz., **konto demo dostaje 403**, bo demo jest publiczne i inaczej byłby to anonimowy endpoint zapisu). **Nie ma trasy czytającej zgłoszenia**, więc aplikacja nie potrzebuje pojęcia administratora ani ról — odczyt i kasowanie idą przez `flask feedback-list` / `flask feedback-delete`, czyli spod konta z dostępem do serwera. Nie dokładaj podglądu przez HTTP bez przemyślenia tego od nowa: lista pokazuje treści WSZYSTKICH użytkowników (pilnuje tego `test_aplikacja_nie_udostepnia_zgloszen_przez_http`).
+
+Zgłoszenia **nie opuszczają serwera** i formularz **nie przyjmuje plików ani zrzutów** — świadomie, bo opis problemu z aplikacji budżetowej potrafi zawierać cudze dane finansowe, a zrzut ekranu zawiera je zawsze. Front dokleja automatycznie kontekst (otwarta zakładka + wersja aplikacji) i `User-Agent`; zgłoszenie jest powiązane z kontem autora. Zmiana zakresu zbieranych danych wymaga aktualizacji `polityka_prywatnosci.html` i `DOCS_LAST_UPDATED` w `legal_bp.py`.
+
+Treść pisze obca osoba i trafia wprost na terminal, więc obie komendy przepuszczają ją przez `bezpieczny_tekst()` (`cli.py`): wycina znaki sterujące (sekwencje ANSI mogłyby ukryć fragment wyniku) i zastępuje znaki spoza strony kodowej konsoli — bez tego jedno emoji wywala całą komendę na Windowsie.
 
 **Strony informacyjne**: `legal_bp.py` serwuje `/regulamin`, `/polityka-prywatnosci` i `/o-aplikacji` — statyczne szablony dziedziczące po `legal_base.html`, BEZ `@login_required` (linkujemy je z modalu rejestracji). Nazwa administratora i adres kontaktowy pochodzą z `config.APP_ADMIN_NAME` / `APP_CONTACT_EMAIL` (nadpisywalne z `.env`), autor z `APP_AUTHOR` — nie wpisuj tych danych na sztywno w szablonach. Linki żyją w dwóch partialach: `_footer.html` (stopka SPA i stron informacyjnych) oraz `_auth_legal_links.html` (modal logowania/rejestracji).
 

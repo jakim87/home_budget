@@ -54,6 +54,11 @@
                 <button onclick="startTour()" title="Samouczek tej zakładki" class="p-2.5 bg-white border border-slate-200 text-slate-500 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600 rounded-xl shadow-sm transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 </button>
+                <button onclick="openFeedbackModal()" id="openFeedbackBtn" title="Zgłoś uwagę o aplikacji"
+                        data-app-version="{{ config.APP_VERSION }}"
+                        class="p-2.5 bg-white border border-slate-200 text-slate-500 hover:bg-amber-50 hover:border-amber-400 hover:text-amber-600 rounded-xl shadow-sm transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                </button>
                 {# Kosz tylko tam, gdzie dev_bp jest zarejestrowany (patrz DEV_RESET_ENABLED
                    w create_app). Bez tego przycisk widnieje na produkcji, a klikniecie
                    konczy sie 404 — endpoint nie istnieje. #}
@@ -653,6 +658,35 @@
     </div>
 
     <!-- Modal Importu CSV -->
+    <!-- MODAL: zgłoszenie uwagi o aplikacji -->
+    <div id="feedback-modal" class="fixed inset-0 bg-slate-900/50 hidden flex-col items-center justify-center z-50 px-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div class="flex justify-between items-center p-5 border-b border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-800">Zgłoś uwagę</h3>
+                <button onclick="closeFeedbackModal()" class="text-slate-400 hover:text-slate-600 focus:outline-none transition-colors rounded-lg">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <form id="feedback-form" class="p-6">
+                <label for="feedback-content" class="block text-sm font-medium text-slate-700 mb-2">
+                    Co nie działa albo co dałoby się zrobić lepiej?
+                </label>
+                <textarea id="feedback-content" rows="6" required minlength="10" maxlength="5000"
+                          placeholder="Im konkretniej, tym lepiej — co klikałeś i czego się spodziewałeś."
+                          class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white resize-y"></textarea>
+                <p class="text-xs text-slate-400 mt-2">
+                    Do zgłoszenia dołączamy nazwę otwartej zakładki, wersję aplikacji i typ przeglądarki.
+                    Zgłoszenia zostają na tym serwerze — nie trafiają nigdzie dalej.
+                </p>
+                <p id="feedback-error" class="text-rose-500 text-sm mt-2 hidden"></p>
+                <div class="flex justify-end gap-3 mt-5">
+                    <button type="button" onclick="closeFeedbackModal()" class="px-5 py-2.5 text-slate-700 font-medium bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-all focus:ring-2 focus:ring-slate-200">Anuluj</button>
+                    <button type="submit" id="feedback-submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow focus:ring-4 focus:ring-blue-300">Wyślij</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="import-modal" class="fixed inset-0 bg-slate-900/50 hidden flex-col items-center justify-center z-50 px-4 backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -1145,6 +1179,7 @@
     <script src="{{ url_for('static', filename='js/15_init.js') }}"></script>
     <script src="{{ url_for('static', filename='js/16_reports.js') }}"></script>
     <script src="{{ url_for('static', filename='js/17_tour.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/18_feedback.js') }}"></script>
     <script src="{{ url_for('static', filename='js/99_bootstrap.js') }}"></script>
 </body>
 </html>

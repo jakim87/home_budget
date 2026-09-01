@@ -378,7 +378,7 @@ function renderRecurringList() {
             row.innerHTML = `
                 <td class="p-3 border-b border-slate-100">
                     <div class="font-medium text-slate-800">${escapeHtml(rt.title)}</div>
-                    <div class="text-xs text-slate-500">${cat ? cat.name : 'Brak kategorii'}</div>
+                    <div class="text-xs text-slate-500">${cat ? escapeHtml(cat.name) : 'Brak kategorii'}</div>
                 </td>
                 <td class="p-3 border-b border-slate-100 text-sm">
                     <div class="text-indigo-600 font-medium">${freqText}</div>
@@ -421,7 +421,7 @@ function renderPlannedList() {
             row.innerHTML = `
                 <td class="p-3 border-b border-slate-100">
                     <div class="font-medium text-slate-800">${escapeHtml(pt.title)}</div>
-                    <div class="text-xs text-slate-500">${cat ? cat.name : 'Brak kategorii'}</div>
+                    <div class="text-xs text-slate-500">${cat ? escapeHtml(cat.name) : 'Brak kategorii'}</div>
                 </td>
                 <td class="p-3 border-b border-slate-100 text-sm">
                     <div class="text-blue-600 font-medium">Dnia: ${pt.execution_date}</div>

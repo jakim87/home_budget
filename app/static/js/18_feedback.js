@@ -1,6 +1,7 @@
 // --- ZGŁOSZENIA UWAG ---
-// Formularz „Zgłoś uwagę". Treść trafia do bazy na tym serwerze i czyta ją
-// administrator na /zgloszenia — nic nie idzie mailem ani do zewnętrznych usług.
+// Formularz „Zgłoś uwagę". Treść trafia do bazy na tym serwerze i odczytuje ją
+// osoba z dostępem do serwera przez `flask feedback-list` — aplikacja nie pokazuje
+// zgłoszeń, nic nie idzie mailem ani do zewnętrznych usług.
 
 function feedbackContext() {
     // Kontekst zbierany automatycznie, żeby nie wypytywać zgłaszającego „a gdzie

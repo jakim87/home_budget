@@ -12,7 +12,15 @@ def add_category():
     try:
         data = CategorySchema().load(request.get_json() or {})
         new_cat = create_category(current_user.token, data)
-        return jsonify({'name': new_cat.name, 'type': new_cat.type}), 201
+        # Kształt MUSI odpowiadać kategorii z /api/init — front robi categories.push(saved)
+        # i renderuje ją w selektach po ID (rec-category/planned-category). Bez 'id'
+        # nowa kategoria trafiała tam jako <option value="undefined">.
+        return jsonify({
+            'id': new_cat.id,
+            'name': new_cat.name,
+            'type': new_cat.type,
+            'is_system_category': new_cat.is_system_category,
+        }), 201
     except ValidationError as err:
         return jsonify({'error': err.messages}), 400
     except ValueError as err:

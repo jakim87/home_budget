@@ -62,6 +62,39 @@ def test_api_add_category(logged_in_client, app):
     cat = db.session.query(Category).filter_by(name='Hobby').first()
     assert cat is not None
 
+def test_create_transaction_rejects_unknown_category(logged_in_client, app, test_user_token):
+    """Podana, ale nierozpoznana nazwa kategorii to 400 — nie ciche 201 bez kategorii.
+
+    Regresja: transakcja zapisywała się z category_id=None i mimo to zwracała sukces,
+    więc użytkownik dostawał potwierdzenie zapisu, który zignorował jego wybór."""
+    account = Account(name="KontoKat", bank_name="Bank", balance=Decimal("0.00"), user_token=test_user_token)
+    db.session.add(account)
+    db.session.commit()
+
+    response = logged_in_client.post('/api/transactions', json={
+        'desc': 'Bez sensownej kategorii', 'amount': -30.0,
+        'date': '2024-02-01', 'account_id': account.id, 'category': 'NieMaTakiej',
+    })
+    assert response.status_code == 400
+    assert db.session.query(Transaction).filter_by(account_id=account.id).count() == 0
+
+def test_update_transaction_rejects_unknown_category(logged_in_client, app, test_user_token):
+    """Ten sam kontrakt przy edycji: nierozpoznana kategoria to 400, nie ciche 200
+    zostawiające starą kategorię."""
+    account = Account(name="KontoKat2", bank_name="Bank", balance=Decimal("0.00"), user_token=test_user_token)
+    cat = Category(name="Realna", type="expense", user_token=test_user_token)
+    db.session.add_all([account, cat])
+    db.session.commit()
+    tx = Transaction(date=date(2024, 2, 2), title="Wpis", amount=Decimal("-10.00"),
+                     account_id=account.id, category_id=cat.id, user_token=test_user_token)
+    db.session.add(tx)
+    db.session.commit()
+    tx_id = tx.id
+
+    response = logged_in_client.put(f'/api/transactions/{tx_id}', json={'category': 'Widmo'})
+    assert response.status_code == 400
+    assert db.session.get(Transaction, tx_id).category_id == cat.id
+
 def test_delete_transaction_archives_and_removes(logged_in_client, app, test_user_token):
     # SETUP
     account = Account(name="DelKonto", bank_name="Bank", balance=Decimal("100.00"), user_token=test_user_token)

@@ -76,3 +76,13 @@ def test_user_cannot_delete_other_users_category(app, test_user_token, other_use
 def test_delete_nonexistent_category_via_api_returns_400(logged_in_client, app):
     resp = logged_in_client.delete('/api/categories/Widmo')
     assert resp.status_code == 400
+
+
+def test_create_category_zwraca_id_jak_api_init(logged_in_client, app):
+    """POST musi oddać ten sam kształt co /api/init — front robi categories.push(saved)
+    i renderuje kategorię w selektach po ID. Bez 'id' trafiała tam jako value='undefined'."""
+    resp = logged_in_client.post('/api/categories', json={'name': 'Prezenty', 'type': 'expense'})
+    assert resp.status_code == 201
+    body = resp.get_json()
+    assert set(body) == {'id', 'name', 'type', 'is_system_category'}
+    assert body['id'] == db.session.query(Category).filter_by(name='Prezenty').one().id

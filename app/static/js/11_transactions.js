@@ -256,6 +256,11 @@ function renderTransactions() {
     const list = document.getElementById('transaction-list');
     const emptyState = document.getElementById('empty-state');
     list.innerHTML = '';
+
+    // Zaznaczenie dotyczy tego, co widac. Przerysowanie tabeli (inny miesiac,
+    // inne konto, odswiezenie danych) zmienia zawartosc, wiec stare zaznaczenie
+    // wskazywaloby wiersze poza ekranem.
+    if (typeof clearTxSelection === 'function') clearTxSelection();
     
     // Pobierz transakcje z aktualnego miesiąca (zwykłe + cykliczne)
     const allTx = getFullTransactionsList(null, null, null); 
@@ -280,7 +285,8 @@ function renderTransactions() {
     const showBalance = !!globalAccountFilter;
     document.getElementById('th-tx-balance').classList.toggle('hidden', !showBalance);
     const balanceMap = showBalance ? balanceAfterByTxId(globalAccountFilter) : null;
-    const colCount = 6 + (showAccountColumn ? 1 : 0) + (showBalance ? 1 : 0) + 1;
+    // +1 na stalej kolumnie z checkboxem zaznaczenia (edycja zbiorcza).
+    const colCount = 6 + (showAccountColumn ? 1 : 0) + (showBalance ? 1 : 0) + 1 + 1;
 
     // Nazwa miesiąca w nagłówku
     const monthNames = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
@@ -321,6 +327,9 @@ function renderTransactions() {
                 // TRYB EDYCJI
                 row.className = 'bg-blue-50/50';
                 row.innerHTML = `
+                    <!-- Kolumna zaznaczenia zostaje pusta: wiersz w trybie edycji
+                         nie moze byc jednoczesnie czescia operacji zbiorczej. -->
+                    <td class="p-2 border-b border-blue-100"></td>
                     <td class="p-2 border-b border-blue-100">
                         <input type="date" id="edit-date-${t.id}" value="${t.date}" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                     </td>
@@ -395,7 +404,15 @@ function renderTransactions() {
                 })();
 
                 row.className = `transition-colors group hover:bg-slate-50 ${isVirtual ? 'bg-indigo-50/30' : ''}`;
+                const selectCellHtml = isVirtual
+                    ? '<td class="p-4 border-b border-slate-100"></td>'
+                    : `<td class="p-4 border-b border-slate-100">
+                        <input type="checkbox" class="tx-select-check w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                               value="${t.id}" onchange="toggleTxSelection(${t.id})">
+                       </td>`;
+
                 row.innerHTML = `
+                    ${selectCellHtml}
                     <td class="p-4 border-b border-slate-100 text-sm text-slate-400 whitespace-nowrap tabular-nums" title="${t.date}">${Number(t.date.slice(8))}</td>
                     ${accountCellHtml}
                     <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">

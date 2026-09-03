@@ -2,9 +2,14 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from marshmallow import ValidationError
 from datetime import date
-from app.schemas import TransactionSchema
+from app.schemas import BulkTransactionSchema, TransactionSchema
 from app.services.category_service import find_by_name as find_category_by_name
-from app.services.transaction_service import archive_and_delete_transaction, update_transaction
+from app.services.transaction_service import (
+    archive_and_delete_transaction,
+    bulk_delete_transactions,
+    bulk_update_category,
+    update_transaction,
+)
 from app.services.budget_service import create_transaction
 
 transactions_bp = Blueprint('transactions', __name__)
@@ -76,5 +81,41 @@ def remove_transaction(tx_id):
     try:
         archive_and_delete_transaction(current_user.token, tx_id)
         return jsonify({'message': 'Transakcja zarchiwizowana i usunięta.'}), 200
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+
+
+# --- Operacje zbiorcze ---
+# Osobne ścieżki zamiast pętli po /api/transactions/<id> po stronie frontu:
+# jedno żądanie to jedna transakcja bazodanowa, więc albo zmienia się cała
+# zaznaczona paczka, albo nic. Pętla po froncie przy błędzie w połowie
+# zostawiałaby dane w stanie, którego użytkownik nie potrafi odtworzyć.
+
+@transactions_bp.route('/api/transactions/bulk/category', methods=['POST'])
+@login_required
+def bulk_category():
+    try:
+        data = BulkTransactionSchema().load(request.get_json() or {})
+        if not data.get('category'):
+            raise ValueError('Nie wskazano kategorii.')
+        wynik = bulk_update_category(current_user.token, data['ids'], data['category'])
+        return jsonify(wynik), 200
+    except ValidationError as err:
+        return jsonify({'error': err.messages}), 400
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+
+
+@transactions_bp.route('/api/transactions/bulk/delete', methods=['POST'])
+@login_required
+def bulk_delete():
+    # POST, nie DELETE: lista identyfikatorów jedzie w ciele żądania, a ciało
+    # przy DELETE bywa gubione po drodze (proxy, klienci HTTP).
+    try:
+        data = BulkTransactionSchema().load(request.get_json() or {})
+        wynik = bulk_delete_transactions(current_user.token, data['ids'])
+        return jsonify(wynik), 200
+    except ValidationError as err:
+        return jsonify({'error': err.messages}), 400
     except ValueError as err:
         return jsonify({'error': str(err)}), 400

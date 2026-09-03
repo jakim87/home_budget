@@ -17,6 +17,7 @@ Zrealizowane:
 - Moduł raportów: KPI, wykresy, filtry kont/kategorii/kontrahentów, presety zakresów dat
 - Obsługa typów kont, w tym kredytów (zobowiązania / wartość ujemna)
 - Ręczne wprowadzanie transakcji, również gotówkowych
+- Edycja zbiorcza transakcji — masowa zmiana kategorii i masowe usuwanie
 - Uwierzytelnianie użytkownika (logowanie, rejestracja)
 - Interaktywny samouczek w aplikacji
 - Regulamin, polityka prywatności (RODO) i informacja o autorze — strony `/regulamin`, `/polityka-prywatnosci`, `/o-aplikacji`
@@ -206,7 +207,7 @@ budget/
 │   │   └── README.md             # Instrukcje warstwy serwisów
 │   ├── static/
 │   │   ├── js/                   # Frontend (SPA) — moduły ładowane w kolejności
-│   │   │                         #   prefiksów: 01_state.js … 18_feedback.js, 99_bootstrap.js
+│   │   │                         #   prefiksów: 01_state.js … 19_bulk_edit.js, 99_bootstrap.js
 │   │   └── style.css             # Style uzupełniające Tailwind
 │   ├── templates/
 │   │   └── base.html             # Główny szablon HTML

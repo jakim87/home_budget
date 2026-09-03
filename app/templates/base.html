@@ -198,10 +198,30 @@
                             <button onclick="changeMonth(1)" class="p-1 text-slate-400 hover:text-blue-600 rounded focus:outline-none"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
                         </div>
                     </div>
+                    <div id="tx-bulk-bar" class="hidden mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                        <span id="tx-bulk-count" class="text-sm font-semibold text-blue-800"></span>
+                        <div class="flex items-center gap-2">
+                            <select id="tx-bulk-category" class="p-2 border border-blue-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"></select>
+                            <button onclick="bulkChangeCategory()" class="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+                                Zmień kategorię
+                            </button>
+                        </div>
+                        <button onclick="bulkDeleteSelected()" class="px-3 py-2 rounded-lg bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 transition-colors">
+                            Usuń zaznaczone
+                        </button>
+                        <button onclick="clearTxSelection()" class="px-3 py-2 rounded-lg text-slate-600 text-sm font-medium hover:bg-slate-200 transition-colors ml-auto">
+                            Odznacz wszystkie
+                        </button>
+                    </div>
                     <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse min-w-[1000px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                                    <th class="p-4 font-semibold w-10">
+                                        <input type="checkbox" id="tx-select-all" onchange="toggleSelectAllTx(this.checked)"
+                                               title="Zaznacz wszystkie widoczne"
+                                               class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                                    </th>
                                 <th class="p-4 font-semibold w-28">Data</th>
                                     <th id="th-tx-account" class="p-4 font-semibold w-36 hidden">Konto</th>
                                     <th class="p-4 font-semibold w-36">Kontrahent</th>
@@ -1180,6 +1200,7 @@
     <script src="{{ url_for('static', filename='js/16_reports.js') }}"></script>
     <script src="{{ url_for('static', filename='js/17_tour.js') }}"></script>
     <script src="{{ url_for('static', filename='js/18_feedback.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/19_bulk_edit.js') }}"></script>
     <script src="{{ url_for('static', filename='js/99_bootstrap.js') }}"></script>
 </body>
 </html>

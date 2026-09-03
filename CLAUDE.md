@@ -61,6 +61,7 @@ flask feedback-delete --id N     # Kasuje zgłoszenie na stałe
 
 # Tests
 pytest                           # Run all tests (~250 testów w 28 plikach; kilkanaście minut — nie mylić z zawieszeniem)
+npm test                         # Testy JS (vitest): liczenie na Dashboardzie i w Raportach
 pytest tests/test_file.py        # Single file
 pytest tests/test_file.py::test_name -vv --tb=long  # Single test, verbose
 
@@ -164,13 +165,17 @@ Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie. Każdy i
 
 **Raporty**: osobna zakładka (`16_reports.js`, `renderReports()`), również licząca po stronie klienta z globalnego stanu. Ma własne wykresy Chart.js (`rptBarChart`, `rptLineChart`), presety zakresu dat, sortowanie tabeli i domyślnie **wyklucza przelewy wewnętrzne** (checkbox `#rpt-exclude-transfers`) — bez tego transfery podwajałyby obroty. Tabela ograniczona do `RPT_TABLE_MAX` wierszy.
 
+**Edycja zbiorcza** (`19_bulk_edit.js`, trasy `POST /api/transactions/bulk/category` i `/bulk/delete`): checkboxy w tabeli operacji + pasek akcji. Zaznaczenie żyje w `selectedTxIds` i jest **kasowane przy każdym `renderTransactions()`** — operacja ma dotyczyć tego, co widać, a nie wierszy z innego miesiąca. Obie trasy przyjmują listę ID (limit 500, `BulkTransactionSchema`) i domykają się jednym commitem: obcy albo nieistniejący ID unieważnia **całe** żądanie, nie tylko siebie (`_wlasne_transakcje()` w `transaction_service.py`) — inaczej liczba przetworzonych wierszy zdradzałaby, które ID istnieją u kogoś innego.
+
+Dwie zasady wynikające z przelewów wewnętrznych: usunięcie zabiera **obie nogi** (jak przy usuwaniu pojedynczym — inaczej Net Worth się rozjeżdża; front ostrzega o nogach spoza zaznaczenia PRZED operacją), a masowa zmiana kategorii przelewy **pomija** i zgłasza ich liczbę — zmiana typu kategorii na inny niż `transfer` zostawiłaby parę powiązaną przez `linked_transaction_id`, która przelewem już nie jest. Pojedyncza edycja nadal na to pozwala; masowa nie, bo tam nikt nie patrzy na konkretny wiersz.
+
 **Contractor Combobox**: Pole kontrahenta w formularzu transakcji to combobox (nie `<select>`): `#tx-contractor-input` (text, widoczny) + `#tx-contractor` (hidden, przechowuje ID). Inicjalizacja: `initContractorCombobox()`. Pozostałe miejsca (inline edit w tabeli, staging, formularze cykliczne) nadal używają `<select>`.
 
 **Frontend = globalny stan z `/api/init`**: `home_bp.py` jednym zapytaniem ładuje `transactions`, `categories`, `contractors`, `accounts` do zmiennych globalnych zadeklarowanych w `01_state.js`; cały rendering i przeliczenia dzieją się po stronie klienta (brak osobnych endpointów read). Po mutacji (POST/PUT/DELETE) front woła `fetchInitialData()`, by odświeżyć globalny stan.
 
 Logowanie i rejestracja to modal w `base.html` (`#login-modal`, widoki `#auth-view-login` / `#auth-view-register`) obsługiwany przez `15_init.js` — nie ma osobnych szablonów ani tras GET; cała aplikacja to jedno `base.html`.
 
-Frontend to **19 modułów w `app/static/js/`**, ładowanych w kolejności prefiksów liczbowych (`01_state.js` … `18_feedback.js`, `99_bootstrap.js`) — nie ma pliku `main.js`. Kolejność ma znaczenie: `01_state.js` deklaruje stan globalny, `99_bootstrap.js` startuje aplikację. Funkcje pomocnicze ogólnego przeznaczenia (np. `escapeHtml`) należą do `04_helpers.js`, żeby były dostępne dla modułów ładowanych później. Szukaj funkcji `render*()` / `update*()` w module odpowiadającym zakładce.
+Frontend to **20 modułów w `app/static/js/`**, ładowanych w kolejności prefiksów liczbowych (`01_state.js` … `19_bulk_edit.js`, `99_bootstrap.js`) — nie ma pliku `main.js`. Kolejność ma znaczenie: `01_state.js` deklaruje stan globalny, `99_bootstrap.js` startuje aplikację. Funkcje pomocnicze ogólnego przeznaczenia (np. `escapeHtml`) należą do `04_helpers.js`, żeby były dostępne dla modułów ładowanych później. Szukaj funkcji `render*()` / `update*()` w module odpowiadającym zakładce.
 
 **Wygląd „Classical"**: `app/static/classical.css` to warstwa **nadpisująca**, ładowana w `base.html` po `style.css` — zmienia typografię, kolory i promienie we wszystkich zakładkach naraz. Nie edytuj jej razem ze `style.css`: przy zmianach wyglądu ustal najpierw, która warstwa wygrywa. Wycofanie = usunięcie dwóch `<link>` z `<head>`. Źródło i trzy opcjonalne patche JS (wykresy Chart.js, sumy dnia, panel szczegółów) leżą w `UI mockups for Classical/deploy/`.
 
@@ -195,6 +200,8 @@ Treść pisze obca osoba i trafia wprost na terminal, więc obie komendy przepus
 Tests use in-memory SQLite by default, defined in `tests/conftest.py` (fixtures: `app`, `client`, `test_user`, `test_user_id`, `test_user_token`, `other_user`, `logged_in_client`, helper `login_as`). Setting env var `TEST_DATABASE_URL` runs the **same suite on PostgreSQL** (CI does this via `.github/workflows/tests.yml` — jobs: SQLite + coverage, PostgreSQL). SQLite behavior differs from PostgreSQL — notably no JSON column support and relaxed constraints.
 
 Drugi workflow, `.github/workflows/jakosc.yml`, dokłada dwie bramki: **ruff** (konfiguracja w `ruff.toml` — świadomie wąski zestaw `E9` + `F`, nie sprzątanie stylu) i **drift migracji** (`flask db check` na PostgreSQL — czerwony, gdy model zmieniono bez wygenerowania migracji). Narzędzia deweloperskie siedzą w `requirements-dev.txt`, nie w `requirements.txt`.
+
+**Testy frontu** (`tests/js/`, vitest + jsdom, `npm test`): Dashboard i Raporty liczą sumy w przeglądarce z globalnego stanu, więc pytest nie dotyka tej ścieżki wcale — te liczby pokrywa wyłącznie vitest. Moduły z `app/static/js` nie są modułami ES (zwykłe skrypty, wspólny zasięg globalny), więc test ich nie importuje: `zaladujModuly()` z `tests/js/helpers.js` czyta plik i wykonuje go w zasięgu globalnym testu, zamieniając przy tym deklaracje z kolumny 0 na przypisania — bez tego `let transactions` z `01_state.js` byłoby niewidoczne dla kodu testu. Testy Raportów budują atrapę DOM; osobny test pilnuje, żeby użyte w niej `id` istniały w `base.html` (inaczej zmiana szablonu przechodziłaby przez zielone testy, psując aplikację).
 
 Test conventions: amounts as `Decimal("...")` (never float; exception: assertions on JSON API responses), API-mutating tests assert both HTTP status **and** DB state, every endpoint with an ID gets an IDOR test in `tests/test_authorization.py`.
 
@@ -221,6 +228,20 @@ Rejestracja pod `POST /api/register` jest **publiczna** — bez zaproszeń i bez
 **CSRF nie jest włączony** (brak `CSRFProtect`). Zapisano tu świadomie, żeby nie sprawdzać tego za każdym razem od nowa.
 
 `MAX_CONTENT_LENGTH` = 10 MB (drugą warstwą jest `client_max_body_size` w nginx).
+
+## Kopie zapasowe
+
+`deploy/backup/` — skrypty i jednostki systemd. Kopia powstaje codziennie o 02:00 UTC
+(`budget-backup.timer`), jest szyfrowana AES-256 i **weryfikowana zaraz po utworzeniu**
+(`pg_restore --list` na odszyfrowanym pliku) — bez tego uszkodzona kopia wychodzi na jaw
+dopiero przy awarii. Rotacja zostawia `BACKUP_KEEP` najnowszych plików.
+
+Odtworzenie: `budget-restore.sh <plik> <nowa_baza>`. Skrypt **odmawia nadpisania
+istniejącej bazy** — literówka w nazwie nie skasuje produkcji. Pełna instrukcja wraz
+z kwartalnym ćwiczeniem odtworzenia: `deploy/backup/README.md`.
+
+Hasło szyfrowania (`BACKUP_PASSPHRASE_FILE`) musi istnieć także poza serwerem — bez niego
+żadnej kopii nie da się odczytać.
 
 ## Logging & Diagnostyka
 

@@ -398,7 +398,7 @@ Archiwum jest czyszczone automatycznie przez `flask cleanup-archive` — usuwa w
 | Funkcja | Opis |
 |---------|------|
 | **Obsługa kolejnych banków** | Rozszerzenie o formaty PKO BP, Revolut i innych — obecnie obsługiwane są ING Bank Śląski i mBank. Nowy format wymaga parsera i jednego wpisu w mapie `STATEMENT_PARSERS` |
-| **Tryb edycji zbiorczej transakcji** | Masowa zmiana kategorii/kontrahenta dla wielu zaznaczonych transakcji jednocześnie — funkcja zaznaczona jako TODO w repozytorium |
+| **Masowa zmiana kontrahenta** | Edycja zbiorcza obejmuje dziś kategorię i usuwanie; zmiana kontrahenta dla wielu transakcji naraz nie jest zrealizowana |
 
 ---
 

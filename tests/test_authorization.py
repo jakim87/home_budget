@@ -379,3 +379,63 @@ def test_intruder_cannot_delete_global_category(intruder_client, owner_data):
     assert resp.status_code == 400
     db.session.expire_all()
     assert db.session.get(Category, cat_id).is_active is True
+
+
+# --- Operacje zbiorcze (edycja zbiorcza transakcji) ---
+# Nowa powierzchnia ataku: jedno żądanie niesie LISTĘ identyfikatorów, więc
+# intruz nie musi trafiać pojedynczo — może wysłać zakres i liczyć na to, że
+# serwer przetworzy te pozycje, do których ma dostęp, a resztę pominie.
+
+def test_intruder_cannot_bulk_delete_foreign_transactions(intruder_client, owner_data):
+    tx = owner_data['tx']
+
+    resp = intruder_client.post('/api/transactions/bulk/delete', json={'ids': [tx.id]})
+
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(Transaction, tx.id) is not None
+    assert db.session.get(Account, owner_data['account'].id).balance == Decimal("1000.00")
+
+
+def test_intruder_cannot_bulk_change_category_of_foreign_transactions(intruder_client, owner_data):
+    tx = owner_data['tx']
+
+    resp = intruder_client.post('/api/transactions/bulk/category',
+                                json={'ids': [tx.id], 'category': 'Jedzenie'})
+
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(Transaction, tx.id).category_id == owner_data['category'].id
+
+
+def test_bulk_delete_z_wlasnymi_i_cudzymi_id_nie_kasuje_niczego(intruder_client, owner_data, other_user):
+    """Intruz miesza swoją transakcję z cudzą — całe żądanie musi paść.
+
+    Gdyby serwer usuwał "to, do czego ma prawo", intruz poznałby po liczbie
+    usuniętych, które identyfikatory istnieją u ofiary. Odrzucenie całości
+    nie zdradza nawet tego.
+    """
+    ofiary = owner_data['tx']
+    wlasne_konto = Account(name="Konto Intruza", bank_name="Bank",
+                           balance=Decimal("500.00"), user_token=other_user.token)
+    db.session.add(wlasne_konto)
+    db.session.commit()
+    wlasna = Transaction(date=date(2024, 2, 1), title="Moje", amount=Decimal("-10.00"),
+                         account_id=wlasne_konto.id, user_token=other_user.token)
+    db.session.add(wlasna)
+    db.session.commit()
+
+    resp = intruder_client.post('/api/transactions/bulk/delete',
+                                json={'ids': [wlasna.id, ofiary.id]})
+
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(Transaction, ofiary.id) is not None
+    assert db.session.get(Transaction, wlasna.id) is not None, "własna transakcja też nie mogła zniknąć"
+
+
+def test_bulk_odrzuca_liste_ponad_limit(logged_in_client):
+    """Limit długości listy jest bramką na wyczerpanie pamięci procesu."""
+    resp = logged_in_client.post('/api/transactions/bulk/delete',
+                                 json={'ids': list(range(1, 502))})
+    assert resp.status_code == 400

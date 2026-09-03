@@ -17,6 +17,7 @@ Zrealizowane:
 - Moduł raportów: KPI, wykresy, filtry kont/kategorii/kontrahentów, presety zakresów dat
 - Obsługa typów kont, w tym kredytów (zobowiązania / wartość ujemna)
 - Ręczne wprowadzanie transakcji, również gotówkowych
+- Edycja zbiorcza transakcji — masowa zmiana kategorii i masowe usuwanie
 - Uwierzytelnianie użytkownika (logowanie, rejestracja)
 - Interaktywny samouczek w aplikacji
 - Regulamin, polityka prywatności (RODO) i informacja o autorze — strony `/regulamin`, `/polityka-prywatnosci`, `/o-aplikacji`
@@ -57,7 +58,7 @@ Docelowo planowana obsługa: Millennium, Pekao, Revolut.
 - **Baza danych:** PostgreSQL (produkcja), SQLite in-memory (testy)
 - **Uwierzytelnianie:** Flask-Login
 - **Serializacja:** Marshmallow + flask-marshmallow
-- **Frontend:** Jinja2, Tailwind CSS (CDN), HTMX, Chart.js (CDN)
+- **Frontend:** Jinja2, Tailwind CSS (CDN), Chart.js (CDN), driver.js (samouczek, CDN)
 - **Testy:** pytest
 
 ## Wymagane narzędzia
@@ -128,12 +129,18 @@ flask import-excel-balance-history --file historia.xlsx --user default_user
 flask import-excel-balance-history --file historia.xlsx --user default_user --execute
 
 # Testy
-pytest                              # Uruchom wszystkie testy
+pytest                              # Uruchom wszystkie testy (backend)
+npm install                         # Jednorazowo: zależności testów frontu
+npm test                            # Testy JS — liczenie na Dashboardzie i w Raportach
 pytest tests/test_plik.py           # Pojedynczy plik
 pytest tests/test_plik.py::test_nazwa -vv --tb=long   # Pojedynczy test, tryb szczegółowy
 
 # Diagnostyka
 python test_db.py                   # Sprawdź połączenie z bazą danych
+
+# Kopie zapasowe (na serwerze — patrz deploy/backup/README.md)
+deploy/backup/budget-backup.sh                     # Kopia: zrzut, szyfrowanie, weryfikacja, rotacja
+deploy/backup/budget-restore.sh PLIK NOWA_BAZA     # Odtworzenie kopii do nowej bazy
 ```
 
 ## Architektura aplikacji
@@ -200,7 +207,7 @@ budget/
 │   │   └── README.md             # Instrukcje warstwy serwisów
 │   ├── static/
 │   │   ├── js/                   # Frontend (SPA) — moduły ładowane w kolejności
-│   │   │                         #   prefiksów: 01_state.js … 17_tour.js, 99_bootstrap.js
+│   │   │                         #   prefiksów: 01_state.js … 19_bulk_edit.js, 99_bootstrap.js
 │   │   └── style.css             # Style uzupełniające Tailwind
 │   ├── templates/
 │   │   └── base.html             # Główny szablon HTML
@@ -218,8 +225,7 @@ budget/
 │   └── test_*.py                 # Pliki z testami
 ├── docs/
 │   ├── DOCUMENTATION.md          # Dokumentacja biznesowa i procesowa aplikacji
-│   ├── PRZEWODNIK_UZYTKOWNIKA.md # Przewodnik dla użytkownika końcowego
-│   └── review_*.md               # Raporty z przeglądów kodu i backlogu
+│   └── PRZEWODNIK_UZYTKOWNIKA.md # Przewodnik dla użytkownika końcowego
 ├── .env                          # Zmienne środowiskowe (ignorowany przez git)
 ├── .flaskenv                     # Konfiguracja Flask (FLASK_DEBUG=1)
 ├── .gitignore
@@ -229,3 +235,14 @@ budget/
 ├── test_db.py                    # Skrypt weryfikujący połączenie z bazą
 └── README.MD
 ```
+
+## Licencja
+
+Projekt jest objęty **Business Source License 1.1** (plik `LICENSE`).
+
+W skrócie, bez prawniczego żargonu:
+
+- **Kod jest publiczny** — możesz go czytać, audytować, kopiować, modyfikować i zgłaszać poprawki.
+- **Użytek własny jest dozwolony** — wolno Ci uruchomić własną instancję dla siebie i domowników.
+- **Użytek komercyjny nie jest udzielony** — w szczególności udostępnianie tej aplikacji osobom trzecim jako usługi (hosting, SaaS) wymaga osobnej umowy z autorem.
+- **1 stycznia 2028 licencja zmienia się na MIT** (Change Date). Po tej dacie powyższe ograniczenie znika samo, bez żadnej dodatkowej zgody.

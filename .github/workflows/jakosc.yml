@@ -1,9 +1,13 @@
-# CI jakości: dwie bramki uzupełniające pakiet testów (tests.yml).
+# CI jakości: trzy bramki uzupełniające pakiet testów (tests.yml).
 #   1. ruff          — linter (E9 + Pyflakes); łapie nieużywane importy,
 #                      niezdefiniowane nazwy i błędy składni. Konfiguracja: ruff.toml.
 #   2. migracje-drift — pilnuje, że modele SQLAlchemy są zgodne z migracjami
 #                      Alembica. `flask db check` zwraca kod ≠0, gdy ktoś zmienił
 #                      model, ale nie wygenerował migracji (albo odwrotnie).
+#   3. testy-js      — vitest na modułach z app/static/js. Dashboard i Raporty
+#                      liczą sumy w przeglądarce, więc pytest tej ścieżki nie
+#                      dotyka w ogóle — bez tej bramki liczby oglądane przez
+#                      użytkownika nie są pokryte niczym.
 name: Jakość
 
 on:
@@ -67,3 +71,20 @@ jobs:
 
       - name: Wykryj drift (modele bez wygenerowanej migracji)
         run: flask db check
+
+  testy-js:
+    name: vitest (liczenie na froncie)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalacja zależności testowych
+        run: npm ci
+
+      - name: vitest
+        run: npm test

@@ -1,0 +1,25 @@
+# Wzor konfiguracji kopii zapasowych. Skopiuj do /etc/budget-backup.conf
+# i ustaw prawa: chown root:root, chmod 600 (plik wskazuje na haslo szyfrowania).
+
+# Nazwa bazy do zrzucenia.
+BACKUP_DB=budget_db
+
+# Katalog na kopie NA TYM serwerze.
+BACKUP_DIR=/var/backups/budget
+
+# Plik zawierajacy haslo szyfrowania (jedna linia, chmod 600).
+# UWAGA: bez tego hasla nie odtworzysz zadnej kopii. Trzymaj je rowniez
+# POZA serwerem — w menedzerze hasel albo na kartce w domu. Haslo, ktore
+# istnieje wylacznie na maszynie, ktora wlasnie padla, nie istnieje.
+BACKUP_PASSPHRASE_FILE=/etc/budget-backup.passphrase
+
+# Ile najnowszych kopii zostawic (starsze sa kasowane po udanym przebiegu).
+BACKUP_KEEP=14
+
+# Katalog na kopie POZA tym serwerem: zamontowany dysk sieciowy, katalog
+# rclone, pendrive. Puste = wylaczone.
+#
+# Dopoki to jest puste, kopie leza na tej samej maszynie co baza — czyli
+# chronia przed pomylka ("skasowalem nie te transakcje"), ale NIE przed
+# awaria dysku ani utrata serwera.
+BACKUP_MIRROR_DIR=

@@ -71,6 +71,22 @@ class TransactionSchema(ma.Schema):
     splits = fields.List(fields.Nested(SplitSchema), load_default=[])
     comment = fields.String(load_default=None, allow_none=True, validate=validate.Length(max=255))
 
+class BulkTransactionSchema(ma.Schema):
+    """Wejście operacji zbiorczych na transakcjach.
+
+    Górny limit listy jest celowy: jedno żądanie ładuje wszystkie wskazane
+    wiersze do pamięci i domyka je jednym commitem. Bez limitu wystarczyłaby
+    jedna lista z dziesiątkami tysięcy ID, żeby zająć proces na długo.
+    """
+    ids = fields.List(
+        fields.Integer(strict=True),
+        required=True,
+        validate=validate.Length(min=1, max=500,
+                                 error='Lista transakcji musi mieć od 1 do 500 pozycji.')
+    )
+    category = fields.String(load_default=None, allow_none=True)
+
+
 class StagingApproveSchema(ma.Schema):
     category = fields.String(required=True)
     contractor_id = fields.Integer(required=True)

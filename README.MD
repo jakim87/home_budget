@@ -228,3 +228,18 @@ budget/
 ├── test_db.py                    # Skrypt weryfikujący połączenie z bazą
 └── README.MD
 ```
+
+## Licencja
+
+Projekt jest objęty **Business Source License 1.1** (plik `LICENSE`).
+
+W skrócie, bez prawniczego żargonu:
+
+- **Kod jest publiczny** — możesz go czytać, audytować, kopiować, modyfikować i zgłaszać poprawki.
+- **Użytek własny jest dozwolony** — wolno Ci uruchomić własną instancję dla siebie i domowników.
+- **Użytek komercyjny nie jest udzielony** — w szczególności udostępnianie tej aplikacji osobom trzecim jako usługi (hosting, SaaS) wymaga osobnej umowy z autorem.
+- **1 stycznia 2028 licencja zmienia się na MIT** (Change Date). Po tej dacie powyższe ograniczenie znika samo, bez żadnej dodatkowej zgody.
+
+> **Uwaga historyczna:** do 3 września 2026 repozytorium było publikowane na licencji MIT.
+> Zmiana licencji działa wyłącznie na przyszłość — wersje udostępnione wcześniej pozostają
+> dostępne na MIT i nie da się tego cofnąć. BSL obejmuje wydania od tej zmiany wzwyż.

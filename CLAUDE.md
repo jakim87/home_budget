@@ -61,6 +61,7 @@ flask feedback-delete --id N     # Kasuje zgłoszenie na stałe
 
 # Tests
 pytest                           # Run all tests (~250 testów w 28 plikach; kilkanaście minut — nie mylić z zawieszeniem)
+npm test                         # Testy JS (vitest): liczenie na Dashboardzie i w Raportach
 pytest tests/test_file.py        # Single file
 pytest tests/test_file.py::test_name -vv --tb=long  # Single test, verbose
 
@@ -195,6 +196,8 @@ Treść pisze obca osoba i trafia wprost na terminal, więc obie komendy przepus
 Tests use in-memory SQLite by default, defined in `tests/conftest.py` (fixtures: `app`, `client`, `test_user`, `test_user_id`, `test_user_token`, `other_user`, `logged_in_client`, helper `login_as`). Setting env var `TEST_DATABASE_URL` runs the **same suite on PostgreSQL** (CI does this via `.github/workflows/tests.yml` — jobs: SQLite + coverage, PostgreSQL). SQLite behavior differs from PostgreSQL — notably no JSON column support and relaxed constraints.
 
 Drugi workflow, `.github/workflows/jakosc.yml`, dokłada dwie bramki: **ruff** (konfiguracja w `ruff.toml` — świadomie wąski zestaw `E9` + `F`, nie sprzątanie stylu) i **drift migracji** (`flask db check` na PostgreSQL — czerwony, gdy model zmieniono bez wygenerowania migracji). Narzędzia deweloperskie siedzą w `requirements-dev.txt`, nie w `requirements.txt`.
+
+**Testy frontu** (`tests/js/`, vitest + jsdom, `npm test`): Dashboard i Raporty liczą sumy w przeglądarce z globalnego stanu, więc pytest nie dotyka tej ścieżki wcale — te liczby pokrywa wyłącznie vitest. Moduły z `app/static/js` nie są modułami ES (zwykłe skrypty, wspólny zasięg globalny), więc test ich nie importuje: `zaladujModuly()` z `tests/js/helpers.js` czyta plik i wykonuje go w zasięgu globalnym testu, zamieniając przy tym deklaracje z kolumny 0 na przypisania — bez tego `let transactions` z `01_state.js` byłoby niewidoczne dla kodu testu. Testy Raportów budują atrapę DOM; osobny test pilnuje, żeby użyte w niej `id` istniały w `base.html` (inaczej zmiana szablonu przechodziłaby przez zielone testy, psując aplikację).
 
 Test conventions: amounts as `Decimal("...")` (never float; exception: assertions on JSON API responses), API-mutating tests assert both HTTP status **and** DB state, every endpoint with an ID gets an IDOR test in `tests/test_authorization.py`.
 

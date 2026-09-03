@@ -54,3 +54,6 @@ tempCodeRunnerFile.py
 htmlcov/
 # Lokalna konfiguracja podgladu (sciezka do venv jest zalezna od systemu)
 .claude/launch.json
+
+# Zaleznosci testow JS (vitest) — instalowane przez npm install
+node_modules/

@@ -128,7 +128,9 @@ flask import-excel-balance-history --file historia.xlsx --user default_user
 flask import-excel-balance-history --file historia.xlsx --user default_user --execute
 
 # Testy
-pytest                              # Uruchom wszystkie testy
+pytest                              # Uruchom wszystkie testy (backend)
+npm install                         # Jednorazowo: zależności testów frontu
+npm test                            # Testy JS — liczenie na Dashboardzie i w Raportach
 pytest tests/test_plik.py           # Pojedynczy plik
 pytest tests/test_plik.py::test_nazwa -vv --tb=long   # Pojedynczy test, tryb szczegółowy
 

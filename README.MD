@@ -57,7 +57,7 @@ Docelowo planowana obsługa: Millennium, Pekao, Revolut.
 - **Baza danych:** PostgreSQL (produkcja), SQLite in-memory (testy)
 - **Uwierzytelnianie:** Flask-Login
 - **Serializacja:** Marshmallow + flask-marshmallow
-- **Frontend:** Jinja2, Tailwind CSS (CDN), HTMX, Chart.js (CDN)
+- **Frontend:** Jinja2, Tailwind CSS (CDN), Chart.js (CDN), driver.js (samouczek, CDN)
 - **Testy:** pytest
 
 ## Wymagane narzędzia
@@ -200,7 +200,7 @@ budget/
 │   │   └── README.md             # Instrukcje warstwy serwisów
 │   ├── static/
 │   │   ├── js/                   # Frontend (SPA) — moduły ładowane w kolejności
-│   │   │                         #   prefiksów: 01_state.js … 17_tour.js, 99_bootstrap.js
+│   │   │                         #   prefiksów: 01_state.js … 18_feedback.js, 99_bootstrap.js
 │   │   └── style.css             # Style uzupełniające Tailwind
 │   ├── templates/
 │   │   └── base.html             # Główny szablon HTML
@@ -218,8 +218,7 @@ budget/
 │   └── test_*.py                 # Pliki z testami
 ├── docs/
 │   ├── DOCUMENTATION.md          # Dokumentacja biznesowa i procesowa aplikacji
-│   ├── PRZEWODNIK_UZYTKOWNIKA.md # Przewodnik dla użytkownika końcowego
-│   └── review_*.md               # Raporty z przeglądów kodu i backlogu
+│   └── PRZEWODNIK_UZYTKOWNIKA.md # Przewodnik dla użytkownika końcowego
 ├── .env                          # Zmienne środowiskowe (ignorowany przez git)
 ├── .flaskenv                     # Konfiguracja Flask (FLASK_DEBUG=1)
 ├── .gitignore

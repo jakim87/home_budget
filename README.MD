@@ -134,6 +134,10 @@ pytest tests/test_plik.py::test_nazwa -vv --tb=long   # Pojedynczy test, tryb sz
 
 # Diagnostyka
 python test_db.py                   # Sprawdź połączenie z bazą danych
+
+# Kopie zapasowe (na serwerze — patrz deploy/backup/README.md)
+deploy/backup/budget-backup.sh                     # Kopia: zrzut, szyfrowanie, weryfikacja, rotacja
+deploy/backup/budget-restore.sh PLIK NOWA_BAZA     # Odtworzenie kopii do nowej bazy
 ```
 
 ## Architektura aplikacji
@@ -239,7 +243,3 @@ W skrócie, bez prawniczego żargonu:
 - **Użytek własny jest dozwolony** — wolno Ci uruchomić własną instancję dla siebie i domowników.
 - **Użytek komercyjny nie jest udzielony** — w szczególności udostępnianie tej aplikacji osobom trzecim jako usługi (hosting, SaaS) wymaga osobnej umowy z autorem.
 - **1 stycznia 2028 licencja zmienia się na MIT** (Change Date). Po tej dacie powyższe ograniczenie znika samo, bez żadnej dodatkowej zgody.
-
-> **Uwaga historyczna:** do 3 września 2026 repozytorium było publikowane na licencji MIT.
-> Zmiana licencji działa wyłącznie na przyszłość — wersje udostępnione wcześniej pozostają
-> dostępne na MIT i nie da się tego cofnąć. BSL obejmuje wydania od tej zmiany wzwyż.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Kopia zapasowa bazy aplikacji budzetowej
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+# Uruchamiane jako 'postgres', nie root: pg_dump laczy sie wtedy z baza przez
+# uwierzytelnienie peer, wiec nigdzie nie trzeba trzymac hasla do bazy. Katalog
+# na kopie i plik z haslem szyfrowania musza nalezec do tego uzytkownika
+# (patrz README.md w deploy/backup).
+User=postgres
+ExecStart=/opt/budget/deploy/backup/budget-backup.sh

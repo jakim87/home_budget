@@ -222,6 +222,20 @@ Rejestracja pod `POST /api/register` jest **publiczna** — bez zaproszeń i bez
 
 `MAX_CONTENT_LENGTH` = 10 MB (drugą warstwą jest `client_max_body_size` w nginx).
 
+## Kopie zapasowe
+
+`deploy/backup/` — skrypty i jednostki systemd. Kopia powstaje codziennie o 02:00 UTC
+(`budget-backup.timer`), jest szyfrowana AES-256 i **weryfikowana zaraz po utworzeniu**
+(`pg_restore --list` na odszyfrowanym pliku) — bez tego uszkodzona kopia wychodzi na jaw
+dopiero przy awarii. Rotacja zostawia `BACKUP_KEEP` najnowszych plików.
+
+Odtworzenie: `budget-restore.sh <plik> <nowa_baza>`. Skrypt **odmawia nadpisania
+istniejącej bazy** — literówka w nazwie nie skasuje produkcji. Pełna instrukcja wraz
+z kwartalnym ćwiczeniem odtworzenia: `deploy/backup/README.md`.
+
+Hasło szyfrowania (`BACKUP_PASSPHRASE_FILE`) musi istnieć także poza serwerem — bez niego
+żadnej kopii nie da się odczytać.
+
 ## Logging & Diagnostyka
 
 Konfiguracja w `app/logging_config.py` (`configure_logging()`, wołane raz w `create_app()`). **Główny kanał diagnostyki — sprawdzaj go zamiast zgadywać.**

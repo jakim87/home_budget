@@ -1,5 +1,8 @@
 # Wzor konfiguracji kopii zapasowych. Skopiuj do /etc/budget-backup.conf
-# i ustaw prawa: chown root:root, chmod 600 (plik wskazuje na haslo szyfrowania).
+# i ustaw prawa: chown postgres:postgres, chmod 600 (plik wskazuje na haslo
+# szyfrowania). Wlascicielem MUSI byc postgres, nie root — budget-backup.service
+# uruchamia skrypt jako User=postgres, wiec przy root:root 600 konfiguracja
+# bylaby nieczytelna i skrypt przewrocilby sie na "BACKUP_DB nie ustawione".
 
 # Nazwa bazy do zrzucenia.
 BACKUP_DB=budget_db

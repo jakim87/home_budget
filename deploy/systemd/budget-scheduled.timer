@@ -1,0 +1,13 @@
+[Unit]
+Description=Codzienne wykonanie transakcji z harmonogramu (cykliczne i zaplanowane)
+
+[Timer]
+# Serwer chodzi na UTC. 01:00 UTC celowo PRZED dobowym backupem (02:00) — dzieki
+# temu kopia zawiera juz transakcje zaksiegowane danego dnia z harmonogramu.
+OnCalendar=*-*-* 01:00:00
+# Nadrabia uruchomienie, jesli serwer byl wylaczony o wyznaczonej porze — inaczej
+# dzien przestoju oznaczalby brakujaca ratę/czynsz, ktore trzeba by ksiegowac recznie.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

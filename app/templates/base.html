@@ -845,10 +845,13 @@
             <div class="p-6 flex-1 overflow-y-auto">
                 <div class="flex justify-between items-center mb-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
                     <div>
-                        <p class="text-sm text-blue-600 font-medium">Główna kwota do rozbicia</p>
+                        <p class="text-sm text-blue-600 font-medium">Kwota transakcji: <span id="split-original-amount" class="font-bold">0.00 PLN</span></p>
                         <p id="split-original-desc" class="text-xs text-blue-500 mt-0.5">Opis transakcji</p>
                     </div>
-                    <p id="split-remaining" class="text-xl font-bold text-blue-700">0.00 PLN</p>
+                    <div class="text-right">
+                        <p class="text-sm text-blue-600 font-medium">Pozostało do rozdzielenia</p>
+                        <p id="split-remaining" class="text-xl font-bold text-blue-700">0.00 PLN</p>
+                    </div>
                 </div>
 
                 <div id="split-rows" class="space-y-3 mb-4">

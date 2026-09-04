@@ -28,6 +28,7 @@ chmod 600 /etc/budget-backup.passphrase
 # 2. Konfiguracja
 cp /opt/budget/deploy/backup/budget-backup.conf.example /etc/budget-backup.conf
 $EDITOR /etc/budget-backup.conf          # ustaw BACKUP_DB i BACKUP_MIRROR_DIR
+chown postgres:postgres /etc/budget-backup.conf   # skrypt chodzi jako postgres
 chmod 600 /etc/budget-backup.conf
 
 # 3. Katalog na kopie

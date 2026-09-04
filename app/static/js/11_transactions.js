@@ -420,7 +420,7 @@ function renderTransactions() {
                     </td>
                     <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${isSplit ?
-                            '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 font-medium text-xs border border-indigo-100" title="Transakcja rozbita na pozycje"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Sprawdź szczegóły</span>'
+                            `<span role="button" tabindex="0" onclick="openSplitModal(${t.id})" onkeydown="openSplitModal(${t.id}, event)" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100 cursor-pointer font-medium text-xs border border-indigo-100" title="Edytuj podział"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Sprawdź szczegóły</span>`
                             :
                             escapeHtml(t.category)
                         }
@@ -496,15 +496,22 @@ window.deleteTransaction = async function(id) {
 let currentSplits = [];
 let originalAmount = 0;
 
-window.openSplitModal = function(id) {
+window.openSplitModal = function(id, event) {
+    // Wywołanie z klawiatury (badge w tabeli): reagujemy tylko na Enter i Spację,
+    // jak natywny <button>.
+    if (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+    }
     const tx = transactions.find(t => t.id === id);
     if (!tx) return;
-    
+
     splitTxId = id;
     originalAmount = Math.abs(tx.amount);
     currentSplits = tx.splits ? JSON.parse(JSON.stringify(tx.splits)) : [];
     
     document.getElementById('split-original-desc').innerText = tx.desc;
+    document.getElementById('split-original-amount').innerText = `${originalAmount.toFixed(2)} PLN`;
     document.getElementById('split-modal').classList.remove('hidden');
     document.getElementById('split-modal').classList.add('flex');
     
@@ -540,12 +547,8 @@ window.removeSplitRow = function(splitId) {
 function renderSplitRows() {
     const container = document.getElementById('split-rows');
     container.innerHTML = '';
-    
-    let currentTotal = 0;
 
     currentSplits.forEach((s, index) => {
-        currentTotal += s.amount;
-        
         const row = document.createElement('div');
         row.className = 'flex gap-2 items-center bg-slate-50 p-3 rounded-lg border border-slate-200';
         row.innerHTML = `
@@ -553,7 +556,7 @@ function renderSplitRows() {
                 <input type="text" placeholder="Opis pozycji" value="${escapeHtml(s.desc)}" onchange="updateSplit(${s.id}, 'desc', this.value)" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
             </div>
             <div class="w-32">
-                <input type="number" placeholder="Kwota" value="${s.amount}" step="0.01" min="0" onchange="updateSplit(${s.id}, 'amount', this.value)" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                <input type="number" placeholder="Kwota" value="${s.amount}" step="0.01" min="0" oninput="updateSplit(${s.id}, 'amount', this.value)" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
             </div>
             <div class="w-40">
                 <select onchange="updateSplit(${s.id}, 'category', this.value)" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
@@ -567,10 +570,18 @@ function renderSplitRows() {
         container.appendChild(row);
     });
 
+    aktualizujPodsumowanieSplitu();
+}
+
+// Osobno od renderSplitRows(), bo pole kwoty przelicza sume przy KAZDYM znaku
+// (oninput). Przerysowanie wierszy w trakcie pisania podmienialoby input pod
+// palcami uzytkownika i gubilo kursor — tu ruszamy wylacznie podsumowanie.
+function aktualizujPodsumowanieSplitu() {
+    const currentTotal = currentSplits.reduce((sum, s) => sum + s.amount, 0);
     const remaining = originalAmount - currentTotal;
     const remEl = document.getElementById('split-remaining');
     remEl.innerText = `${remaining.toFixed(2)} PLN`;
-    
+
     const saveBtn = document.getElementById('split-save-btn');
     if (remaining < -0.01) {
         remEl.className = 'text-xl font-bold text-rose-600';
@@ -589,7 +600,7 @@ window.updateSplit = function(id, field, value) {
     if (split) {
         if (field === 'amount') split.amount = parseFloat(value) || 0;
         else split[field] = value;
-        renderSplitRows();
+        aktualizujPodsumowanieSplitu();
     }
 }
 

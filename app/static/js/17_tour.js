@@ -149,6 +149,29 @@ const TOURS = {
         },
     ],
 
+    budget: [
+        {
+            el: '#budget-month-display',
+            akcja: 'Wybierz miesiąc',
+            efekt: 'Plan ustawiasz osobno na każdy miesiąc. Strzałki przenoszą też w przyszłość — budżet na kolejny miesiąc możesz ułożyć, zanim się zacznie.',
+        },
+        {
+            el: '#budget-rows',
+            akcja: 'Wpisz kwotę planu przy kategorii',
+            efekt: 'Puste pole znaczy „bez planu". Pod polem podpowiedź mówi, ile wydawałeś do tej pory — mediana, nie średnia, żeby jedna droga naprawa nie zawyżyła całości. Kliknięcie w podpowiedź wstawia tę kwotę.',
+        },
+        {
+            el: '#budget-balance',
+            akcja: 'Sprawdź bilans planu',
+            efekt: 'Różnica między planem przychodów a planem wydatków. Ujemny jest dozwolony — aplikacja o nim mówi, ale niczego nie blokuje.',
+        },
+        {
+            el: '#budget-planned-expense',
+            akcja: 'Zerknij na kolumnę „Zarezerwowane"',
+            efekt: 'To transakcje cykliczne i zaplanowane, które jeszcze się nie wykonały. Zajmują budżet z góry, więc przekroczenie widać, zanim pieniądze wyjdą z konta.',
+        },
+    ],
+
     reports: [
         {
             el: '#rpt-accounts-wrap',

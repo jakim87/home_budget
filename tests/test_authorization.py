@@ -439,3 +439,50 @@ def test_bulk_odrzuca_liste_ponad_limit(logged_in_client):
     resp = logged_in_client.post('/api/transactions/bulk/delete',
                                  json={'ids': list(range(1, 502))})
     assert resp.status_code == 400
+
+
+# --- Budzet miesieczny (#96) ---
+
+def test_intruder_cannot_plan_foreign_private_category(intruder_client, test_user):
+    """Plan budzetu na cudzej PRYWATNEJ kategorii — kategoria musi byc niewidoczna."""
+    prywatna = Category(name="Prywatna Ofiary", type="expense", user_token=test_user.token)
+    db.session.add(prywatna)
+    db.session.commit()
+
+    resp = intruder_client.put(f'/api/budgets/2026/5/{prywatna.id}', json={'amount': '1000.00'})
+
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.query(Budget).filter_by(category_id=prywatna.id).count() == 0
+
+
+def test_intruder_cannot_read_foreign_budget(intruder_client, owner_data, test_user):
+    """Kategoria jest globalna (widoczna dla obu), ale plan ofiary juz nie."""
+    plan_ofiary = Budget(amount=Decimal("777.00"), month=5, year=2026,
+                         category_id=owner_data['category'].id, user_token=test_user.token)
+    db.session.add(plan_ofiary)
+    db.session.commit()
+
+    resp = intruder_client.get('/api/budgets/2026/5')
+
+    assert resp.status_code == 200
+    plany = [p['plan'] for p in resp.get_json()['pozycje']]
+    assert 777.0 not in plany
+
+
+def test_intruder_cannot_delete_foreign_budget(intruder_client, owner_data, test_user):
+    plan_ofiary = Budget(amount=Decimal("777.00"), month=5, year=2026,
+                         category_id=owner_data['category'].id, user_token=test_user.token)
+    db.session.add(plan_ofiary)
+    db.session.commit()
+
+    intruder_client.delete(f'/api/budgets/2026/5/{owner_data["category"].id}')
+
+    db.session.expire_all()
+    assert db.session.get(Budget, plan_ofiary.id) is not None
+
+
+def test_budget_endpoints_require_login(client):
+    assert client.get('/api/budgets/2026/5').status_code in (302, 401)
+    assert client.put('/api/budgets/2026/5/1', json={'amount': '10'}).status_code in (302, 401)
+    assert client.delete('/api/budgets/2026/5/1').status_code in (302, 401)

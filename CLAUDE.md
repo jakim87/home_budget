@@ -111,6 +111,7 @@ app/
 ├── cli.py             # Flask CLI commands
 ├── services/          # Business logic — decoupled from HTTP/Flask
 │   ├── budget_service.py           # Core CRUD, parsery CSV (ING/mBank), uzgadnianie salda
+│   ├── budget_plan_service.py      # Plan miesieczny vs wykonanie (zakladka Budzet)
 │   ├── statement_parsers.py        # detect_bank_and_format + parsery PDF/HTML
 │   ├── import_history_service.py   # Historia importów (model StatementImport)
 │   ├── excel_history_import_service.py  # Jednorazowa migracja historii sald z XLSX
@@ -122,6 +123,7 @@ app/
 ├── blueprints/        # HTTP layer — route handlers call services, translate exceptions to HTTP
 │   ├── import_bp.py   # Upload wyciągu → staging approval flow; mapa STATEMENT_PARSERS
 │   ├── transactions_bp.py
+│   ├── budget_bp.py   # Plan budzetu: GET/PUT/DELETE /api/budgets/<rok>/<miesiac>
 │   └── *.py           # auth, accounts, categories, contractors, recurring, planned, home
 └── templates/         # base.html (cała aplikacja) + reconcile_modal.html
 ```
@@ -165,6 +167,16 @@ Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie. Każdy i
 
 **Raporty**: osobna zakładka (`16_reports.js`, `renderReports()`), również licząca po stronie klienta z globalnego stanu. Ma własne wykresy Chart.js (`rptBarChart`, `rptLineChart`), presety zakresu dat, sortowanie tabeli i domyślnie **wyklucza przelewy wewnętrzne** (checkbox `#rpt-exclude-transfers`) — bez tego transfery podwajałyby obroty. Tabela ograniczona do `RPT_TABLE_MAX` wierszy.
 
+**Budżet** (`20_budget.js`, `budget_plan_service.py`, `budget_bp.py`): plan kwoty per kategoria na miesiąc, zestawiony z wykonaniem. Jedyna zakładka, która **nie liczy niczego w przeglądarce** — front tylko renderuje to, co przyszło z `GET /api/budgets/<rok>/<miesiac>`. Powód: budżet jest świadomy podziałów transakcji i rezerwacji z harmonogramu, a globalny stan frontu nie zawiera ani jednego, ani drugiego.
+
+Trzy rzeczy, które odróżniają go od Raportów i o które łatwo się potknąć:
+
+1. **Podziały.** Raporty liczą po kategorii rodzica; Budżet po kategoriach podziałów. W bazie kwoty podziałów są **dodatnie**, a transakcja ma znak — podział dziedziczy znak rodzica, inaczej wydatek policzyłby się jako przychód. Reszta nieopisana podziałami (`abs(rodzic) − suma podziałów`) zostaje na kategorii rodzica; niezmiennik „suma po kategoriach == suma transakcji" ma własny test, bo bez niego kwoty giną po cichu przy podziale niepełnym. **Rozjazd z Raportami jest świadomy** — dla transakcji rozbitych oba widoki pokażą różne liczby per kategoria.
+2. **Wykonane ≠ zarezerwowane.** Cykliczne i zaplanowane z datą w przyszłości zajmują budżet, zanim się wykonają. Liczymy **wyłącznie wystąpienia od dziś w przód**: wystąpienie z przeszłości albo ma już swoją transakcję (i policzyłoby się drugi raz), albo jest zaległością `flask process-scheduled`.
+3. **Kategorie `transfer` nie podlegają planowaniu** — przelew między własnymi kontami nie jest ani przychodem, ani wydatkiem. `ustaw_plan` odrzuca je razem z kategoriami technicznymi.
+
+Plan wydatków wolno ustawić ponad plan przychodów — aplikacja pokazuje ujemny bilans banerem, ale nie blokuje zapisu. Sugestia kwoty opiera się na **medianie** miesięcznych sum (wydatki domowe są skośne — jedna naprawa auta zawyża średnią do kwoty, której nikt nie ustawi) i **milczy poniżej 3 miesięcy historii danej kategorii**; od 12 miesięcy dokłada osobno „rok temu w tym miesiącu". Sugestie jadą w odpowiedzi `GET /api/budgets` — liczą się jednym przebiegiem po historii, więc osobna trasa nic by nie dała.
+
 **Edycja zbiorcza** (`19_bulk_edit.js`, trasy `POST /api/transactions/bulk/category` i `/bulk/delete`): checkboxy w tabeli operacji + pasek akcji. Zaznaczenie żyje w `selectedTxIds` i jest **kasowane przy każdym `renderTransactions()`** — operacja ma dotyczyć tego, co widać, a nie wierszy z innego miesiąca. Obie trasy przyjmują listę ID (limit 500, `BulkTransactionSchema`) i domykają się jednym commitem: obcy albo nieistniejący ID unieważnia **całe** żądanie, nie tylko siebie (`_wlasne_transakcje()` w `transaction_service.py`) — inaczej liczba przetworzonych wierszy zdradzałaby, które ID istnieją u kogoś innego.
 
 Dwie zasady wynikające z przelewów wewnętrznych: usunięcie zabiera **obie nogi** (jak przy usuwaniu pojedynczym — inaczej Net Worth się rozjeżdża; front ostrzega o nogach spoza zaznaczenia PRZED operacją), a masowa zmiana kategorii przelewy **pomija** i zgłasza ich liczbę — zmiana typu kategorii na inny niż `transfer` zostawiłaby parę powiązaną przez `linked_transaction_id`, która przelewem już nie jest. Pojedyncza edycja nadal na to pozwala; masowa nie, bo tam nikt nie patrzy na konkretny wiersz.
@@ -175,7 +187,7 @@ Dwie zasady wynikające z przelewów wewnętrznych: usunięcie zabiera **obie no
 
 Logowanie i rejestracja to modal w `base.html` (`#login-modal`, widoki `#auth-view-login` / `#auth-view-register`) obsługiwany przez `15_init.js` — nie ma osobnych szablonów ani tras GET; cała aplikacja to jedno `base.html`.
 
-Frontend to **20 modułów w `app/static/js/`**, ładowanych w kolejności prefiksów liczbowych (`01_state.js` … `19_bulk_edit.js`, `99_bootstrap.js`) — nie ma pliku `main.js`. Kolejność ma znaczenie: `01_state.js` deklaruje stan globalny, `99_bootstrap.js` startuje aplikację. Funkcje pomocnicze ogólnego przeznaczenia (np. `escapeHtml`) należą do `04_helpers.js`, żeby były dostępne dla modułów ładowanych później. Szukaj funkcji `render*()` / `update*()` w module odpowiadającym zakładce.
+Frontend to **21 modułów w `app/static/js/`**, ładowanych w kolejności prefiksów liczbowych (`01_state.js` … `20_budget.js`, `99_bootstrap.js`) — nie ma pliku `main.js`. Kolejność ma znaczenie: `01_state.js` deklaruje stan globalny, `99_bootstrap.js` startuje aplikację. Funkcje pomocnicze ogólnego przeznaczenia (np. `escapeHtml`) należą do `04_helpers.js`, żeby były dostępne dla modułów ładowanych później. Szukaj funkcji `render*()` / `update*()` w module odpowiadającym zakładce.
 
 **Wygląd „Classical"**: `app/static/classical.css` to warstwa **nadpisująca**, ładowana w `base.html` po `style.css` — zmienia typografię, kolory i promienie we wszystkich zakładkach naraz. Nie edytuj jej razem ze `style.css`: przy zmianach wyglądu ustal najpierw, która warstwa wygrywa. Wycofanie = usunięcie dwóch `<link>` z `<head>`. Źródło i trzy opcjonalne patche JS (wykresy Chart.js, sumy dnia, panel szczegółów) leżą w `UI mockups for Classical/deploy/`.
 

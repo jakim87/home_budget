@@ -20,6 +20,7 @@
    - 4.7 [Uzgadnianie salda konta](#47-uzgadnianie-salda-konta)
    - 4.8 [Zarządzanie kontrahentami i mapowanie](#48-zarządzanie-kontrahentami-i-mapowanie)
    - 4.9 [Usuwanie transakcji](#49-usuwanie-transakcji)
+   - 4.10 [Planowanie budżetu miesięcznego](#410-planowanie-budżetu-miesięcznego)
 5. [Reguły biznesowe](#5-reguły-biznesowe)
 6. [Planowany rozwój](#6-planowany-rozwój)
 7. [Znane ograniczenia](#7-znane-ograniczenia)
@@ -41,7 +42,7 @@
 - **Przelewu wewnętrzne** — automatyczne tworzenie lustrzanej transakcji na koncie docelowym przy przelewie między własnymi kontami
 - **Dashboard** — przegląd Net Worth, wykresy miesięczne i roczne wydatków/przychodów, bilans kont
 - **Raporty** — osobna zakładka z filtrowaniem po zakresie dat, kategoriach i kontach; wykresy słupkowe i liniowe, domyślnie z wyłączeniem przelewów wewnętrznych (inaczej podwajałyby obroty)
-- **Budżetowanie** — limity miesięczne per kategoria
+- **Budżet miesięczny** — plan kwoty na kategorię w danym miesiącu, zestawiony z wykonaniem i z rezerwacjami z harmonogramu; planowane są obie strony (przychody i wydatki), więc widać, czy plan wydatków mieści się w planie przychodów
 - **Archiwum** — usuwane transakcje trafiają do archiwum (soft delete) z datą usunięcia
 
 ---
@@ -376,6 +377,34 @@ Archiwum jest czyszczone automatycznie przez `flask cleanup-archive` — usuwa w
 
 ---
 
+### 4.10 Planowanie budżetu miesięcznego
+
+**Cel:** ustalić z wyprzedzeniem, ile ma pójść na każdą kategorię, i widzieć w trakcie miesiąca, jak plan ma się do rzeczywistości.
+
+**Aktor:** użytkownik
+
+**Przebieg:**
+
+1. Użytkownik otwiera zakładkę **Budżet** i wybiera miesiąc (również przyszły).
+2. Przy każdej kategorii przychodów i wydatków wpisuje kwotę planu. Puste pole = brak planu.
+3. Pod polem aplikacja pokazuje, ile w tej kategorii wydawano dotychczas — **medianę** miesięcznych sum wraz z zakresem min–max. Kliknięcie podpowiedzi wstawia tę kwotę.
+4. Aplikacja zestawia plan z trzema liczbami: **wykonane** (zaksięgowane transakcje), **zarezerwowane** (cykliczne i zaplanowane, które jeszcze się nie wykonały) oraz procent zajęcia planu.
+5. Nagłówek podsumowuje plan przychodów, plan wydatków i ich różnicę. Ujemny bilans jest sygnalizowany banerem, ale **nie blokuje zapisu** — to decyzja użytkownika.
+
+**Reguły szczegółowe:**
+
+| Zagadnienie | Zachowanie |
+|---|---|
+| Podziały transakcji | Kwota liczy się do kategorii **podziałów**, nie rodzica. Reszta nieopisana podziałami zostaje na kategorii rodzica, więc suma po kategoriach zawsze równa się sumie transakcji. Raporty liczą to inaczej (po kategorii rodzica) — rozjazd jest świadomy |
+| Rezerwacje | Liczone są wyłącznie wystąpienia **od dziś w przód**. Wystąpienie z przeszłości ma już swoją transakcję albo jest zaległością `flask process-scheduled` |
+| Kategorie transferowe | Nie podlegają planowaniu — przelew między własnymi kontami nie jest ani przychodem, ani wydatkiem |
+| Próg sugestii | Poniżej 3 miesięcy historii danej kategorii aplikacja nie proponuje kwoty, tylko mówi wprost, że danych jest za mało. Od 12 miesięcy dokłada osobno „rok temu w tym miesiącu" |
+| Jeden plan na kategorię | Unikalny indeks `(user_token, year, month, category_id)` — ponowny zapis nadpisuje, nie dubluje |
+
+**Czego budżet dziś nie robi:** nie przenosi niewykorzystanej kwoty na kolejny miesiąc (brak rolloveru), nie zna projektów wielomiesięcznych i nie kopiuje planu na kilka miesięcy naprzód.
+
+---
+
 ## 5. Reguły biznesowe
 
 | # | Reguła |
@@ -390,6 +419,8 @@ Archiwum jest czyszczone automatycznie przez `flask cleanup-archive` — usuwa w
 | 8 | Staging transakcji należy do konkretnego użytkownika i konta; rekord bez `account_id` (starszy import) nie może być zatwierdzony — należy go odrzucić i reimportować |
 | 9 | Zatwierdzenie transakcji ze stagingu wymaga jednocześnie kategorii i kontrahenta — nie można zatwierdzić bez obu |
 | 10 | Transakcja zaplanowana po wykonaniu ma status `processed` i pozostaje w tabeli jako zapis historyczny |
+| 11 | Plan budżetu zapisywany jest kwotą dodatnią niezależnie od typu kategorii; kierunek niesie typ kategorii (`income` / `expense`) |
+| 12 | Plan wydatków wolno ustawić ponad plan przychodów — aplikacja informuje o ujemnym bilansie, ale nie blokuje zapisu |
 
 ---
 
@@ -399,6 +430,7 @@ Archiwum jest czyszczone automatycznie przez `flask cleanup-archive` — usuwa w
 |---------|------|
 | **Obsługa kolejnych banków** | Rozszerzenie o formaty PKO BP, Revolut i innych — obecnie obsługiwane są ING Bank Śląski i mBank. Nowy format wymaga parsera i jednego wpisu w mapie `STATEMENT_PARSERS` |
 | **Masowa zmiana kontrahenta** | Edycja zbiorcza obejmuje dziś kategorię i usuwanie; zmiana kontrahenta dla wielu transakcji naraz nie jest zrealizowana |
+| **Rollover budżetu** | Niewykorzystana kwota planu nie przenosi się na kolejny miesiąc; nie ma też projektów wielomiesięcznych ani kopiowania planu na kilka miesięcy naprzód |
 
 ---
 

@@ -81,6 +81,7 @@
                 Do weryfikacji <span id="staging-badge" class="hidden bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
             </button>
             <button onclick="switchTab('summary')" id="btn-tab-summary" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Podsumowanie</button>
+            <button onclick="switchTab('budget')" id="btn-tab-budget" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Budżet</button>
             <button onclick="switchTab('categories')" id="btn-tab-categories" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Słowniki</button>
             <button onclick="switchTab('reports')" id="btn-tab-reports" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
@@ -366,6 +367,55 @@
                             <tbody id="summary-category-list" class="divide-y divide-slate-100">
                                 <!-- Tabela z podsumowaniem JS -->
                             </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ZAKŁADKA: BUDŻET -->
+            <div id="tab-budget" class="tab-hidden space-y-6">
+                <div class="flex flex-col md:flex-row gap-4 justify-between md:items-center bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <h2 class="font-bold text-slate-800">Budżet na:</h2>
+                        <div class="flex items-center gap-2 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                            <button onclick="budgetChangeMonth(-1)" class="p-1 text-slate-400 hover:text-blue-600 rounded focus:outline-none"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+                            <span id="budget-month-display" class="font-medium text-slate-700 min-w-[120px] text-center text-sm"></span>
+                            <button onclick="budgetChangeMonth(1)" class="p-1 text-slate-400 hover:text-blue-600 rounded focus:outline-none"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 max-w-md">Puste pole = brak planu. Kwoty planu podajesz dodatnio; przelewy między własnymi kontami nie podlegają planowaniu.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <p class="text-sm font-medium text-slate-500 mb-1">Planowane przychody</p>
+                        <p id="budget-planned-income" class="text-2xl font-bold text-emerald-600">0,00 PLN</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <p class="text-sm font-medium text-slate-500 mb-1">Planowane wydatki</p>
+                        <p id="budget-planned-expense" class="text-2xl font-bold text-rose-600">0,00 PLN</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <p class="text-sm font-medium text-slate-500 mb-1">Bilans planu</p>
+                        <p id="budget-balance" class="text-2xl font-bold text-slate-800">0,00 PLN</p>
+                    </div>
+                </div>
+
+                <div id="budget-warning" class="hidden bg-rose-50 border border-rose-200 text-rose-700 text-sm p-4 rounded-xl"></div>
+
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm min-w-[700px]">
+                            <thead class="bg-slate-100/50">
+                                <tr>
+                                    <th class="px-4 py-3 font-semibold text-slate-600">Kategoria</th>
+                                    <th class="px-4 py-3 font-semibold text-slate-600 text-right">Plan</th>
+                                    <th class="px-4 py-3 font-semibold text-slate-600 text-right">Wykonane</th>
+                                    <th class="px-4 py-3 font-semibold text-slate-600 text-right" title="Transakcje cykliczne i zaplanowane, które jeszcze się nie wykonały">Zarezerwowane</th>
+                                    <th class="px-4 py-3 font-semibold text-slate-600">Postęp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="budget-rows" class="divide-y divide-slate-100"></tbody>
                         </table>
                     </div>
                 </div>
@@ -1201,6 +1251,7 @@
     <script src="{{ url_for('static', filename='js/17_tour.js') }}"></script>
     <script src="{{ url_for('static', filename='js/18_feedback.js') }}"></script>
     <script src="{{ url_for('static', filename='js/19_bulk_edit.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/20_budget.js') }}"></script>
     <script src="{{ url_for('static', filename='js/99_bootstrap.js') }}"></script>
 </body>
 </html>

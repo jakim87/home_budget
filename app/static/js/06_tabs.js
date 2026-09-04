@@ -1,6 +1,6 @@
 // --- ZAKŁADKI ---
 function switchTab(tabName) {
-    ['dashboard', 'transactions', 'summary', 'categories', 'staging', 'reports'].forEach(name => {
+    ['dashboard', 'transactions', 'summary', 'budget', 'categories', 'staging', 'reports'].forEach(name => {
         document.getElementById(`tab-${name}`).classList.add('tab-hidden');
         const btn = document.getElementById(`btn-tab-${name}`);
         btn.classList.remove('tab-active');
@@ -26,6 +26,7 @@ function switchTab(tabName) {
     if (tabName === 'transactions') renderTransactions();
     if (tabName === 'staging') renderStaging();
     if (tabName === 'reports') renderReports();
+    if (tabName === 'budget') renderBudget();
 }
 
 function switchDict(name) {

@@ -143,3 +143,12 @@ class RecurringTransactionSchema(ma.Schema):
             raise validate.ValidationError("day_of_month is required for MONTHLY frequency.", "day_of_month")
             
         return data
+
+class BudgetPlanSchema(ma.Schema):
+    """Kwota planu budzetu. Gorny limit chroni przed literowka w rodzaju 100000000
+    przy kolumnie Numeric(10, 2) — bez niego bledem byloby dopiero DataError z bazy."""
+    class Meta:
+        unknown = EXCLUDE
+
+    amount = fields.Decimal(required=True, as_string=False,
+                            validate=validate.Range(min=0, max=99999999))

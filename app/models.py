@@ -239,8 +239,15 @@ class Transaction(db.Model):
     splits = relationship('TransactionSplit', backref='transaction', lazy='selectin', cascade='all, delete-orphan')
 
 class Budget(db.Model):
+    """Plan kwoty na kategorie w danym miesiacu (zakladka Budzet)."""
     __tablename__ = 'budgets'
-    
+    __table_args__ = (
+        # Jeden plan na kategorie w miesiacu. Bez tego podwojny zapis z dwoch kart
+        # dalby dwa wiersze, a lista budzetu pokazalaby kategorie dwa razy.
+        db.UniqueConstraint('user_token', 'year', 'month', 'category_id',
+                            name='uq_budget_user_okres_kategoria'),
+    )
+
     id: Mapped[int] = mapped_column(primary_key=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     month: Mapped[int] = mapped_column(nullable=False) # 1-12

@@ -44,34 +44,40 @@ budgets: id, user_token, year, month, category_id, amount
 
 ## 3. Rzeczy do rozstrzygnięcia PRZED pisaniem kodu
 
-### R1. Znak i niepełność podziałów — **blokujące**
+### R1. Znak i niepełność podziałów — **ROZSTRZYGNIĘTE**
 
-Ustalone przy analizie kodu, wymaga decyzji:
+Potwierdzone w kodzie: podziały zapisywane są kwotami **dodatnimi**
+(`11_transactions.js:556` — `min="0"`), podczas gdy transakcja-rodzic ma znak (wydatek
+ujemny). Walidacja sumy podziałów istnieje **tylko na froncie** i sprawdza wyłącznie górny
+limit (`11_transactions.js:602`); backend nie sprawdza jej wcale, więc podział niepełny
+jest legalnym stanem bazy.
 
-- Podziały zapisywane są **kwotami dodatnimi** (`renderSplitRows()`: `min="0"`;
-  `saveSplitModal()` porównuje do `Math.abs(tx.amount)`), podczas gdy transakcja-rodzic
-  ma znak (wydatek ujemny). Przy liczeniu trzeba **nałożyć znak rodzica na podział**.
-- Walidacja dopuszcza podział **niepełny**: sprawdza tylko `totalSplit > abs(tx.amount)`.
-  Czyli transakcja 300 zł może mieć podziały na 200 zł, a 100 zł zostaje nieprzypisane.
+**Decyzja:** kwota podziału dziedziczy znak rodzica, a reszta (`abs(rodzic) − suma
+podziałów`) zostaje na kategorii rodzica. Suma po wszystkich kategoriach zawsze równa się
+sumie transakcji — niezmiennik do przetestowania, chroniący przed cichym gubieniem
+pieniędzy. Przy pełnym podziale kategoria rodzica dostaje 0 i w budżecie się nie pojawia.
 
-**Propozycja:** kwota podziału dziedziczy znak rodzica, a **reszta (`abs(rodzic) − suma
-podziałów`) zostaje na kategorii rodzica**. Dzięki temu suma po wszystkich kategoriach
-zawsze równa się sumie transakcji — niezmiennik, który da się przetestować i który chroni
-przed cichym gubieniem pieniędzy w raporcie.
+Wymuszanie pełnego podziału w backendzie odrzucone — zmieniałoby zachowanie istniejącego
+formularza, osobny temat.
 
-Do potwierdzenia przed implementacją.
+### R2. Jakość historycznych kategorii — **KROK 0 WYKONANY 2026-09-04**
 
-### R2. Jakość historycznych kategorii
+Diagnostyka lokalnej bazy:
 
-Historia sięga kilku lat, ale część pochodzi z importów wyciągów z autokategoryzacją.
-Jeśli stare transakcje mają kategorie przypisane byle jak, sugestie będą śmieciem.
+| Konto | Transakcje | Bez kategorii | Kategorie z ≥3 miesiącami historii |
+|---|---|---|---|
+| `default_user` | 2478 | 0% | **0** (poza „Uzgadnianie salda", 124 mies.) |
+| `demo` | 262 | 0% | 9 (5 po 12 mies., 4 po 3–11) |
 
-**Do zrobienia jako krok 0** (zapytanie diagnostyczne, nie kod produkcyjny): ile miesięcy
-danych ma **każda kategoria z osobna** i ile transakcji w miesiącu jest bez kategorii.
-Kategoria założona 2 miesiące temu ma 2 miesiące danych, niezależnie od tego, że baza ma
-3 lata — dlatego próg liczy się per kategoria, nie globalnie.
+Z 2478 transakcji `default_user` **1992 to wiersze „Uzgadnianie salda"** z migracji XLSX.
+Realnych transakcji z kategoriami jest 486 i leżą w **dwóch miesiącach**: 2026-06 (335)
+i 2026-08 (151). Każda kategoria wydatkowa ma 1–2 miesiące historii. `TransactionSplit`
+w całej bazie: **0**.
 
----
+**Konsekwencja:** silnik sugestii przez najbliższy rok odpowie „za mało danych" na każdą
+kategorię konta głównego — zgodnie z własnym progiem uczciwości. Budujemy go mimo to
+(decyzja użytkownika), bo dane narastają same, a próg zadziała poprawnie od trzeciego
+miesiąca. Jedyny zestaw testowy z realną historią to konto `demo` (12 miesięcy).
 
 ## 4. Silnik sugestii
 
@@ -209,6 +215,5 @@ ale wraz z segmentem „zarezerwowane" z D3 daje obraz wystarczająco uczciwy.
 
 ## 7. Od czego zacząć jutro
 
-1. Krok 0 (diagnostyka danych) — zapytanie SQL, wynik do rozmowy.
-2. Potwierdzić R1 (znak i reszta przy podziałach niepełnych).
-3. Dopiero potem migracja i testy serwisu (RED).
+Krok 0 i R1 domknięte 2026-09-04. Kolejność bez zmian od kroku 1:
+migracja → testy serwisu (RED) → serwis → blueprint → front → dokumentacja.

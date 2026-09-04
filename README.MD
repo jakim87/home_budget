@@ -1,6 +1,6 @@
 # Aplikacja Budżetu Domowego
 
-Aplikacja webowa do zarządzania budżetem domowym: śledzenie sald kont bankowych, import transakcji z wyciągów bankowych (CSV, PDF, HTML), kategoryzacja wydatków, transakcje cykliczne i zaplanowane, transfery wewnętrzne, raporty z wykresami, historia importów oraz monitorowanie wartości netto (Net Worth).
+Aplikacja webowa do zarządzania budżetem domowym: śledzenie sald kont bankowych, import transakcji z wyciągów bankowych (CSV, PDF, HTML), kategoryzacja wydatków, transakcje cykliczne i zaplanowane, transfery wewnętrzne, budżet miesięczny (plan vs wykonanie), raporty z wykresami, historia importów oraz monitorowanie wartości netto (Net Worth).
 
 Projekt jest budowany jako aplikacja edukacyjna, rozwijana krok po kroku z wykorzystaniem Pythona, Flaska i PostgreSQL.
 
@@ -13,6 +13,7 @@ Zrealizowane:
 - Kategoryzacja transakcji z automatycznym dopasowywaniem kontrahentów
 - Wykrywanie transferów wewnętrznych i parowanie obu nóg przelewu
 - Transakcje cykliczne i zaplanowane (harmonogramy)
+- Budżet miesięczny: plan per kategoria zestawiony z wykonaniem i rezerwacjami z harmonogramu
 - Dashboard z wykresami i śledzeniem wartości netto (Net Worth)
 - Moduł raportów: KPI, wykresy, filtry kont/kategorii/kontrahentów, presety zakresów dat
 - Obsługa typów kont, w tym kredytów (zobowiązania / wartość ujemna)
@@ -24,7 +25,6 @@ Zrealizowane:
 
 Planowane:
 
-- Planowanie budżetu miesięcznego (model `Budget` istnieje, brak UI)
 - Obsługa wielu walut
 - Skanowanie paragonów (OCR), aplikacja mobilna (iOS i Android)
 

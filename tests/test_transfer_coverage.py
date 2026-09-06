@@ -15,7 +15,12 @@ import pytest
 
 from app import db
 from app.models import Account, Category, Contractor, Transaction
-from app.services.budget_service import create_transaction
+from app.services.budget_service import (
+    approve_staging_record,
+    create_transaction,
+    parse_ing_csv,
+    save_transactions_to_staging,
+)
 from app.services.import_history_service import record_statement_import
 
 
@@ -147,3 +152,55 @@ def test_unrelated_transaction_of_same_amount_is_not_linked(app, two_accounts):
 
     assert outflow.linked_transaction_id is None
     assert obcy.linked_transaction_id is None
+
+
+# --- Regresja #164: wyciąg wielokontowy musi dostarczyć OBIE nogi przelewu ---
+
+ING_CSV_OBIE_NOGI = """
+"Wybrane rachunki:";
+"KONTO Z LWEM Direct (PLN)";;"10 1050 0099 7603 1234 5678 9123";
+"Poduszka Finansowa (PLN)";;"24 1050 1025 1000 0091 8001 5928";
+
+"Data transakcji";"Data księgowania";"Dane kontrahenta";"Tytuł";"Nr rachunku";"Nazwa banku";"Szczegóły";"Nr transakcji";"Kwota transakcji (waluta rachunku)";"Waluta";"Konto"
+"2026-03-30";"2026-03-30";"Jan";"Poduszka finansowa";"24105010251000009180015928";"ING";"";"TX1";"-1200,00";"PLN";"KONTO Z LWEM Direct"
+"2026-03-30";"2026-03-30";"Jan";"Poduszka finansowa";"10105000997603123456789123";"ING";"";"TX1";"1200,00";"PLN";"Poduszka Finansowa"
+"""
+
+
+def test_wyciag_wielokontowy_daje_obie_nogi_przelewu(app, test_user):
+    """Przelew między dwoma kontami z tego samego wyciągu ING: obie nogi wchodzą i wiążą się.
+
+    Regresja #164. Parser pomijał stronę wpływu, licząc na lustro — a model pokrycia
+    lustra dla konta z własnymi wyciągami nie tworzy. Noga wypływu zostawała sierotą,
+    saldo konta docelowego zaniżone.
+    """
+    token = test_user.token
+    ing = Account(name="Moje ING", bank_name="ING", balance=Decimal("0.00"),
+                  account_number="PL10105000997603123456789123", user_token=token)
+    poduszka = Account(name="Poduszka Finansowa", bank_name="ING", balance=Decimal("0.00"),
+                       account_number="PL24105010251000009180015928", user_token=token)
+    db.session.add_all([ing, poduszka])
+    db.session.commit()
+    _mark_has_statements(token, ing.id, "202603_ING_all_accounts.csv")
+    _mark_has_statements(token, poduszka.id, "202603_ING_all_accounts.csv")
+
+    parsed = parse_ing_csv(ING_CSV_OBIE_NOGI, token)
+    assert len(parsed['transactions']) == 2, "wyciąg zawiera obie nogi — żadnej nie wolno pominąć"
+
+    for stg in save_transactions_to_staging(parsed['transactions'], token):
+        approve_staging_record(token, stg.id, {
+            'category': db.session.get(Category, stg.proposed_category_id).name,
+            'contractor_id': stg.proposed_contractor_id,
+        })
+
+    wyplyw = db.session.query(Transaction).filter_by(account_id=ing.id).one()
+    wplyw = db.session.query(Transaction).filter_by(account_id=poduszka.id).one()
+    assert wyplyw.amount == Decimal("-1200.00")
+    assert wplyw.amount == Decimal("1200.00")
+    assert wyplyw.linked_transaction_id == wplyw.id
+    assert wplyw.linked_transaction_id == wyplyw.id
+    # Obie nogi pochodzą z wyciągu — lustro byłoby trzecią transakcją i podwójnym księgowaniem.
+    assert db.session.query(Transaction).filter_by(origin='mirror').count() == 0
+    # Każde saldo zmienione dokładnie raz.
+    assert db.session.get(Account, ing.id).balance == Decimal("-1200.00")
+    assert db.session.get(Account, poduszka.id).balance == Decimal("1200.00")

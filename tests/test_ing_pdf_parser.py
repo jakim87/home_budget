@@ -304,19 +304,21 @@ def test_parse_ing_pdf_plain_przelew(app, ing_pdf_user):
     assert txs[0]['account_id'] == main_id
 
 
-def test_parse_ing_pdf_skips_inflow_side_of_internal_transfer(app, ing_pdf_user):
-    """Obie strony przelewu wewnętrznego w tym samym pliku — strona dodatnia
-    (wpływ) jest pomijana, tak jak w parserze CSV; lustro powstanie przy
-    zatwierdzeniu strony wypływu."""
+def test_parse_ing_pdf_keeps_both_sides_of_internal_transfer(app, ing_pdf_user):
+    """Obie strony przelewu wewnętrznego z tego samego pliku wchodzą do importu (#164).
+
+    Parser nie może wyrzucać strony wpływu: dla konta z własnymi wyciągami
+    _handle_internal_transfer świadomie nie tworzy lustra, więc wyrzucony wpływ
+    zostawiłby nogę wypływu bez pary na zawsze."""
     token, main_id, wakacje_id = ing_pdf_user
     raw = _full_pdf(INTERNAL_TRANSFER_INFLOW_BLOCK, INTERNAL_TRANSFER_OUTFLOW_BLOCK)
     result = parse_ing_pdf(raw, token)
 
     txs = result['transactions']
-    assert len(txs) == 1
-    assert txs[0]['amount'] == Decimal('-300.00')
-    assert txs[0]['account_id'] == main_id
-    assert result['skipped_count'] == 1
+    assert len(txs) == 2
+    assert {tx['amount'] for tx in txs} == {Decimal('-300.00'), Decimal('300.00')}
+    assert {tx['account_id'] for tx in txs} == {main_id, wakacje_id}
+    assert result['skipped_count'] == 0
 
 
 def test_parse_ing_pdf_skips_unknown_subaccount(app, ing_pdf_user):

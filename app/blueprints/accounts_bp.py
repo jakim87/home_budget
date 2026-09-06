@@ -5,6 +5,7 @@ from app.schemas import AccountSchema
 from app.services.account_service import create_account, update_account, soft_delete_account, reorder_accounts
 from app.services.budget_service import reconcile_account_balance
 from decimal import Decimal, InvalidOperation
+from datetime import date
 
 accounts_bp = Blueprint('accounts', __name__, url_prefix='/api/accounts')
 
@@ -82,9 +83,20 @@ def reconcile_account(account_id):
     except InvalidOperation:
         return jsonify({'error': 'Nieprawidłowy format salda.'}), 400
 
+    # Brak pola 'date' = uzgodnienie "na teraz"; serwis podstawi dziś.
+    transaction_date = None
+    if data.get('date'):
+        try:
+            transaction_date = date.fromisoformat(str(data['date']))
+        except ValueError:
+            return jsonify({'error': 'Nieprawidłowy format daty (oczekiwano RRRR-MM-DD).'}), 400
+
     try:
         comment = data.get('comment') or None
-        reconciliation_tx = reconcile_account_balance(current_user.token, account_id, new_balance, comment=comment)
+        reconciliation_tx = reconcile_account_balance(
+            current_user.token, account_id, new_balance,
+            comment=comment, transaction_date=transaction_date
+        )
         if reconciliation_tx:
             return jsonify({'message': 'Saldo uzgodnione pomyślnie.', 'transaction_id': reconciliation_tx.id}), 200
         return jsonify({'message': 'Saldo jest już zgodne, nie utworzono transakcji.'}), 200

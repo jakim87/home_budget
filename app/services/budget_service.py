@@ -358,17 +358,36 @@ def reconcile_account_balance(
 ) -> Transaction:
     """
     Uzgadnia saldo konta. Tworzy transakcję korygującą, jeśli istnieje różnica
-    między nowym saldem a bieżącym saldem w systemie.
+    między nowym saldem a saldem, jakie system pokazuje na dzień uzgodnienia.
 
-    transaction_date domyślnie to dziś (uzgodnienie "na teraz" z UI); migracja
-    historycznych sald (excel_history_import_service) podaje datę z przeszłości.
+    transaction_date domyślnie to dziś (uzgodnienie "na teraz"). Data wsteczna
+    znaczy "tyle było na KONIEC tego dnia" — operacje z samego dnia X wchodzą
+    więc do salda odniesienia, a odejmowane jest wyłącznie to, co po nim.
     """
+    if transaction_date and transaction_date > date.today():
+        raise ValueError("Nie można uzgodnić salda z datą z przyszłości.")
+
     try:
         account = db.session.query(Account).filter_by(id=account_id, user_token=user_token).first()
         if not account:
             raise ValueError(f"Konto o ID {account_id} nie istnieje lub brak uprawnień.")
 
         current_balance = Decimal(account.balance)
+        if transaction_date and transaction_date < date.today():
+            # Account.balance jest sumą WSZYSTKICH transakcji konta, bez względu na
+            # ich datę (create_transaction dolicza kwotę niezależnie od daty operacji).
+            # Saldo na koniec dnia X to zatem bieżące saldo pomniejszone o wszystko
+            # zaksięgowane PO tym dniu — bez tego kroku różnica byłaby liczona wobec
+            # dzisiejszego salda i korekta wyszłaby o te późniejsze operacje za duża.
+            later_sum = db.session.query(
+                db.func.coalesce(db.func.sum(Transaction.amount), 0)
+            ).filter(
+                Transaction.account_id == account_id,
+                Transaction.user_token == user_token,
+                Transaction.date > transaction_date,
+            ).scalar()
+            current_balance -= Decimal(str(later_sum))
+
         difference = new_balance - current_balance
 
         if difference == Decimal('0.00'):

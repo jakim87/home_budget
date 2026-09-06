@@ -170,13 +170,6 @@ window.toggleRecFreqInputs = function() {
 
 // --- ZAMIANA ISTNIEJĄCEJ TRANSAKCJI W HARMONOGRAM ---
 
-// Data lokalna jako YYYY-MM-DD. Nie używamy toISOString(), bo ten przelicza na UTC
-// i w naszej strefie potrafi cofnąć wynik o dobę.
-function toLocalISODate(d) {
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${d.getFullYear()}-${m}-${day}`;
-}
 
 function addOneCycle(dateStr, frequency) {
     const d = new Date(dateStr + 'T00:00:00');

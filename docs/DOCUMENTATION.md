@@ -313,12 +313,16 @@ Przetworzone transakcje zaplanowane pozostają w tabeli `planned_transactions` z
 **Cel:** Wyrównanie salda w aplikacji do rzeczywistego salda na rachunku bankowym, gdy pojawiła się rozbieżność (np. zaokrąglenia, opłaty pominięte przy imporcie).
 
 **Mechanizm:**
-- Użytkownik wpisuje rzeczywiste saldo konta
-- System oblicza różnicę: `nowe_saldo - bieżące_saldo`
-- Jeśli różnica ≠ 0: tworzy transakcję korygującą z kategorią systemową `Uzgadnianie salda`
+- Użytkownik wpisuje rzeczywiste saldo konta oraz dzień, na który je uzgadnia (domyślnie dziś)
+- System oblicza różnicę: `nowe_saldo - saldo_w_systemie_na_ten_dzień`
+- Jeśli różnica ≠ 0: tworzy transakcję korygującą z kategorią systemową `Uzgadnianie salda`, datowaną na wskazany dzień
 - Jeśli różnica = 0: żadna transakcja nie jest tworzona
 
-Kategoria `Uzgadnianie salda` ma flagę `is_system_category = True` i typ `system_reconciliation` — jest wyróżniona jako systemowa, nie pojawia się w zwykłych listach kategorii.
+**Uzgodnienie z datą wsteczną.** `Account.balance` jest sumą wszystkich transakcji konta bez względu na ich datę, więc saldem odniesienia nie może być saldo bieżące — jest nim `saldo_bieżące − suma operacji zaksięgowanych PO wskazanym dniu`. Data znaczy „tyle było na **koniec** tego dnia": operacje z samego dnia X wchodzą do odniesienia, odejmowane jest tylko to, co po nim. Daty z przyszłości są odrzucane (400).
+
+Korekta wsteczna przesuwa również saldo bieżące — jeśli na koniec lipca było o 50 zł więcej, niż zapisano, to dziś także jest o 50 zł więcej. Ma to skutek uboczny: unieważnia każde uzgodnienie o **późniejszej** dacie, które wcześniej się zgadzało. Formularz ostrzega o takim przypadku, ale nie blokuje zapisu ani nie koryguje tamtego uzgodnienia automatycznie — rozstrzygnięcie, które z nich jest prawdziwe, należy do użytkownika.
+
+Kategoria `Uzgadnianie salda` ma flagę `is_system_category = True` i typ `system_reconciliation` — jest wyróżniona jako systemowa, nie pojawia się w zwykłych listach kategorii. Transakcja wsteczna wpada w historyczny miesiąc, więc zmienia liczby w Raportach za tamten okres (zamierzone — poprawiamy historię); planu budżetu nie rusza, bo kategoria systemowa nie podlega planowaniu.
 
 ---
 

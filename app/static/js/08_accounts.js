@@ -57,7 +57,7 @@ function renderAccounts() {
                 <button onclick="deleteAccount(${a.id})" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100" title="Usuń konto">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                 </button>
-                <button onclick="openReconcileModal(${a.id}, ${escapeHtml(JSON.stringify(a.name))}, ${a.balance})" class="text-slate-400 hover:text-green-600 p-1.5 rounded-md hover:bg-green-50 transition-colors opacity-0 group-hover:opacity-100" title="Uzgadniaj saldo">
+                <button onclick="openReconcileModal(${a.id}, ${escapeHtml(JSON.stringify(a.name))})" class="text-slate-400 hover:text-green-600 p-1.5 rounded-md hover:bg-green-50 transition-colors opacity-0 group-hover:opacity-100" title="Uzgadniaj saldo">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 </button>
             </div>
@@ -285,18 +285,76 @@ const reconcileAccountName = document.getElementById('reconcile-account-name');
 const reconcileCurrentBalance = document.getElementById('reconcile-current-balance');
 const reconcileNewBalanceInput = document.getElementById('reconcile-new-balance');
 const reconcileForm = document.getElementById('reconcile-form');
+const reconcileDateInput = document.getElementById('reconcile-date');
 let currentReconcileAccountId = null;
 
-window.openReconcileModal = function(accountId, accountName, currentBalance) {
+// Saldo, jakie system pokazuje na KONIEC podanego dnia. Ta sama arytmetyka co
+// w reconcile_account_balance na backendzie: Account.balance jest sumą wszystkich
+// transakcji konta bez względu na datę, więc stan na dzień X to bieżące saldo
+// minus wszystko zaksięgowane po X. Grosze, żeby odejmowanie nie dryfowało.
+function saldoSystemuNaDzien(accountId, isoDate) {
+    const acc = accounts.find(a => a.id == accountId);
+    if (!acc) return null;
+    let grosze = Math.round(acc.balance * 100);
+    for (const t of transactions) {
+        if (t.account_id == accountId && t.date > isoDate) grosze -= Math.round(t.amount * 100);
+    }
+    return grosze / 100;
+}
+
+// Etykieta, kwota odniesienia i ostrzeżenie zależą jednocześnie od konta i od daty —
+// jedno miejsce odświeżania zamiast powielania tego przy każdej zmianie któregokolwiek.
+function odswiezSaldoOdniesienia() {
+    const label = document.getElementById('reconcile-current-balance-label');
+    const warning = document.getElementById('reconcile-date-warning');
+    const isoDate = reconcileDateInput.value;
+    const dzis = toLocalISODate(new Date());
+
+    if (!currentReconcileAccountId || !isoDate) {
+        label.innerText = 'Bieżące saldo w systemie:';
+        reconcileCurrentBalance.innerText = '—';
+        reconcileNewBalanceInput.value = '';
+        warning.classList.add('hidden');
+        return;
+    }
+
+    const saldo = saldoSystemuNaDzien(currentReconcileAccountId, isoDate);
+    label.innerText = isoDate === dzis
+        ? 'Bieżące saldo w systemie:'
+        : `Saldo w systemie na koniec dnia ${isoDate}:`;
+    reconcileCurrentBalance.innerText = `${saldo.toFixed(2)} PLN`;
+    reconcileNewBalanceInput.value = saldo.toFixed(2);
+
+    // Wsteczna korekta przesuwa też saldo bieżące, więc unieważnia każde
+    // uzgodnienie o późniejszej dacie. Informujemy, ale nie blokujemy —
+    // to użytkownik wie, które z uzgodnień jest prawdziwe.
+    const pozniejsze = transactions.filter(t =>
+        t.account_id == currentReconcileAccountId &&
+        t.category === 'Uzgadnianie salda' &&
+        t.date > isoDate
+    );
+    if (pozniejsze.length) {
+        const najblizsze = pozniejsze.map(t => t.date).sort()[0];
+        warning.innerText = `Uwaga: po tej dacie jest już uzgodnienie z ${najblizsze}. `
+            + 'Ta korekta zmieni również saldo bieżące, więc tamto przestanie się zgadzać.';
+        warning.classList.remove('hidden');
+    } else {
+        warning.classList.add('hidden');
+    }
+}
+window.onReconcileDateChange = odswiezSaldoOdniesienia;
+
+window.openReconcileModal = function(accountId, accountName) {
     document.getElementById('reconcile-comment').value = '';
+    const dzis = toLocalISODate(new Date());
+    reconcileDateInput.value = dzis;
+    reconcileDateInput.max = dzis; // uzgodnić można tylko to, co już się wydarzyło
     if (accountId) {
         // Tryb: otwierany z karty konta — konto znane z góry
         currentReconcileAccountId = accountId;
         document.getElementById('reconcile-account-selector').classList.add('hidden');
         document.getElementById('reconcile-account-display').classList.remove('hidden');
         reconcileAccountName.innerText = accountName;
-        reconcileCurrentBalance.innerText = `${currentBalance.toFixed(2)} PLN`;
-        reconcileNewBalanceInput.value = currentBalance.toFixed(2);
     } else {
         // Tryb: otwierany z zakładki Transakcje — użytkownik wybiera konto
         currentReconcileAccountId = null;
@@ -305,26 +363,15 @@ window.openReconcileModal = function(accountId, accountName, currentBalance) {
         const sel = document.getElementById('reconcile-account-select');
         sel.innerHTML = '<option value="">Wybierz konto...</option>' +
             accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${a.balance.toFixed(2)} PLN)</option>`).join('');
-        reconcileCurrentBalance.innerText = '—';
-        reconcileNewBalanceInput.value = '';
     }
+    odswiezSaldoOdniesienia();
     reconcileModal.classList.remove('hidden');
     reconcileModal.classList.add('flex');
 };
 
 window.onReconcileAccountChange = function(val) {
-    if (!val) {
-        currentReconcileAccountId = null;
-        reconcileCurrentBalance.innerText = '—';
-        reconcileNewBalanceInput.value = '';
-        return;
-    }
-    const acc = accounts.find(a => a.id == parseInt(val));
-    if (acc) {
-        currentReconcileAccountId = acc.id;
-        reconcileCurrentBalance.innerText = `${acc.balance.toFixed(2)} PLN`;
-        reconcileNewBalanceInput.value = acc.balance.toFixed(2);
-    }
+    currentReconcileAccountId = val ? parseInt(val) : null;
+    odswiezSaldoOdniesienia();
 };
 
 window.closeReconcileModal = function() {
@@ -354,7 +401,11 @@ reconcileForm.addEventListener('submit', async function(e) {
         const response = await fetch(`/api/accounts/${currentReconcileAccountId}/reconcile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ new_balance: newBalance, comment: commentVal || null })
+            body: JSON.stringify({
+                new_balance: newBalance,
+                comment: commentVal || null,
+                date: reconcileDateInput.value || null
+            })
         });
 
         if (response.ok) {

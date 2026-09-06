@@ -192,3 +192,100 @@ def test_api_reconcile_odrzuca_bledny_format_daty(logged_in_client, test_user_to
 
     assert resp.status_code == 400
     assert db.session.query(Transaction).count() == 0
+
+
+def _saldo_na_dzien(account, dzien):
+    """Saldo, jakie system pokazuje na koniec podanego dnia — liczone tak samo
+    jak w aplikacji: bieżące saldo minus wszystko zaksięgowane po tym dniu."""
+    po = db.session.query(Transaction).filter(
+        Transaction.account_id == account.id, Transaction.date > dzien
+    ).all()
+    return Decimal(account.balance) - sum((t.amount for t in po), Decimal("0"))
+
+
+def _konto_z_uzgodnieniem_sierpniowym(user_token):
+    """Konto, na którym 950 zł wpłynęło 1 lipca, a uzgodnienie z 31 sierpnia
+    podniosło stan do 1000 zł (korekta +50). Punkt wyjścia dla testów łańcucha."""
+    account = Account(name="Konto", bank_name="Bank", balance=Decimal("0.00"), user_token=user_token)
+    db.session.add(account)
+    db.session.commit()
+    create_transaction(
+        user_token=user_token, account_id=account.id, amount=Decimal("950.00"),
+        title="Wpływ", transaction_date=date(2025, 7, 1),
+    )
+    sierpniowe = reconcile_account_balance(
+        user_token, account.id, Decimal("1000.00"), transaction_date=date(2025, 8, 31)
+    )
+    assert sierpniowe.amount == Decimal("50.00")
+    return account, sierpniowe
+
+
+def test_reconcile_wstecz_koryguje_nastepne_uzgodnienie(app, test_user_token):
+    """Uzgodnienie przed istniejącym nie kasuje go, tylko zdejmuje z jego korekty
+    tę samą różnicę — obie daty pokazują potem kwoty wpisane przez użytkownika,
+    a saldo bieżące zostaje bez zmian."""
+    with app.app_context():
+        account, sierpniowe = _konto_z_uzgodnieniem_sierpniowym(test_user_token)
+
+        # Na 31 lipca system pokazuje 950; użytkownik twierdzi, że było 850.
+        lipcowe = reconcile_account_balance(
+            test_user_token, account.id, Decimal("850.00"), transaction_date=date(2025, 7, 31)
+        )
+
+        assert lipcowe.amount == Decimal("-100.00")
+        # Korekta sierpniowa rośnie o tę samą różnicę (50 − (−100) = 150).
+        assert sierpniowe.amount == Decimal("150.00")
+        # Saldo bieżące nietknięte — zmiana dotyczyła przeszłości, nie stanu dziś.
+        assert Decimal(account.balance) == Decimal("1000.00")
+        # Oba pomiary nadal prawdziwe.
+        assert _saldo_na_dzien(account, date(2025, 7, 31)) == Decimal("850.00")
+        assert _saldo_na_dzien(account, date(2025, 8, 31)) == Decimal("1000.00")
+
+
+def test_reconcile_wstecz_usuwa_nastepne_gdy_zeruje_jego_korekte(app, test_user_token):
+    """Gdy poprawka zjada całą korektę następnego uzgodnienia, zostaje po nim
+    transakcja na 0.00 — czyli śmieć w historii. Kasujemy ją."""
+    with app.app_context():
+        account, sierpniowe = _konto_z_uzgodnieniem_sierpniowym(test_user_token)
+        id_sierpniowego = sierpniowe.id
+
+        # Brakujące 50 zł pochodziło sprzed lipca — korekta sierpniowa staje się zbędna.
+        reconcile_account_balance(
+            test_user_token, account.id, Decimal("1000.00"), transaction_date=date(2025, 7, 31)
+        )
+
+        assert db.session.get(Transaction, id_sierpniowego) is None
+        assert Decimal(account.balance) == Decimal("1000.00")
+        assert _saldo_na_dzien(account, date(2025, 7, 31)) == Decimal("1000.00")
+        assert _saldo_na_dzien(account, date(2025, 8, 31)) == Decimal("1000.00")
+
+
+def test_reconcile_wstecz_rusza_tylko_najblizsze_uzgodnienie(app, test_user_token):
+    """Dalsze uzgodnienia liczą korektę względem poprawionego sąsiada, więc
+    poprawka propaguje się sama — nie wolno ich ruszać drugi raz."""
+    with app.app_context():
+        account, sierpniowe = _konto_z_uzgodnieniem_sierpniowym(test_user_token)
+        wrzesniowe = reconcile_account_balance(
+            test_user_token, account.id, Decimal("1200.00"), transaction_date=date(2025, 9, 30)
+        )
+        kwota_wrzesniowa = wrzesniowe.amount
+
+        reconcile_account_balance(
+            test_user_token, account.id, Decimal("850.00"), transaction_date=date(2025, 7, 31)
+        )
+
+        assert sierpniowe.amount == Decimal("150.00")   # najbliższe — skorygowane
+        assert wrzesniowe.amount == kwota_wrzesniowa    # dalsze — nietknięte
+        assert _saldo_na_dzien(account, date(2025, 9, 30)) == Decimal("1200.00")
+
+
+def test_reconcile_na_dzis_nie_rusza_wczesniejszych_uzgodnien(app, test_user_token):
+    """Uzgodnienie „na teraz" nie ma po sobie żadnego następnego — historia
+    zostaje nietknięta."""
+    with app.app_context():
+        account, sierpniowe = _konto_z_uzgodnieniem_sierpniowym(test_user_token)
+
+        reconcile_account_balance(test_user_token, account.id, Decimal("1300.00"))
+
+        assert sierpniowe.amount == Decimal("50.00")
+        assert Decimal(account.balance) == Decimal("1300.00")

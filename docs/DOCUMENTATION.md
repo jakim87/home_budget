@@ -320,7 +320,15 @@ Przetworzone transakcje zaplanowane pozostają w tabeli `planned_transactions` z
 
 **Uzgodnienie z datą wsteczną.** `Account.balance` jest sumą wszystkich transakcji konta bez względu na ich datę, więc saldem odniesienia nie może być saldo bieżące — jest nim `saldo_bieżące − suma operacji zaksięgowanych PO wskazanym dniu`. Data znaczy „tyle było na **koniec** tego dnia": operacje z samego dnia X wchodzą do odniesienia, odejmowane jest tylko to, co po nim. Daty z przyszłości są odrzucane (400).
 
-Korekta wsteczna przesuwa również saldo bieżące — jeśli na koniec lipca było o 50 zł więcej, niż zapisano, to dziś także jest o 50 zł więcej. Ma to skutek uboczny: unieważnia każde uzgodnienie o **późniejszej** dacie, które wcześniej się zgadzało. Formularz ostrzega o takim przypadku, ale nie blokuje zapisu ani nie koryguje tamtego uzgodnienia automatycznie — rozstrzygnięcie, które z nich jest prawdziwe, należy do użytkownika.
+**Uzgodnienie przed innym uzgodnieniem.** Dwa uzgodnienia nie są ze sobą sprzeczne — mierzą różne dni i oba mogą być prawdziwe. Sprzeczna bywa tylko kwota korekty: jeśli okazuje się, że brakującej kwoty zabrakło już przed lipcem, to korekta z sierpnia (która wtedy łatała tę samą dziurę) była o tyle samo za duża.
+
+Dlatego aplikacja **nie kasuje** późniejszego uzgodnienia i nie wymaga, by użytkownik usunął je ręcznie. Zamiast tego zdejmuje z jego korekty tę samą różnicę:
+
+- korygowane jest **wyłącznie pierwsze** uzgodnienie po wskazanym dniu — dalsze liczą swoją korektę względem niego, więc poprawka propaguje się sama,
+- gdy skorygowana kwota wychodzi `0.00`, transakcja jest usuwana (twardo, bez archiwum — to domknięcie rachunku zrobione przez aplikację, nie decyzja użytkownika warta audytu),
+- **saldo bieżące pozostaje bez zmian**, a obie daty nadal pokazują kwoty wpisane przez użytkownika.
+
+Formularz opisuje ten skutek przed zapisem (o ile i na jaką kwotę zmieni się która transakcja), bo operacja rusza wiersz, którego użytkownik nie edytował.
 
 Kategoria `Uzgadnianie salda` ma flagę `is_system_category = True` i typ `system_reconciliation` — jest wyróżniona jako systemowa, nie pojawia się w zwykłych listach kategorii. Transakcja wsteczna wpada w historyczny miesiąc, więc zmienia liczby w Raportach za tamten okres (zamierzone — poprawiamy historię); planu budżetu nie rusza, bo kategoria systemowa nie podlega planowaniu.
 

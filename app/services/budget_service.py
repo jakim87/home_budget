@@ -352,6 +352,22 @@ def get_or_create_reconciliation_category() -> Category:
     return category
 
 
+def find_next_reconciliation(
+    user_token: str, account_id: int, after_date: date, category_id: int
+) -> Optional[Transaction]:
+    """Pierwsze uzgodnienie salda na koncie PO podanym dniu (albo None).
+
+    Wystarczy najbliższe, nie cały ogon: kolejne uzgodnienia liczą swoją korektę
+    względem tego, więc poprawka propaguje się dalej sama.
+    """
+    return db.session.query(Transaction).filter(
+        Transaction.account_id == account_id,
+        Transaction.user_token == user_token,
+        Transaction.category_id == category_id,
+        Transaction.date > after_date,
+    ).order_by(Transaction.date, Transaction.id).first()
+
+
 def reconcile_account_balance(
     user_token: str, account_id: int, new_balance: Decimal,
     comment: Optional[str] = None, transaction_date: Optional[date] = None
@@ -410,6 +426,26 @@ def reconcile_account_balance(
             origin='reconcile',
             commit=False
         )
+
+        # Uzgodnienie wsteczne przesuwa też saldo bieżące, więc pierwsze uzgodnienie
+        # PO tej dacie przestałoby pokazywać kwotę, którą wtedy wpisano. Nie jest ono
+        # sprzeczne z nowym — mierzy inny dzień — więc zamiast je kasować zdejmujemy
+        # z jego korekty tę samą różnicę: obie daty pokazują wtedy to, co wpisał
+        # użytkownik, a saldo bieżące wraca do stanu sprzed operacji.
+        nastepne = find_next_reconciliation(
+            user_token, account_id, transaction_date or date.today(), reconciliation_category.id
+        )
+        if nastepne:
+            nowa_kwota = Decimal(nastepne.amount) - difference
+            account.balance = Decimal(account.balance) - difference
+            if nowa_kwota == Decimal('0.00'):
+                # Korekta zerowa nic już nie mówi, a w historii wygląda jak śmieć.
+                # Kasujemy twardo, bez archiwum: to domknięcie rachunku zrobione
+                # przez aplikację, nie decyzja użytkownika, którą warto audytować.
+                db.session.delete(nastepne)
+            else:
+                nastepne.amount = nowa_kwota
+
         db.session.commit()
         return reconciliation_tx
     except Exception:

@@ -287,6 +287,9 @@ const reconcileNewBalanceInput = document.getElementById('reconcile-new-balance'
 const reconcileForm = document.getElementById('reconcile-form');
 const reconcileDateInput = document.getElementById('reconcile-date');
 let currentReconcileAccountId = null;
+// Saldo systemu na wybrany dzień — podstawa różnicy. Trzymane, bo opis skutku
+// przelicza się przy każdym znaku wpisywanym w pole kwoty.
+let saldoOdniesienia = null;
 
 // Saldo, jakie system pokazuje na KONIEC podanego dnia. Ta sama arytmetyka co
 // w reconcile_account_balance na backendzie: Account.balance jest sumą wszystkich
@@ -314,6 +317,7 @@ function odswiezSaldoOdniesienia() {
         label.innerText = 'Bieżące saldo w systemie:';
         reconcileCurrentBalance.innerText = '—';
         reconcileNewBalanceInput.value = '';
+        saldoOdniesienia = null;
         warning.classList.add('hidden');
         return;
     }
@@ -323,24 +327,48 @@ function odswiezSaldoOdniesienia() {
         ? 'Bieżące saldo w systemie:'
         : `Saldo w systemie na koniec dnia ${isoDate}:`;
     reconcileCurrentBalance.innerText = `${saldo.toFixed(2)} PLN`;
+    saldoOdniesienia = saldo;
     reconcileNewBalanceInput.value = saldo.toFixed(2);
+    odswiezOpisSkutku();
+}
 
-    // Wsteczna korekta przesuwa też saldo bieżące, więc unieważnia każde
-    // uzgodnienie o późniejszej dacie. Informujemy, ale nie blokujemy —
-    // to użytkownik wie, które z uzgodnień jest prawdziwe.
-    const pozniejsze = transactions.filter(t =>
-        t.account_id == currentReconcileAccountId &&
-        t.category === 'Uzgadnianie salda' &&
-        t.date > isoDate
-    );
-    if (pozniejsze.length) {
-        const najblizsze = pozniejsze.map(t => t.date).sort()[0];
-        warning.innerText = `Uwaga: po tej dacie jest już uzgodnienie z ${najblizsze}. `
-            + 'Ta korekta zmieni również saldo bieżące, więc tamto przestanie się zgadzać.';
-        warning.classList.remove('hidden');
-    } else {
+// Pierwsze uzgodnienie po wybranym dniu na tym koncie — to jedyne, które aplikacja
+// skoryguje (dalsze liczą się już względem niego). Odpowiednik find_next_reconciliation
+// z backendu; front rozpoznaje je po nazwie kategorii, bo `origin` nie jedzie w /api/init.
+function nastepneUzgodnienie(accountId, isoDate) {
+    return transactions
+        .filter(t => t.account_id == accountId && t.category === 'Uzgadnianie salda' && t.date > isoDate)
+        .sort((a, b) => (a.date !== b.date ? a.date.localeCompare(b.date) : a.id - b.id))[0] || null;
+}
+
+// Uzgodnienie wsteczne zmienia kwotę cudzej, wcześniej zapisanej transakcji —
+// użytkownik musi zobaczyć DOKŁADNIE co i o ile, zanim kliknie zapis. Zależy to
+// od wpisanej kwoty, nie tylko od daty, więc odświeżamy też przy pisaniu.
+function odswiezOpisSkutku() {
+    const warning = document.getElementById('reconcile-date-warning');
+    const isoDate = reconcileDateInput.value;
+    const wpisane = parseFloat(reconcileNewBalanceInput.value);
+
+    if (!currentReconcileAccountId || !isoDate || isNaN(wpisane) || saldoOdniesienia === null) {
         warning.classList.add('hidden');
+        return;
     }
+
+    const roznica = Math.round((wpisane - saldoOdniesienia) * 100) / 100;
+    const nastepne = nastepneUzgodnienie(currentReconcileAccountId, isoDate);
+    // Bez różnicy nic nie powstaje, więc nie ma też czego korygować.
+    if (roznica === 0 || !nastepne) {
+        warning.classList.add('hidden');
+        return;
+    }
+
+    const nowaKwota = Math.round((nastepne.amount - roznica) * 100) / 100;
+    warning.innerText = nowaKwota === 0
+        ? `Uzgodnienie z ${nastepne.date} (${nastepne.amount.toFixed(2)} PLN) zostanie usunięte — `
+          + 'ta korekta pokrywa je w całości.'
+        : `Uzgodnienie z ${nastepne.date} zostanie zmienione z ${nastepne.amount.toFixed(2)} `
+          + `na ${nowaKwota.toFixed(2)} PLN, żeby nadal pokazywało kwotę, którą wtedy wpisałeś.`;
+    warning.classList.remove('hidden');
 }
 window.onReconcileDateChange = odswiezSaldoOdniesienia;
 
@@ -384,6 +412,8 @@ window.closeReconcileModal = function() {
 reconcileModal.addEventListener('click', (e) => {
     if (e.target === reconcileModal) closeReconcileModal();
 });
+
+reconcileNewBalanceInput.addEventListener('input', odswiezOpisSkutku);
 
 reconcileForm.addEventListener('submit', async function(e) {
     e.preventDefault();

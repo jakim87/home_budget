@@ -413,7 +413,6 @@ def parse_ing_pdf(raw: bytes, user_token: str, main_account_id: Optional[int] = 
     accounts_info, name_to_account_id, db_name_to_account_id, ibans_set = (
         build_ing_account_maps(account_entries, user_token)
     )
-    matched_ibans = {info['iban'] for info in accounts_info if info['matched']}
     is_multi_account = bool(account_entries)
 
     if not is_multi_account and main_account_id is None:
@@ -486,15 +485,6 @@ def parse_ing_pdf(raw: bytes, user_token: str, main_account_id: Optional[int] = 
         desc_text = ' '.join(desc_lines)
         acc_match = _ANY_26_DIGITS_RE.search(desc_text)
         counterparty_account = acc_match.group(0) if acc_match else None
-
-        # Pomiń stronę "wpływu" (+) przelewu wewnętrznego między śledzonymi
-        # kontami w OBRĘBIE TEGO SAMEGO PLIKU (jak w CSV) — lustro powstanie
-        # automatycznie przy zatwierdzeniu strony "wypływu" (-).
-        if (is_multi_account and amount > 0 and counterparty_account
-                and counterparty_account in ibans_set
-                and counterparty_account in matched_ibans):
-            skipped_count += 1
-            continue
 
         transactions.append({
             'date': tx_date,

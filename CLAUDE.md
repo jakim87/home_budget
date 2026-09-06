@@ -151,7 +151,7 @@ Bank i format rozpoznaje `detect_bank_and_format()` (`statement_parsers.py`) **p
 
 Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie. Każdy import zapisuje ślad w `StatementImport` (historia importów).
 
-**Internal Transfers**: Category type `"transfer"` + contractor name matching `"Moje konto: {account_name}"` automatically creates a mirror transaction on the destination account.
+**Internal Transfers**: Category type `"transfer"` + contractor name matching `"Moje konto: {account_name}"` wskazuje konto docelowe. Druga noga bierze się z jednego z dwóch źródeł, nigdy z obu naraz (`_handle_internal_transfer`): jeśli konto docelowe dostaje własne wyciągi — przyjdzie z importu i zostanie sparowana (okno dat ±4 dni); jeśli nie dostaje (np. cel oszczędnościowy) — powstaje lustro. Wynika stąd reguła dla parserów wyciągów: **żaden parser nie może wyrzucać strony wpływu** przelewu między kontami z tego samego pliku — bez niej noga wypływu zostaje sierotą na zawsze (#164).
 
 **Soft Deletes**: Categories and contractors use `is_active=False`. Always filter `is_active=True` in queries.
 

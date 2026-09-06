@@ -555,6 +555,8 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
     Plik wielokontowy (ma sekcję 'Wybrane rachunki' i kolumnę 'Konto'):
       — automatycznie wykrywa konto źródłowe każdej transakcji na podstawie kolumny 'Konto'.
       — transakcje z kont nieznanych aplikacji (brak account_number) są pomijane.
+      — obie nogi przelewu wewnętrznego wchodzą do importu; wiąże je ze sobą
+        zatwierdzanie stagingu (_handle_internal_transfer), a nie parser.
 
     Plik jednokontowy: wszystkie transakcje trafiają na main_account_id.
 
@@ -590,10 +592,9 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
 
     # 2. Dopasuj konta z CSV do kont w bazie danych (po numerze IBAN) — wspólne
     # z parserem PDF, patrz build_ing_account_maps.
-    csv_accounts_info, csv_name_to_account_id, db_name_to_account_id, csv_ibans_set = (
+    csv_accounts_info, csv_name_to_account_id, db_name_to_account_id, _ = (
         build_ing_account_maps(csv_accounts_entries, user_token)
     )
-    matched_ibans = {info['iban'] for info in csv_accounts_info if info['matched']}
 
     # 3. Znajdź nagłówek transakcji i zbierz wiersze danych
     header_map: dict[str, int] = {}
@@ -653,16 +654,6 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
                     continue
                 if matched_id is None:
                     # Konto z CSV nie istnieje w aplikacji — pomiń
-                    skipped_count += 1
-                    continue
-
-                # Pomiń stronę "wpływu" (+) przelewu wewnętrznego między śledzonymi kontami.
-                # Lustro zostanie automatycznie utworzone przy zatwierdzaniu strony "wypływu" (-).
-                counterparty_iban = _normalize_acc_num(parsed_row.get('counterparty_account') or '')
-                if (parsed_row['amount'] > 0
-                        and counterparty_iban
-                        and counterparty_iban in csv_ibans_set
-                        and counterparty_iban in matched_ibans):
                     skipped_count += 1
                     continue
 

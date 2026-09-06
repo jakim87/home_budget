@@ -74,8 +74,11 @@ def test_parse_ing_csv_skips_unknown_account(app, parser_user):
     assert result['skipped_count'] == 1
 
 
-def test_parse_ing_csv_skips_inflow_of_internal_transfer(app, parser_user):
-    """Strona wpływu (+) przelewu między śledzonymi kontami jest pomijana — lustro tworzy zatwierdzenie wypływu."""
+def test_parse_ing_csv_keeps_both_sides_of_internal_transfer(app, parser_user):
+    """Obie strony przelewu między śledzonymi kontami wchodzą do importu (#164).
+
+    Wyrzucenie strony wpływu zostawiało nogę wypływu bez pary: dla konta z własnymi
+    wyciągami _handle_internal_transfer nie tworzy lustra, bo liczy na realną drugą nogę."""
     user_token, account_ids = parser_user
     # Transfer 500 PLN: Moje ING (10...) → Smart Saver (24...)
     # CSV zawiera obie strony z tym samym Nr transakcji
@@ -91,12 +94,14 @@ def test_parse_ing_csv_skips_inflow_of_internal_transfer(app, parser_user):
     with app.app_context():
         result = parse_ing_csv(csv_content, user_token)
 
-    # Tylko wypływ (-500 z Moje ING) powinien być zaimportowany
-    assert len(result['transactions']) == 1
-    assert result['transactions'][0]['amount'] == Decimal('-500.00')
-    assert result['transactions'][0]['account_id'] == account_ids['acc1_id']
-    # Wpływ (+500 do Smart Saver) pominięty — lustro stworzy zatwierdzenie wypływu
-    assert result['skipped_count'] == 1
+    # Obie nogi: wypływ z Moje ING i wpływ na Smart Saver. Wiąże je zatwierdzanie stagingu.
+    assert len(result['transactions']) == 2
+    wyplyw, wplyw = result['transactions']
+    assert wyplyw['amount'] == Decimal('-500.00')
+    assert wyplyw['account_id'] == account_ids['acc1_id']
+    assert wplyw['amount'] == Decimal('500.00')
+    assert wplyw['account_id'] == account_ids['acc2_id']
+    assert result['skipped_count'] == 0
 
 
 def test_parse_ing_csv_single_account_requires_account_id(app, parser_user):

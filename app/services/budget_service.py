@@ -171,7 +171,7 @@ def create_transaction(
         if (category_id and contractor_obj and contractor_obj.is_active
                 and contractor_obj.name.startswith("Moje konto: ")):
             if category_obj and category_obj.type == 'transfer':
-                _handle_internal_transfer(
+                handle_internal_transfer(
                     user_token, account, new_transaction, contractor_obj,
                     amount, title, transaction_date, category_id, preserve_sign
                 )
@@ -230,7 +230,7 @@ def _resolve_destination_account(
 _TRANSFER_MATCH_WINDOW_DAYS = 4
 
 
-def _handle_internal_transfer(
+def handle_internal_transfer(
     user_token: str, account: Account, new_transaction: Transaction,
     contractor_obj: Contractor, amount: Decimal, title: str,
     transaction_date: date, category_id: int, preserve_sign: bool = False
@@ -592,7 +592,7 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
       — automatycznie wykrywa konto źródłowe każdej transakcji na podstawie kolumny 'Konto'.
       — transakcje z kont nieznanych aplikacji (brak account_number) są pomijane.
       — obie nogi przelewu wewnętrznego wchodzą do importu; wiąże je ze sobą
-        zatwierdzanie stagingu (_handle_internal_transfer), a nie parser.
+        zatwierdzanie stagingu (handle_internal_transfer), a nie parser.
 
     Plik jednokontowy: wszystkie transakcje trafiają na main_account_id.
 

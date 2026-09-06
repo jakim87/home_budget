@@ -63,7 +63,7 @@ def list_active(user_token):
 #
 # "Przelew wewnetrzny" (typ transfer) jest OBOWIAZKOWY — bez kategorii tego typu
 # mechanizm przelewow miedzy kontami wlasnymi w ogole sie nie uruchamia
-# (patrz budget_service._handle_internal_transfer).
+# (patrz budget_service.handle_internal_transfer).
 STARTER_CATEGORIES = [
     ('Zakupy spożywcze', 'expense'),
     ('Paliwo', 'expense'),

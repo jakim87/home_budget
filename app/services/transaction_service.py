@@ -2,6 +2,7 @@ from app import db
 from app.models import Transaction, TransactionArchive, TransactionSplit, Account
 from app.services.category_service import find_by_name as find_category_by_name
 from app.services.contractor_service import find_owned as find_contractor_owned
+from app.services.budget_service import handle_internal_transfer
 from datetime import date, datetime
 from decimal import Decimal
 import json
@@ -69,11 +70,58 @@ def archive_and_delete_transaction(user_token, tx_id):
         db.session.rollback()
         raise
 
+def _przelicz_druga_noge(user_token, tx: Transaction) -> None:
+    """Doprowadza drugą nogę do zgodności z aktualnym kontrahentem i kategorią.
+
+    Zdejmuje dotychczasową i przepuszcza transakcję przez tę samą ścieżkę co przy
+    tworzeniu (handle_internal_transfer). Dzięki temu zmiana konta docelowego,
+    rezygnacja z przelewu i zamiana zwykłej transakcji w przelew idą jednym kodem,
+    bez osobnych gałęzi dla każdego przypadku.
+
+    Kasować wolno WYŁĄCZNIE nogę wygenerowaną (origin='mirror'). Noga pochodząca
+    z wyciągu to prawdziwa operacja bankowa — ją tylko odpinamy, zostaje wtedy
+    widoczna jako wpływ bez pary, do poprawienia przez użytkownika.
+    NIE commituje — wołający domyka wszystko jednym commitem.
+    """
+    if tx.linked_transaction_id:
+        druga = db.session.query(Transaction).filter_by(
+            id=tx.linked_transaction_id, user_token=user_token
+        ).first()
+        tx.linked_transaction_id = None
+        if druga:
+            druga.linked_transaction_id = None
+            db.session.flush()
+            if druga.origin == 'mirror':
+                _archive_and_remove_leg(druga)
+        db.session.flush()
+
+    contractor = tx.contractor_details
+    category = tx.category
+    if not (contractor and contractor.is_active and contractor.name.startswith("Moje konto: ")):
+        return
+    if not (category and category.type == 'transfer'):
+        return
+
+    account = db.session.get(Account, tx.account_id)
+    if not account:
+        return
+    # preserve_sign=True — znak edytowanej transakcji jest już ustalony; zmiana
+    # kontrahenta nie może z wpływu zrobić wypływu.
+    handle_internal_transfer(
+        user_token, account, tx, contractor, tx.amount, tx.title,
+        tx.date, tx.category_id, preserve_sign=True
+    )
+
+
 def update_transaction(user_token, tx_id, data):
     try:
         tx = db.session.query(Transaction).filter_by(id=tx_id, user_token=user_token).first()
         if not tx:
             raise ValueError('Transakcja nie istnieje.')
+
+        # Kontrahent wskazuje konto docelowe, kategoria decyduje, czy to w ogóle
+        # przelew — zmiana któregokolwiek z nich zmienia drugą nogę (#167).
+        powiazanie_przed = (tx.contractor_id, tx.category_id)
 
         if 'title' in data or 'desc' in data:
             tx.title = data.get('title') or data.get('desc', tx.title)
@@ -146,6 +194,10 @@ def update_transaction(user_token, tx_id, data):
                     desc=split_data.get('desc', ''),
                     category_id=cat.id if cat else None
                 ))
+
+        if (tx.contractor_id, tx.category_id) != powiazanie_przed:
+            db.session.flush()
+            _przelicz_druga_noge(user_token, tx)
         db.session.commit()
     except Exception:
         db.session.rollback()

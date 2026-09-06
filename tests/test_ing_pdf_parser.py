@@ -308,7 +308,7 @@ def test_parse_ing_pdf_keeps_both_sides_of_internal_transfer(app, ing_pdf_user):
     """Obie strony przelewu wewnętrznego z tego samego pliku wchodzą do importu (#164).
 
     Parser nie może wyrzucać strony wpływu: dla konta z własnymi wyciągami
-    _handle_internal_transfer świadomie nie tworzy lustra, więc wyrzucony wpływ
+    handle_internal_transfer świadomie nie tworzy lustra, więc wyrzucony wpływ
     zostawiłby nogę wypływu bez pary na zawsze."""
     token, main_id, wakacje_id = ing_pdf_user
     raw = _full_pdf(INTERNAL_TRANSFER_INFLOW_BLOCK, INTERNAL_TRANSFER_OUTFLOW_BLOCK)

@@ -78,7 +78,7 @@ def test_parse_ing_csv_keeps_both_sides_of_internal_transfer(app, parser_user):
     """Obie strony przelewu między śledzonymi kontami wchodzą do importu (#164).
 
     Wyrzucenie strony wpływu zostawiało nogę wypływu bez pary: dla konta z własnymi
-    wyciągami _handle_internal_transfer nie tworzy lustra, bo liczy na realną drugą nogę."""
+    wyciągami handle_internal_transfer nie tworzy lustra, bo liczy na realną drugą nogę."""
     user_token, account_ids = parser_user
     # Transfer 500 PLN: Moje ING (10...) → Smart Saver (24...)
     # CSV zawiera obie strony z tym samym Nr transakcji

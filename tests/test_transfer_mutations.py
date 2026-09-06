@@ -12,6 +12,7 @@ from decimal import Decimal
 from app import db
 from app.models import Account, Category, Contractor, Transaction
 from app.services.budget_service import create_transaction
+from app.services.import_history_service import record_statement_import
 from app.services.transaction_service import archive_and_delete_transaction, update_transaction
 
 
@@ -105,3 +106,126 @@ def test_init_exposes_linked_transaction_id_for_transfer_legs(logged_in_client, 
     by_id = {t['id']: t for t in data['transactions']}
     assert by_id[src.id]['linked_transaction_id'] == mirror.id
     assert by_id[mirror.id]['linked_transaction_id'] == src.id
+
+
+# --- Zmiana kontrahenta (konta docelowego) -----------------------------------
+#
+# Regresja #167: update_transaction synchronizowało drugą nogę wyłącznie przy zmianie
+# kwoty. Zmiana kontrahenta na inne "Moje konto: X" zostawiała lustro na starym koncie
+# — saldo starego konta zawyżone, nowego zaniżone, a para wskazywała niezgodne konta.
+
+@pytest.fixture
+def konto_c(app, test_user):
+    """Trzecie konto + kontrahent na nie wskazujący (cel zmiany)."""
+    acc_c = Account(name="Konto C", bank_name="Bank", balance=Decimal("0.00"),
+                    user_token=test_user.token)
+    db.session.add(acc_c)
+    db.session.commit()
+    cat = db.session.query(Category).filter_by(name="Przelew wewnętrzny").first()
+    if not cat:
+        cat = Category(name="Przelew wewnętrzny", type="transfer")
+        db.session.add(cat)
+        db.session.commit()
+    cont_c = Contractor(name="Moje konto: Konto C", user_token=test_user.token,
+                        default_category_id=cat.id, linked_account_id=acc_c.id)
+    db.session.add(cont_c)
+    db.session.commit()
+    return acc_c, cont_c
+
+
+def test_zmiana_kontrahenta_przenosi_lustro_na_nowe_konto(transfer, konto_c):
+    """Zmiana konta docelowego przenosi lustro razem z saldem."""
+    token, acc_a, acc_b, src, _ = transfer
+    acc_c, cont_c = konto_c
+
+    update_transaction(token, src.id, {'contractor_id': cont_c.id})
+
+    db.session.expire_all()
+    assert db.session.query(Transaction).filter_by(account_id=acc_b.id).count() == 0
+    nowe_lustro = db.session.query(Transaction).filter_by(account_id=acc_c.id).one()
+    assert nowe_lustro.amount == Decimal("300.00")
+    assert db.session.get(Transaction, src.id).linked_transaction_id == nowe_lustro.id
+    assert nowe_lustro.linked_transaction_id == src.id
+    assert db.session.get(Account, acc_a.id).balance == Decimal("700.00")
+    assert db.session.get(Account, acc_b.id).balance == Decimal("0.00")
+    assert db.session.get(Account, acc_c.id).balance == Decimal("300.00")
+
+
+def test_zmiana_na_konto_z_wlasnymi_wyciagami_nie_tworzy_lustra(transfer, konto_c):
+    """Nowe konto docelowe dostaje własne wyciągi → lustra nie ma, noga czeka na drugą stronę."""
+    token, acc_a, acc_b, src, _ = transfer
+    acc_c, cont_c = konto_c
+    record_statement_import(
+        user_token=token, filename="c.csv", bank="ing", file_format="csv",
+        account_id=acc_c.id, period_start=date(2024, 5, 1), period_end=date(2024, 5, 31),
+        transaction_count=1, skipped_count=0, batch_id="batch-c",
+    )
+
+    update_transaction(token, src.id, {'contractor_id': cont_c.id})
+
+    db.session.expire_all()
+    assert db.session.query(Transaction).filter_by(account_id=acc_b.id).count() == 0
+    assert db.session.query(Transaction).filter_by(account_id=acc_c.id).count() == 0
+    assert db.session.get(Transaction, src.id).linked_transaction_id is None
+    assert db.session.get(Account, acc_b.id).balance == Decimal("0.00")
+    assert db.session.get(Account, acc_c.id).balance == Decimal("0.00")
+
+
+def test_zmiana_na_zwyklego_kontrahenta_usuwa_lustro(transfer):
+    """Przelew przestaje być przelewem → druga noga znika, saldo konta docelowego wraca."""
+    token, acc_a, acc_b, src, _ = transfer
+    zakupy = Category(name="Zakupy", type="expense")
+    sklep = Contractor(name="Sklep", user_token=token)
+    db.session.add_all([zakupy, sklep])
+    db.session.commit()
+
+    update_transaction(token, src.id, {'contractor_id': sklep.id, 'category': 'Zakupy'})
+
+    db.session.expire_all()
+    assert db.session.query(Transaction).filter_by(account_id=acc_b.id).count() == 0
+    assert db.session.get(Transaction, src.id).linked_transaction_id is None
+    assert db.session.get(Account, acc_a.id).balance == Decimal("700.00")
+    assert db.session.get(Account, acc_b.id).balance == Decimal("0.00")
+
+
+def test_realna_druga_noga_z_wyciagu_nie_jest_kasowana(app, test_user, konto_c):
+    """Druga noga pochodząca z wyciągu to prawdziwa operacja bankowa — edycja
+    kontrahenta wolno ją najwyżej odpiąć, nigdy usunąć. Zostaje wtedy jako wpływ
+    bez pary, do poprawienia przez użytkownika."""
+    token = test_user.token
+    acc_a = Account(name="Konto A", bank_name="Bank", balance=Decimal("1000.00"), user_token=token)
+    acc_b = Account(name="Konto B", bank_name="Bank", balance=Decimal("0.00"), user_token=token)
+    cat = Category(name="Przelew wewnętrzny", type="transfer")
+    db.session.add_all([acc_a, acc_b, cat])
+    db.session.commit()
+    cont_b = Contractor(name="Moje konto: Konto B", user_token=token,
+                        default_category_id=cat.id, linked_account_id=acc_b.id)
+    cont_a = Contractor(name="Moje konto: Konto A", user_token=token,
+                        default_category_id=cat.id, linked_account_id=acc_a.id)
+    db.session.add_all([cont_b, cont_a])
+    db.session.commit()
+    for acc_id, nazwa in ((acc_a.id, "a.csv"), (acc_b.id, "b.csv")):
+        record_statement_import(
+            user_token=token, filename=nazwa, bank="ing", file_format="csv",
+            account_id=acc_id, period_start=date(2024, 5, 1), period_end=date(2024, 5, 31),
+            transaction_count=1, skipped_count=0, batch_id=f"batch-{nazwa}",
+        )
+
+    src = create_transaction(token, acc_a.id, Decimal("-300.00"), "Przelew A->B", date(2024, 5, 1),
+                             category_id=cat.id, contractor_id=cont_b.id,
+                             preserve_sign=True, origin='import')
+    realna = create_transaction(token, acc_b.id, Decimal("300.00"), "Przelew A->B", date(2024, 5, 1),
+                                category_id=cat.id, contractor_id=cont_a.id,
+                                preserve_sign=True, origin='import')
+    assert src.linked_transaction_id == realna.id
+    realna_id = realna.id
+    acc_c, cont_c = konto_c
+
+    update_transaction(token, src.id, {'contractor_id': cont_c.id})
+
+    db.session.expire_all()
+    zachowana = db.session.get(Transaction, realna_id)
+    assert zachowana is not None, "realna transakcja z wyciągu nie może zostać skasowana"
+    assert zachowana.amount == Decimal("300.00")
+    assert zachowana.linked_transaction_id is None
+    assert db.session.get(Account, acc_b.id).balance == Decimal("300.00")

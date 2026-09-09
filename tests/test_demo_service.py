@@ -9,11 +9,15 @@ from datetime import date
 from decimal import Decimal
 
 from app import db
-from app.models import Account, Category, Contractor, RecurringTransaction, Transaction, User
+from app.models import (
+    Account, Category, Contractor, RecurringTransaction, StatementImport, Transaction,
+    TransactionStaging, User,
+)
 from app.services.budget_service import parse_ing_csv
 from app.services.demo_service import (
     DEMO_ACCOUNTS,
     DEMO_CONTRACTORS,
+    DEMO_STAGING_TRANSFERS,
     DEMO_TRANSFER_TARGETS,
     SAMPLE_STATEMENT_ROWS,
     build_sample_statement_csv,
@@ -177,3 +181,39 @@ def test_wipe_nie_rusza_danych_innego_uzytkownika(app, test_user, other_user):
     nietkniete = db.session.query(Account).filter_by(user_token=other_user.token).first()
     assert Decimal(czyszczone.balance) == Decimal('0.00')
     assert Decimal(nietkniete.balance) == Decimal('100.00')
+
+
+def test_poczekalnia_demo_pokazuje_stan_drugiej_nogi(app, client):
+    """Poczekalnia demo zawiera parę nóg przelewu i jedną nogę bez pary.
+
+    To jedyne miejsce, w którym zwiedzający widzi oznaczenie drugiej strony przelewu,
+    więc muszą wyjść oba stany — inaczej plakietka niczego nie uczy. Nogi bez pary
+    pilnuje też wpis w historii importów: bez niego konto docelowe dostałoby lustro
+    i ostrzeżenie byłoby fałszywym alarmem.
+    """
+    seed_demo('demo', 'demo-do-ogladania')
+    token = _demo_user().token
+
+    wiersze = db.session.query(TransactionStaging).filter_by(user_token=token, status='pending').all()
+    assert len(wiersze) == len(DEMO_STAGING_TRANSFERS)
+    assert db.session.query(StatementImport).filter_by(user_token=token).count() == 1
+
+    client.post('/api/login', json={'username': 'demo', 'password': 'demo-do-ogladania'})
+    stany = sorted(r['transfer_pair'] for r in client.get('/api/staging/pending').get_json())
+    assert stany == ['missing', 'staging', 'staging']
+
+
+def test_poczekalnia_demo_nie_psuje_lustra_w_historii(app):
+    """Wpis historii importu powstaje PO wygenerowaniu historii.
+
+    Odwrotna kolejność wyłączyłaby lustra dla comiesięcznych przelewów (konto z
+    własnymi wyciągami czeka na realną drugą nogę) i konto oszczędnościowe zostałoby
+    bez wpływów. Test pilnuje skutku, nie kolejności wywołań.
+    """
+    seed_demo('demo', 'demo-do-ogladania')
+    token = _demo_user().token
+    oszczednosciowe = db.session.query(Account).filter_by(user_token=token,
+                                                          name='Konto oszczędnościowe').one()
+    lustra = db.session.query(Transaction).filter_by(user_token=token, origin='mirror',
+                                                     account_id=oszczednosciowe.id).count()
+    assert lustra > 0, "Brak lustrzanych wpływów na koncie oszczędnościowym"

@@ -75,6 +75,18 @@ const ORIGIN_LABELS = {
     unknown: 'pochodzenie nieznane',
 };
 
+// Plakietka stanu drugiej nogi przelewu (pole transfer_pair z /api/staging/pending):
+// [klasy, napis, podpowiedź]. Stanu 'mirror' celowo nie ma — lustro dopełni parę samo,
+// więc nie ma o czym informować.
+const TRANSFER_PAIR_BADGES = {
+    staging: ['bg-sky-100 text-sky-700', 'Obie strony',
+              'Druga noga tego przelewu też czeka w poczekalni — zatwierdzenie zepnie je w parę'],
+    booked:  ['bg-sky-100 text-sky-700', 'Obie strony',
+              'Druga noga jest już zatwierdzona — zatwierdzenie zepnie je w parę'],
+    missing: ['bg-rose-100 text-rose-700', 'Brak drugiej strony',
+              'Konto po drugiej stronie dostaje własne wyciągi, więc lustro nie powstanie. Dopóki jego noga nie zostanie zaimportowana, saldo tamtego konta się nie zmieni.'],
+};
+
 window.setStagingFilter = function(filter) {
     stagingFilter = filter;
     renderStaging();
@@ -226,6 +238,13 @@ function renderStaging() {
             badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 uppercase tracking-wider" title="Znaleziono częściowe dopasowanie">Częściowo</span>`;
         }
 
+        // Stan drugiej nogi liczy serwer z ZAPISANEJ kategorii, więc plakietkę pokazujemy
+        // tylko dopóki wybór w tej sesji nadal wskazuje na przelew.
+        if (isTransfer && TRANSFER_PAIR_BADGES[t.transfer_pair]) {
+            const [pairClass, pairLabel, pairTitle] = TRANSFER_PAIR_BADGES[t.transfer_pair];
+            badgeHtml += `<span class="px-2 py-0.5 rounded text-[10px] font-bold ${pairClass} uppercase tracking-wider" title="${pairTitle}">${pairLabel}</span>`;
+        }
+
         if (hasDuplicate) {
             rowBg = 'bg-orange-50/50 hover:bg-orange-100/50';
             badgeHtml += `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700 uppercase tracking-wider" title="Znaleziono ${t.duplicate_candidates.length} transakcji o tej samej kwocie na tym koncie w oknie ±4 dni">Możliwy duplikat</span>`;
@@ -256,9 +275,9 @@ function renderStaging() {
                 </div>
                 ${t.contractor ? `<div class="text-xs text-slate-500 font-normal mt-0.5 break-all">${escapeHtml(t.contractor)}</div>` : ''}
                 ${t.transfer_from ? `<div class="flex items-center gap-1 mt-1 text-xs text-sky-700 font-medium">
-                    <span>Z: ${escapeHtml(t.transfer_from.name)}${t.transfer_from.abbrev ? ` <span class="text-sky-500 font-normal">(${escapeHtml(t.transfer_from.abbrev)})</span>` : ''}</span>
+                    <span class="${t.transfer_own === 'from' ? 'font-bold underline decoration-sky-300' : ''}" ${t.transfer_own === 'from' ? 'title="Konto tego wiersza"' : ''}>Z: ${escapeHtml(t.transfer_from.name)}${t.transfer_from.abbrev ? ` <span class="text-sky-500 font-normal">(${escapeHtml(t.transfer_from.abbrev)})</span>` : ''}</span>
                     <span class="text-sky-400">→</span>
-                    <span>Na: ${escapeHtml(t.transfer_to.name)}${t.transfer_to.abbrev ? ` <span class="text-sky-500 font-normal">(${escapeHtml(t.transfer_to.abbrev)})</span>` : ''}</span>
+                    <span class="${t.transfer_own === 'to' ? 'font-bold underline decoration-sky-300' : ''}" ${t.transfer_own === 'to' ? 'title="Konto tego wiersza"' : ''}>Na: ${escapeHtml(t.transfer_to.name)}${t.transfer_to.abbrev ? ` <span class="text-sky-500 font-normal">(${escapeHtml(t.transfer_to.abbrev)})</span>` : ''}</span>
                 </div>` : ''}
                 ${dupHtml}
             </td>

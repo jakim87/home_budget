@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal
 
 from app import db
-from app.models import Account, Category, Contractor, Transaction, TransactionStaging
+from app.models import Account, Category, Contractor, StatementImport, Transaction, TransactionStaging
 from app.services.budget_service import save_transactions_to_staging
 
 
@@ -373,3 +373,112 @@ def test_staging_preview_resolves_destination_account(logged_in_client, app, tes
     assert row['transfer_from']['abbrev'] == "PL....2874"
     assert row['transfer_to']['name'] == "Cel: Wakacje"
     assert row['transfer_to']['abbrev'] == "PL....5387"
+
+
+# --- Kierunek strzałki i stan drugiej nogi przelewu w poczekalni ---
+
+@pytest.fixture
+def dwa_konta(app, test_user):
+    """Dwa konta użytkownika, kategoria transferu i kontrahenci wskazujący na siebie."""
+    a = Account(name="Konto A", bank_name="ING", account_number="PL61109010140000071219812874",
+                balance=Decimal("1000.00"), user_token=test_user.token)
+    b = Account(name="Konto B", bank_name="ING", account_number="PL27114020040000300201355387",
+                balance=Decimal("0.00"), user_token=test_user.token)
+    cat = Category(name="Przelew wewnętrzny", type="transfer", user_token=test_user.token)
+    db.session.add_all([a, b, cat])
+    db.session.commit()
+    cont_a = Contractor(name="Moje konto: Konto A", user_token=test_user.token,
+                        linked_account_id=a.id, default_category_id=cat.id)
+    cont_b = Contractor(name="Moje konto: Konto B", user_token=test_user.token,
+                        linked_account_id=b.id, default_category_id=cat.id)
+    db.session.add_all([cont_a, cont_b])
+    db.session.commit()
+    return {'a': a, 'b': b, 'cat': cat, 'cont_a': cont_a, 'cont_b': cont_b}
+
+
+def _stg(user_token, account, amount, cont, cat, when=date(2026, 8, 10)):
+    row = TransactionStaging(date=when, amount=Decimal(amount), title="Przelew", status="pending",
+                             user_token=user_token, account_id=account.id,
+                             proposed_category_id=cat.id, proposed_contractor_id=cont.id)
+    db.session.add(row)
+    db.session.commit()
+    return row
+
+
+def _wyciagi(user_token, account):
+    db.session.add(StatementImport(user_token=user_token, batch_id='b1', filename='w.csv',
+                                   bank='ing', file_format='csv', account_id=account.id))
+    db.session.commit()
+
+
+def _poczekalnia(client):
+    resp = client.get('/api/staging/pending')
+    assert resp.status_code == 200
+    return {r['id']: r for r in resp.get_json()}
+
+
+def test_staging_preview_kierunek_wg_znaku_kwoty(logged_in_client, test_user, dwa_konta):
+    """Obie nogi tej samej operacji pokazują IDENTYCZNĄ strzałkę.
+
+    Wyciąg wielokontowy zawiera przelew dwa razy — raz z każdej strony. Kierunek nie
+    może pochodzić z tego, czyj to wiersz (wtedy noga wpływu czyta się jako przelew
+    powrotny); jedynym źródłem prawdy jest znak kwoty z banku.
+    """
+    k = dwa_konta
+    wplyw = _stg(test_user.token, k['b'], "200.00", k['cont_a'], k['cat'])
+    wyplyw = _stg(test_user.token, k['a'], "-200.00", k['cont_b'], k['cat'])
+
+    wiersze = _poczekalnia(logged_in_client)
+    for stg in (wplyw, wyplyw):
+        assert wiersze[stg.id]['transfer_from']['name'] == "Konto A"
+        assert wiersze[stg.id]['transfer_to']['name'] == "Konto B"
+    # Która strona strzałki jest kontem tego wiersza — po tym front ją pogrubia.
+    assert wiersze[wplyw.id]['transfer_own'] == 'to'
+    assert wiersze[wyplyw.id]['transfer_own'] == 'from'
+
+
+def test_staging_preview_parowanie_nog_jeden_do_jednego(logged_in_client, test_user, dwa_konta):
+    """Para nóg dostaje 'staging', noga nadmiarowa 'missing' — sparowana noga jest zużyta.
+
+    Bez zużywania trzy wpływy przy jednym wypływie pokazałyby trzy razy „obie strony",
+    a dwa z nich nie miałyby czym się domknąć.
+    """
+    k = dwa_konta
+    _wyciagi(test_user.token, k['a'])  # konto A ma wyciągi → lustro nie powstanie
+    wyplyw = _stg(test_user.token, k['a'], "-500.00", k['cont_b'], k['cat'])
+    _stg(test_user.token, k['b'], "500.00", k['cont_a'], k['cat'])
+    _stg(test_user.token, k['b'], "500.00", k['cont_a'], k['cat'])
+
+    stany = {r['id']: r['transfer_pair'] for r in _poczekalnia(logged_in_client).values()}
+    assert stany[wyplyw.id] == 'staging'
+    # Który z dwóch bliźniaczych wpływów sparuje się, jest nieistotne — liczy się, że jeden.
+    assert sorted(stany.values()) == ['missing', 'staging', 'staging']
+
+
+def test_staging_preview_druga_noga_juz_zatwierdzona(logged_in_client, test_user, dwa_konta):
+    """Druga noga jako zatwierdzona, niepowiązana transakcja → 'booked', nie ostrzeżenie.
+
+    Zatwierdzanie pary wiersz po wierszu jest normalną ścieżką: po pierwszym kliknięciu
+    partner drugiego wiersza nie jest już w poczekalni. Bez tej gałęzi każde takie
+    zatwierdzenie zapalałoby ostrzeżenie o brakującej nodze.
+    """
+    k = dwa_konta
+    _wyciagi(test_user.token, k['a'])
+    db.session.add(Transaction(user_token=test_user.token, account_id=k['a'].id,
+                               amount=Decimal("-500.00"), title="Przelew", date=date(2026, 8, 10),
+                               category_id=k['cat'].id, contractor_id=k['cont_b'].id, origin='import'))
+    db.session.commit()
+
+    wplyw = _stg(test_user.token, k['b'], "500.00", k['cont_a'], k['cat'])
+    assert _poczekalnia(logged_in_client)[wplyw.id]['transfer_pair'] == 'booked'
+
+
+def test_staging_preview_lustro_gdy_konto_docelowe_bez_wyciagow(logged_in_client, test_user, dwa_konta):
+    """Konto docelowe bez własnych wyciągów → 'mirror'.
+
+    Brak drugiej nogi jest tu w porządku: zatwierdzenie samo dołoży lustro, więc
+    ostrzeżenie byłoby fałszywym alarmem (cel oszczędnościowy nie dostaje wyciągów).
+    """
+    k = dwa_konta
+    wyplyw = _stg(test_user.token, k['a'], "-500.00", k['cont_b'], k['cat'])
+    assert _poczekalnia(logged_in_client)[wyplyw.id]['transfer_pair'] == 'mirror'

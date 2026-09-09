@@ -10,6 +10,7 @@ uruchomienia — dzięki temu historia nigdy się nie zestarzeje.
 """
 import logging
 import random
+import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -17,9 +18,13 @@ from sqlalchemy import text
 from werkzeug.security import generate_password_hash
 
 from app import db
-from app.models import Account, Category, Contractor, Frequency, RecurringTransaction, Transaction, User
+from app.models import (
+    Account, Category, Contractor, Frequency, RecurringTransaction, Transaction,
+    TransactionStaging, User,
+)
 from app.services.budget_service import create_transaction
 from app.services.category_service import create_starter_categories
+from app.services.import_history_service import record_statement_import
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +82,18 @@ DEMO_CONTRACTORS = [
 # "Moje konto: {nazwa}" — po tej nazwie plus kategorii typu 'transfer' aplikacja
 # rozpoznaje przelew i sama dokłada drugą nogę.
 DEMO_TRANSFER_TARGETS = ('Konto oszczędnościowe', 'Gotówka', 'Karta kredytowa')
+
+# Poczekalnia importu w demo: nogi przelewów wewnętrznych, na których widać, jak
+# aplikacja oznacza drugą stronę operacji („Obie strony" / „Brak drugiej strony").
+# Kwoty są nietypowe celowo — trafienie w kwotę z wygenerowanej historii zapaliłoby
+# na wierszu jeszcze ostrzeżenie o możliwym duplikacie i zaciemniło pokaz.
+DEMO_STAGING_TRANSFERS = [
+    # (konto wiersza, konto po drugiej stronie, kwota, tytuł, ile dni temu)
+    ('Konto osobiste', 'Konto oszczędnościowe', '-1120.00', 'Odkładam na wakacje', 3),
+    ('Konto oszczędnościowe', 'Konto osobiste', '1120.00', 'Odkładam na wakacje', 3),
+    # Noga bez pary — wypływ z konta osobistego nie wszedł do tego wyciągu.
+    ('Konto oszczędnościowe', 'Konto osobiste', '250.00', 'Dopłata do celu', 2),
+]
 
 
 def wipe_user_data(user_token: str, commit: bool = True) -> None:
@@ -200,6 +217,7 @@ def seed_demo(username: str, password: str) -> dict:
         db.session.flush()
 
         _generate_history(utok, accounts, cats, contractors)
+        _seed_import_waiting_room(utok, accounts, cats)
 
         # Jeden harmonogram, żeby zakładka „Cykliczne" nie była pusta.
         netflix = contractors['Netflix']
@@ -411,3 +429,44 @@ def _generate_history(utok, accounts, cats, contractors) -> None:
     ):
         add(ror, amount, title, month_start.replace(day=rng.randint(2, 27)),
             contractor_name, category)
+
+
+def _seed_import_waiting_room(utok, accounts, cats) -> None:
+    """Wypełnia poczekalnię importu nogami przelewów wewnętrznych.
+
+    Wołane PO _generate_history i nie jest to kolejność kosmetyczna: wpis w historii
+    importów jest dla aplikacji sygnałem, że konto dostaje własne wyciągi, a wtedy
+    create_transaction przestaje dokładać lustro. Gdyby ten wpis istniał wcześniej,
+    comiesięczne przelewy z historii nie dostałyby drugiej nogi i salda kont
+    rozjechałyby się z wykresem majątku.
+
+    Historię importu zapisujemy TYLKO dla konta osobistego — tyle wystarcza, żeby
+    noga bez pary dostała ostrzeżenie, a przelewy dodawane przez zwiedzającego na
+    konto oszczędnościowe nadal dostają lustro (inaczej ich druga strona nigdy by
+    się nie pojawiła, bo w demo nikt nie zaimportuje tamtego wyciągu).
+    """
+    today = date.today()
+    transfer_cat = cats['Przelew wewnętrzny']
+    # "Moje konto: Konto osobiste" zakłada sama aplikacja przy pierwszym przelewie
+    # z historii, więc kontrahentów czytamy z bazy, nie ze słownika z seed_demo.
+    by_name = {c.name: c for c in db.session.query(Contractor).filter_by(user_token=utok).all()}
+
+    daty = []
+    for konto, druga_strona, kwota, tytul, ile_dni in DEMO_STAGING_TRANSFERS:
+        when = today - timedelta(days=ile_dni)
+        daty.append(when)
+        db.session.add(TransactionStaging(
+            date=when, amount=Decimal(kwota), title=tytul, status='pending',
+            user_token=utok, account_id=accounts[konto].id,
+            contractor='Przelew własny',
+            proposed_category_id=transfer_cat.id,
+            proposed_contractor_id=by_name[f'Moje konto: {druga_strona}'].id,
+        ))
+
+    ror = accounts['Konto osobiste']
+    record_statement_import(
+        user_token=utok, filename='wyciag_konto_osobiste.csv', bank='ing', file_format='csv',
+        account_id=ror.id, period_start=min(daty), period_end=max(daty),
+        transaction_count=sum(1 for w in DEMO_STAGING_TRANSFERS if w[0] == ror.name),
+        skipped_count=0, batch_id=uuid.uuid4().hex, commit=False,
+    )

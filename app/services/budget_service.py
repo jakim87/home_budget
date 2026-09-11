@@ -1073,11 +1073,99 @@ def dismiss_staging_as_duplicate(user_token: str, stg_id: int, transaction_id: i
         raise
 
 
+# Stan drugiej nogi przelewu wewnętrznego w podglądzie poczekalni. Wartości
+# odpowiadają gałęziom decyzyjnym handle_internal_transfer, bo podgląd nie może
+# obiecywać czego innego, niż zrobi zatwierdzenie:
+#   'staging' — druga noga też czeka w poczekalni,
+#   'booked'  — druga noga jest już zatwierdzoną, niepowiązaną transakcją,
+#   'mirror'  — konto docelowe nie dostaje wyciągów, więc lustro dopełni parę samo,
+#   'missing' — konto docelowe dostaje wyciągi, a nogi nie ma: saldo tamtego konta
+#               nie drgnie, dopóki druga noga nie zostanie zaimportowana.
+def _pair_staging_transfer_legs(
+    user_token: str,
+    legs: list[tuple[TransactionStaging, Account]],
+    accounts: list[Account],
+) -> list[str]:
+    """Ustala dla każdej nogi przelewu, skąd weźmie się jej druga strona.
+
+    legs: pary (wiersz poczekalni, konto po drugiej stronie) w kolejności wyświetlania.
+
+    Parowanie jest 1:1 — sparowana noga zostaje zużyta. Bez tego trzy identyczne
+    wpływy przy jednym wypływie pokazałyby trzy razy „obie strony", a dwa z nich
+    nie miałyby czym się domknąć.
+
+    ponytail: porównanie każdej nogi z każdą (O(n^2)) po nogach przelewu z jednej
+    poczekalni — przy tysiącach nóg zamienić na indeks po (konto, kwota).
+    """
+    window = timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
+    stany: list[Optional[str]] = [None] * len(legs)
+
+    def pasuje(tx, dest, konto_id, dest_id, kwota, kiedy) -> bool:
+        """Czy (konto_id, dest_id, kwota, kiedy) to druga noga wiersza tx — krzyżowo."""
+        return (konto_id == dest.id and dest_id == tx.account_id
+                and kwota == -tx.amount and abs(kiedy - tx.date) <= window)
+
+    # 1. Druga noga czeka w tej samej poczekalni.
+    for i, (tx, dest) in enumerate(legs):
+        if stany[i]:
+            continue
+        for j in range(i + 1, len(legs)):
+            tx_j, dest_j = legs[j]
+            if stany[j] is None and pasuje(tx, dest, tx_j.account_id, dest_j.id, tx_j.amount, tx_j.date):
+                stany[i] = stany[j] = 'staging'
+                break
+
+    # 2. Druga noga jest już zatwierdzoną transakcją czekającą na powiązanie —
+    #    normalna sytuacja przy zatwierdzaniu pary wiersz po wierszu. Zapytanie
+    #    zawężone tak samo jak w handle_internal_transfer: transakcja niepowiązana,
+    #    z kontrahentem "Moje konto: ...".
+    wolne = [i for i, stan in enumerate(stany) if stan is None]
+    if wolne:
+        kandydaci = (
+            db.session.query(Transaction, Contractor)
+            .join(Contractor, Transaction.contractor_id == Contractor.id)
+            .filter(
+                Transaction.user_token == user_token,
+                Transaction.linked_transaction_id.is_(None),
+                Contractor.name.like("Moje konto: %"),
+                Transaction.date >= min(legs[i][0].date for i in wolne) - window,
+                Transaction.date <= max(legs[i][0].date for i in wolne) + window,
+            )
+            .all()
+        )
+        zuzyte: set[int] = set()
+        for i in wolne:
+            tx, dest = legs[i]
+            for booked, cont in kandydaci:
+                if booked.id in zuzyte:
+                    continue
+                booked_dest = _resolve_destination_account(user_token, cont, accounts=accounts)
+                if booked_dest and pasuje(tx, dest, booked.account_id, booked_dest.id,
+                                          booked.amount, booked.date):
+                    stany[i] = 'booked'
+                    zuzyte.add(booked.id)
+                    break
+
+    # 3. Nogi nie ma. Lustro dopełni parę tylko wtedy, gdy konto docelowe nie dostaje
+    #    własnych wyciągów; jeśli dostaje — nogi faktycznie brakuje.
+    pokrycie: dict[int, bool] = {}
+    for i, (tx, dest) in enumerate(legs):
+        if stany[i]:
+            continue
+        if dest.id not in pokrycie:
+            pokrycie[dest.id] = account_has_statement_imports(user_token, dest.id)
+        stany[i] = 'missing' if pokrycie[dest.id] else 'mirror'
+
+    return stany
+
+
 def list_pending_staging(user_token: str) -> list[dict]:
     """Rekordy stagingu czekające na zatwierdzenie, gotowe do wyświetlenia.
 
-    Dla przelewów wewnętrznych dokłada opis obu stron (skąd -> dokąd). Konto docelowe
-    wyznacza _resolve_destination_account, czyli DOKŁADNIE ta sama reguła, według której
+    Dla przelewów wewnętrznych dokłada opis obu stron (skąd -> dokąd), informację,
+    która z nich jest kontem tego wiersza (transfer_own), oraz stan drugiej nogi
+    (transfer_pair, patrz _pair_staging_transfer_legs). Konto docelowe wyznacza
+    _resolve_destination_account, czyli DOKŁADNIE ta sama reguła, według której
     przelew zostanie później zaksięgowany — podgląd nie może pokazywać czego innego niż
     zatwierdzenie zrobi.
     """
@@ -1094,6 +1182,10 @@ def list_pending_staging(user_token: str) -> list[dict]:
     duplicates = _duplicate_candidates(user_token, [tx for tx, _, _ in rows])
 
     data = []
+    # Nogi przelewów w kolejności wyświetlania — stan pary ustalamy dla całej listy
+    # naraz, po zbudowaniu wierszy (parowanie potrzebuje ich wszystkich).
+    legs: list[tuple[TransactionStaging, Account]] = []
+    leg_items: list[dict] = []
     for tx, cat, cont in rows:
         item = {
             'id': tx.id,
@@ -1111,18 +1203,29 @@ def list_pending_staging(user_token: str) -> list[dict]:
         }
 
         if cat and cat.type == 'transfer' and cont and cont.name.startswith("Moje konto: "):
-            src_acc = accounts_by_id.get(tx.account_id)
-            dest_acc = _resolve_destination_account(user_token, cont, accounts=active_accounts)
-            item['transfer_from'] = {
-                'name': src_acc.name if src_acc else '?',
-                'abbrev': _abbrev_account(src_acc.account_number if src_acc else None),
-            }
-            item['transfer_to'] = {
-                'name': dest_acc.name if dest_acc else cont.name[len("Moje konto: "):],
-                'abbrev': _abbrev_account(dest_acc.account_number if dest_acc else None),
-            }
+            own_acc = accounts_by_id.get(tx.account_id)
+            other_acc = _resolve_destination_account(user_token, cont, accounts=active_accounts)
+            wlasne = (own_acc.name if own_acc else '?',
+                      own_acc.account_number if own_acc else None)
+            obce = (other_acc.name if other_acc else cont.name[len("Moje konto: "):],
+                    other_acc.account_number if other_acc else None)
+            # Kierunek bierzemy ze ZNAKU KWOTY, nie z tego, czyj to wiersz: wyciąg
+            # wielokontowy zawiera obie nogi przelewu, a dla nogi wpływu pieniądze
+            # płyną od kontrahenta DO konta tego wiersza. Bez tego obie nogi tej samej
+            # operacji pokazywały sprzeczne strzałki i noga wpływu czytała się jak
+            # przelew powrotny.
+            zrodlo, cel = (obce, wlasne) if tx.amount > 0 else (wlasne, obce)
+            item['transfer_from'] = {'name': zrodlo[0], 'abbrev': _abbrev_account(zrodlo[1])}
+            item['transfer_to'] = {'name': cel[0], 'abbrev': _abbrev_account(cel[1])}
+            item['transfer_own'] = 'to' if tx.amount > 0 else 'from'
+            if own_acc and other_acc:
+                legs.append((tx, other_acc))
+                leg_items.append(item)
 
         data.append(item)
+
+    for item, stan in zip(leg_items, _pair_staging_transfer_legs(user_token, legs, active_accounts)):
+        item['transfer_pair'] = stan
 
     return data
 

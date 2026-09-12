@@ -171,9 +171,9 @@ function buildSummaryRow(catName, amount, percentage, colorPrefix) {
 
     return `
         <tr class="hover:bg-slate-50">
-            <td class="p-4 border-b border-slate-100 font-medium text-slate-700">${escapeHtml(catName)}</td>
-            <td class="p-4 border-b border-slate-100 font-bold text-right text-${colorPrefix}-600">${amount.toFixed(2)} PLN</td>
-            <td class="p-4 border-b border-slate-100">
+            <td data-label="Kategoria" class="p-4 border-b border-slate-100 font-medium text-slate-700">${escapeHtml(catName)}</td>
+            <td data-label="Kwota" class="p-4 border-b border-slate-100 font-bold text-right text-${colorPrefix}-600">${amount.toFixed(2)} PLN</td>
+            <td data-label="Udział" class="p-4 border-b border-slate-100">
                 ${percentageHtml}
             </td>
         </tr>

@@ -39,3 +39,97 @@ body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
 @keyframes fadeOut {
     to { opacity: 0; transform: translateY(-10px); }
 }
+/* ── tabele jako karty na telefonie ───────────────────────────────────────
+   Tabela z min-w-[1000px] na ekranie 375 px chowa kwotę za poziomym scrollem.
+   Ponizej sm kazdy <tr> staje sie karta, a komorki dostaja etykiete z
+   data-label. Jedna warstwa obsluguje historie operacji, poczekalnie i budzet
+   — dlatego etykiety siedza w JS przy komorkach, nie tutaj.
+   Warstwa Classical (ladowana pozniej) narzuca `table tbody td { padding: 9px
+   !important }`, wiec padding karty tez musi byc !important. */
+@media (max-width: 639px) {
+    .tabela-karty { min-width: 0 !important; }
+    .tabela-karty thead { display: none; }
+    .tabela-karty tbody,
+    .tabela-karty tr { display: block; width: 100%; }
+
+    .tabela-karty tbody tr {
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        margin-bottom: 0.625rem;
+        background: #fff;
+        overflow: hidden;
+    }
+    /* Naglowek dnia zostaje paskiem, nie karta — inaczej gubi role separatora. */
+    .tabela-karty tbody tr:has(> td[colspan]) {
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        margin: 0.75rem 0 0.375rem;
+    }
+
+    .tabela-karty td {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+        text-align: right !important;
+        padding: 0.375rem 0.75rem !important;
+        border-bottom: 0 !important;
+        min-width: 0 !important;
+    }
+    .tabela-karty td[colspan] { display: block; padding: 0 !important; }
+
+    .tabela-karty td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        text-align: left;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-weight: 600;
+        color: #94a3b8;
+        white-space: nowrap;
+    }
+    /* Pusta komorka (brak komentarza, brak salda) nie zasluguje na wiersz. */
+    .tabela-karty td:empty { display: none; }
+
+    /* Komorka z wieloma dziecmi (plakietki poczekalni, para selectow, pasek
+       postepu) ma wlasny uklad — flex rozrzucilby jej czesci po szerokosci
+       i polamal tekst na pionowe litery. Tam etykieta idzie nad wartoscia. */
+    .tabela-karty td:has(> * + *) {
+        display: block;
+        text-align: left !important;
+    }
+    .tabela-karty td:has(> * + *)::before {
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+
+    /* Szerokosci kolumn (w-1/3, w-28) opisuja uklad tabeli, nie karty.
+       Pola formularzy — plan budzetu, edycja wiersza, przypisanie w
+       poczekalni — biora cala szerokosc karty; checkbox zostaje maly. */
+    .tabela-karty td { width: auto !important; max-width: none !important; }
+    .tabela-karty td input:not([type="checkbox"]):not([type="radio"]),
+    .tabela-karty td select {
+        width: 100%;
+        max-width: none;
+    }
+
+    /* Kwota to powod, dla ktorego ktos otwiera te tabele w telefonie. */
+    .tabela-karty td[data-label="Kwota"] {
+        font-size: 1.125rem;
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+        background: #f8fafc;
+    }
+    .tabela-karty td[data-label="Akcje"] { padding-bottom: 0.625rem !important; }
+    /* Checkbox nie potrzebuje podpisu, a dzien miesiaca stoi juz w naglowku dnia. */
+    .tabela-karty td[data-label="Zaznacz"] { justify-content: flex-start; padding: 0.5rem 0.75rem 0 !important; }
+    .tabela-karty td[data-label="Zaznacz"]::before { display: none; }
+    #transaction-list td[data-label="Data"] { display: none; }
+    /* Komorka bez wartosci ("—") zajmowalaby caly wiersz karty. */
+    .tabela-karty td:has(> .komorka-pusta:only-child) { display: none; }
+
+    /* Naglowek dnia: data i suma nie mieszcza sie w jednej linii na 375 px. */
+    .tabela-karty td[colspan] > span { flex-wrap: wrap; row-gap: 0.125rem; }
+}

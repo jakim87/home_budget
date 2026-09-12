@@ -316,11 +316,11 @@ function renderTransactions() {
             const balanceCellHtml = !showBalance ? '' : (() => {
                 const g = balanceMap.get(t.id);
                 // Projekcje cykliczne nie są jeszcze pieniędzmi — nie mają salda.
-                if (g === undefined) return `<td class="p-4 border-b border-slate-100 text-right text-slate-300">—</td>`;
-                return `<td class="p-4 border-b border-slate-100 text-right text-sm text-slate-600 tabular-nums whitespace-nowrap">${(g / 100).toFixed(2)}</td>`;
+                if (g === undefined) return `<td data-label="Saldo po" class="p-4 border-b border-slate-100 text-right text-slate-300"><span class="komorka-pusta">—</span></td>`;
+                return `<td data-label="Saldo po" class="p-4 border-b border-slate-100 text-right text-sm text-slate-600 tabular-nums whitespace-nowrap">${(g / 100).toFixed(2)}</td>`;
             })();
             const accountCellHtml = showAccountColumn
-                ? `<td class="p-4 border-b border-slate-100 text-sm text-slate-600 break-words whitespace-normal">${escapeHtml(accountLabelById(t.account_id))}</td>`
+                ? `<td data-label="Konto" class="p-4 border-b border-slate-100 text-sm text-slate-600 break-words whitespace-normal">${escapeHtml(accountLabelById(t.account_id))}</td>`
                 : '';
 
             if (inlineEditingTxId === t.id && !t.isVirtual) {
@@ -395,7 +395,7 @@ function renderTransactions() {
                 
                 const commentHtml = (() => {
                     const c = t.comment || '';
-                    if (!c) return `<span class="text-slate-300 text-xs">—</span>`;
+                    if (!c) return `<span class="komorka-pusta text-slate-300 text-xs">—</span>`;
                     const maxLen = 40;
                     if (c.length <= maxLen) return `<span class="text-slate-600 text-xs">${escapeHtml(c)}</span>`;
                     const uid = `cmt-${t.id}`;
@@ -406,30 +406,30 @@ function renderTransactions() {
                 row.className = `transition-colors group hover:bg-slate-50 ${isVirtual ? 'bg-indigo-50/30' : ''}`;
                 const selectCellHtml = isVirtual
                     ? '<td class="p-4 border-b border-slate-100"></td>'
-                    : `<td class="p-4 border-b border-slate-100">
+                    : `<td data-label="Zaznacz" class="p-4 border-b border-slate-100">
                         <input type="checkbox" class="tx-select-check w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                value="${t.id}" onchange="toggleTxSelection(${t.id})">
                        </td>`;
 
                 row.innerHTML = `
                     ${selectCellHtml}
-                    <td class="p-4 border-b border-slate-100 text-sm text-slate-400 whitespace-nowrap tabular-nums" title="${t.date}">${Number(t.date.slice(8))}</td>
+                    <td data-label="Data" class="p-4 border-b border-slate-100 text-sm text-slate-400 whitespace-nowrap tabular-nums" title="${t.date}">${Number(t.date.slice(8))}</td>
                     ${accountCellHtml}
-                    <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
+                    <td data-label="Kontrahent" class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${iconHtml}${escapeHtml(t.contractor_name || t.contractor || '-')}
                     </td>
-                    <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
+                    <td data-label="Kategoria" class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${isSplit ?
                             `<span role="button" tabindex="0" onclick="openSplitModal(${t.id})" onkeydown="openSplitModal(${t.id}, event)" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100 cursor-pointer font-medium text-xs border border-indigo-100" title="Edytuj podział"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Sprawdź szczegóły</span>`
                             :
                             escapeHtml(t.category)
                         }
                     </td>
-                    <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${escapeHtml(t.desc)}${t.transfer_unmatched ? ` <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider align-middle" title="Przelew wewnętrzny bez drugiej strony — powiąże się automatycznie po zaimportowaniu wyciągu drugiego konta">Do zmapowania</span>` : ''}</td>
-                    <td class="p-4 border-b border-slate-100 text-sm">${commentHtml}</td>
-                    <td class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
+                    <td data-label="Opis" class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${escapeHtml(t.desc)}${t.transfer_unmatched ? ` <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider align-middle" title="Przelew wewnętrzny bez drugiej strony — powiąże się automatycznie po zaimportowaniu wyciągu drugiego konta">Do zmapowania</span>` : ''}</td>
+                    <td data-label="Komentarz" class="p-4 border-b border-slate-100 text-sm">${commentHtml}</td>
+                    <td data-label="Kwota" class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
                     ${balanceCellHtml}
-                    <td class="p-4 border-b border-slate-100 text-center">
+                    <td data-label="Akcje" class="p-4 border-b border-slate-100 text-center">
                         ${isVirtual ? `
                             <span class="text-xs font-semibold text-indigo-500 bg-indigo-100 px-2 py-1 rounded-md inline-block">Zaplanowana</span>
                         ` : `

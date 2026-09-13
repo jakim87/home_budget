@@ -206,6 +206,10 @@ function balanceAfterByTxId(accountId) {
 
 const WEEKDAYS = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
 const collapsedDays = new Set();
+// Na telefonie pierwsze otwarcie zakładki zwija wszystkie dni oprócz dzisiejszego —
+// lista karta-na-dzień jest zbyt dluga, zeby przegladac ja calą od razu. Dzieje się to
+// raz na wczytanie strony (flaga), pozniej stan zwiniecia jest juz w rekach uzytkownika.
+let domyslneZwiniecieWykonane = false;
 
 // Zwijanie dnia operuje na klasach już wyrenderowanych wierszy — bez przerysowywania
 // całej tabeli. Stan przeżywa render, bo wiersze pytają o niego przy tworzeniu.
@@ -302,6 +306,15 @@ function renderTransactions() {
         // Nagłówek dnia przed pierwszą operacją każdej daty. `filtered` jest już
         // posortowane malejąco po dacie, więc wystarczy pilnować zmiany wartości.
         const byDay = filtered.reduce((acc, t) => ((acc[t.date] ||= []).push(t), acc), {});
+
+        if (!domyslneZwiniecieWykonane) {
+            domyslneZwiniecieWykonane = true;
+            if (window.matchMedia('(max-width: 639px)').matches) {
+                const dzisiaj = toLocalISODate(new Date());
+                Object.keys(byDay).forEach(day => { if (day !== dzisiaj) collapsedDays.add(day); });
+            }
+        }
+
         let lastDay = null;
 
         filtered.forEach(t => {
@@ -312,7 +325,6 @@ function renderTransactions() {
             const isSplit = t.splits && t.splits.length > 0;
             const row = document.createElement('tr');
             row.dataset.day = t.date;
-            if (collapsedDays.has(t.date)) row.classList.add('hidden');
             const balanceCellHtml = !showBalance ? '' : (() => {
                 const g = balanceMap.get(t.id);
                 // Projekcje cykliczne nie są jeszcze pieniędzmi — nie mają salda.
@@ -448,6 +460,9 @@ function renderTransactions() {
                     </td>
                 `;
             }
+            // Musi byc PO ustawieniu row.className wyzej (obie galezie je nadpisuja
+            // calym stringiem) — classList.add przed tym momentem zostalby skasowany.
+            if (collapsedDays.has(t.date)) row.classList.add('hidden');
             list.appendChild(row);
         });
     }

@@ -1,5 +1,7 @@
 # Aplikacja Budżetu Domowego
 
+**Wersja produkcyjna:** https://ilemamkasy.pl
+
 Aplikacja webowa do zarządzania budżetem domowym: śledzenie sald kont bankowych, import transakcji z wyciągów bankowych (CSV, PDF, HTML), kategoryzacja wydatków, transakcje cykliczne i zaplanowane, transfery wewnętrzne, budżet miesięczny (plan vs wykonanie), raporty z wykresami, historia importów oraz monitorowanie wartości netto (Net Worth).
 
 Projekt jest budowany jako aplikacja edukacyjna, rozwijana krok po kroku z wykorzystaniem Pythona, Flaska i PostgreSQL.

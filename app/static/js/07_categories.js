@@ -64,7 +64,7 @@ function getDestAccountOptionsHtml(sourceAccountId, selectedId = null) {
     let html = '';
     accounts.filter(a => String(a.id) !== String(sourceAccountId)).forEach(a => {
         const sel = String(a.id) === String(selectedId) ? 'selected' : '';
-        html += `<option value="${a.id}" ${sel}>${a.name}</option>`;
+        html += `<option value="${a.id}" ${sel}>${escapeHtml(a.name)}</option>`;
     });
     return html;
 }
@@ -91,7 +91,7 @@ function getContractorOptionsHtml(selectedId = null) {
     let html = '';
     contractors.forEach(c => {
         const sel = (c.id == selectedId) ? 'selected' : '';
-        html += `<option value="${c.id}" ${sel}>${c.name}</option>`;
+        html += `<option value="${c.id}" ${sel}>${escapeHtml(c.name)}</option>`;
     });
     html += `<option value="__NEW_CONTRACTOR__" class="font-bold text-blue-600">➕ Dodaj nowego kontrahenta...</option>`;
     return html;
@@ -172,7 +172,7 @@ function fillAccountSelect(elementId, optionsHtml, fallbackAccountId) {
 function updateAccountSelects() {
     const defaultAcc = accounts.find(a => a.is_default) || (accounts.length > 0 ? accounts[0] : null);
     let html = '<option value="">Wybierz konto...</option>';
-    accounts.forEach(a => html += `<option value="${a.id}">${a.name} ${a.bank_name ? `(${a.bank_name})` : ''} ${a.is_default ? '(Główne)' : ''}</option>`);
+    accounts.forEach(a => html += `<option value="${a.id}">${escapeHtml(a.name)} ${a.bank_name ? `(${escapeHtml(a.bank_name)})` : ''} ${a.is_default ? '(Główne)' : ''}</option>`);
 
     fillAccountSelect('tx-account', html, preferredFormAccountId());
     fillAccountSelect('import-account-select', html, defaultAcc ? defaultAcc.id : null);
@@ -182,11 +182,11 @@ function updateAccountSelects() {
     const globalAcc = document.getElementById('global-account-filter');
     if (globalAcc) {
         let gHtml = '<option value="">Wszystkie konta</option>';
-        accounts.forEach(a => gHtml += `<option value="${a.id}">${a.name} ${a.bank_name ? `(${a.bank_name})` : ''} (${a.balance.toFixed(2)} PLN)</option>`);
+        accounts.forEach(a => gHtml += `<option value="${a.id}">${escapeHtml(a.name)} ${a.bank_name ? `(${escapeHtml(a.bank_name)})` : ''} (${a.balance.toFixed(2)} PLN)</option>`);
         // Konta nieaktywne w osobnej grupie — pozwala podejrzeć ich historię transakcji.
         if (inactiveAccounts && inactiveAccounts.length > 0) {
             gHtml += '<optgroup label="Konta nieaktywne">';
-            inactiveAccounts.forEach(a => gHtml += `<option value="${a.id}">${a.name} ${a.bank_name ? `(${a.bank_name})` : ''} (nieaktywne)</option>`);
+            inactiveAccounts.forEach(a => gHtml += `<option value="${a.id}">${escapeHtml(a.name)} ${a.bank_name ? `(${escapeHtml(a.bank_name)})` : ''} (nieaktywne)</option>`);
             gHtml += '</optgroup>';
         }
         globalAcc.innerHTML = gHtml;

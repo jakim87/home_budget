@@ -51,6 +51,10 @@ body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
     .tabela-karty thead { display: none; }
     .tabela-karty tbody,
     .tabela-karty tr { display: block; width: 100%; }
+    /* Specyficznosc ".tabela-karty tr" (0,1,1) bije Tailwindowe ".hidden" (0,1,0) —
+       bez tej reguly zwiniety dzien (toggleDay / domyslne zwiniecie) dostawal
+       klase "hidden", ale zostawal wyswietlony jako blok. */
+    .tabela-karty tr.hidden { display: none; }
 
     .tabela-karty tbody tr {
         border: 1px solid #e2e8f0;

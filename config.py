@@ -44,9 +44,10 @@ class Config:
     # druga warstwa, działająca też lokalnie i niezależna od konfiguracji proxy.
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024
 
-    # Wersja pokazywana w nagłówku. Flask sam udostępnia `config` w szablonach,
-    # więc wyświetlenie nie wymaga ani kontekstu, ani endpointa. Podbijaj ręcznie.
-    APP_VERSION = '0.9.0-beta'
+    # Wersja pokazywana w nagłówku i stopce. Flask sam udostępnia `config` w szablonach,
+    # więc wyświetlenie nie wymaga ani kontekstu, ani endpointa. Podbijaj ręcznie —
+    # zasady numeracji: CLAUDE.md, sekcja "Numeracja wersji (APP_VERSION)".
+    APP_VERSION = '1.00.001'
 
     # --- Dane wyświetlane w Regulaminie / Polityce prywatności / O aplikacji ---
     # Autor projektu jest stały (fakt o repozytorium), ale administratorem danych

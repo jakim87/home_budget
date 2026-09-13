@@ -286,6 +286,14 @@ Konfiguracja w `app/logging_config.py` (`configure_logging()`, wołane raz w `cr
 
 **Uruchamianie produkcji**: gunicorn dostaje fabrykę wprost (`"app:create_app()"`). **Nigdy przez `run.py`** — ten plik ustawia `FLASK_DEBUG=1` przy imporcie, a przy `app.debug` rejestruje się `dev_bp` z destrukcyjnym `/api/dev/reset`.
 
+## Numeracja wersji (APP_VERSION)
+
+`APP_VERSION` w `config.py` jest podbijana **ręcznie**, nie automatycznie przy commicie czy buildzie — wyświetla się w plakietce w nagłówku i w stopce (`_footer.html`, widoczna na dole każdej strony).
+
+Format: `1.00.xxx`, gdzie `xxx` to trzycyfrowy licznik rosnący o 1 przy każdej zmianie, która trafia na produkcję (merge do `main` + wdrożenie na serwer) — niezależnie od tego, czy to nowa funkcja, poprawka błędu, czy kosmetyka. Pierwsze dwa człony (`1.00`) zostają nietknięte przy zwykłych zmianach; podbijaj je tylko przy świadomej decyzji o nowym etapie projektu (nie ma sztywnej reguły, kiedy — to decyzja, nie automat).
+
+Przy każdej zmianie trafiającej na produkcję: podbij `APP_VERSION` w `config.py` o 1 w ostatnim członie, w tym samym PR-ze co reszta zmiany (nie osobnym commitem/PR-em).
+
 ## Kodowanie plików wejściowych
 
 Eksporty z ING i mBanku (CSV, HTML) bywają w UTF-8-sig albo windows-1250 — oba warianty obsługuje `decode_statement_bytes()` (`statement_parsers.py`), wołane w `import_bp.py` dla parserów w trybie `'text'`. Parsery PDF dostają surowe bajty i dekodują je same przez PyMuPDF.

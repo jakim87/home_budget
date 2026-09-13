@@ -35,19 +35,19 @@
     <!-- max-w-7xl, bo tabela historii operacji ma naturalną szerokość ~1075 px (8 kolumn);
          w max-w-5xl (960 px treści) kolumna "Akcje" wypadała poza kadr za poziomym scrollem. -->
     <div id="main-container" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        <header class="mb-8 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <header class="mb-4 md:mb-8 flex flex-col md:flex-row md:justify-between md:items-center gap-3 md:gap-4">
             <div>
-                <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
-                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <h1 class="text-2xl md:text-3xl font-bold text-slate-900 flex items-center gap-2 md:gap-3">
+                    <svg class="w-7 h-7 md:w-8 md:h-8 shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     Zarządzanie Transakcjami
                     <span title="Wersja rozwojowa — dane mogą zostać skasowane bez ostrzeżenia" class="text-xs font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 border border-amber-300 rounded px-2 py-0.5 align-middle">{{ config.APP_VERSION }}</span>
                 </h1>
-                <p class="text-slate-500 mt-1">Kontroluj swoje wydatki i przychody w jednym miejscu.</p>
+                <p class="hidden md:block text-slate-500 mt-1">Kontroluj swoje wydatki i przychody w jednym miejscu.</p>
             </div>
-            <div class="flex items-center gap-3">
-                <div class="bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2">
-                    <label for="global-account-filter" class="text-sm font-medium text-slate-500 whitespace-nowrap pl-2">Widok konta:</label>
-                    <select id="global-account-filter" onchange="changeGlobalAccount(this.value)" class="p-2 border border-slate-100 bg-slate-50 hover:bg-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-slate-700 cursor-pointer min-w-[200px] transition-colors">
+            <div class="flex flex-wrap items-center gap-2 md:gap-3">
+                <div class="bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2 flex-1 min-w-0 sm:w-full sm:flex-none md:w-auto">
+                    <label for="global-account-filter" class="hidden sm:inline text-sm font-medium text-slate-500 whitespace-nowrap pl-2">Widok konta:</label>
+                    <select id="global-account-filter" onchange="changeGlobalAccount(this.value)" class="p-2 border border-slate-100 bg-slate-50 hover:bg-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-slate-700 cursor-pointer w-full min-w-0 md:min-w-[200px] transition-colors">
                         <option value="">Wszystkie konta</option>
                     </select>
                 </div>
@@ -74,16 +74,18 @@
         </header>
 
         <!-- Nawigacja Zakładek -->
-        <nav class="flex gap-6 border-b border-slate-200 mb-6">
-            <button onclick="switchTab('dashboard')" id="btn-tab-dashboard" class="tab-active pb-3 px-1 text-sm transition-colors focus:outline-none">Dashboard</button>
-            <button onclick="switchTab('transactions')" id="btn-tab-transactions" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Transakcje</button>
-            <button onclick="switchTab('staging')" id="btn-tab-staging" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none flex items-center gap-2">
+        <nav class="flex flex-wrap gap-x-3 gap-y-0.5 sm:gap-6 border-b border-slate-200 mb-4 md:mb-6">
+            <button onclick="switchTab('dashboard')" id="btn-tab-dashboard" class="tab-active pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Dashboard</button>
+            <button onclick="switchTab('transactions')" id="btn-tab-transactions" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Transakcje</button>
+            <button onclick="switchTab('staging')" id="btn-tab-staging" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none flex items-center gap-2">
                 Do weryfikacji <span id="staging-badge" class="hidden bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
             </button>
-            <button onclick="switchTab('summary')" id="btn-tab-summary" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Podsumowanie</button>
-            <button onclick="switchTab('budget')" id="btn-tab-budget" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Budżet</button>
-            <button onclick="switchTab('categories')" id="btn-tab-categories" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none">Słowniki</button>
-            <button onclick="switchTab('reports')" id="btn-tab-reports" class="tab-inactive pb-3 px-1 text-sm transition-colors focus:outline-none flex items-center gap-1.5">
+            <button onclick="switchTab('summary')" id="btn-tab-summary" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Podsumowanie</button>
+            <button onclick="switchTab('budget')" id="btn-tab-budget" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Budżet</button>
+            <button onclick="switchTab('categories')" id="btn-tab-categories" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Słowniki</button>
+            <!-- Ukryta na telefonie: wykresy i tabela raportow zakladaja szeroki ekran,
+                 a to i tak siodmy przycisk w nawigacji, ktora juz jest ciasna. -->
+            <button onclick="switchTab('reports')" id="btn-tab-reports" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none hidden sm:flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                 Raporty
             </button>
@@ -111,47 +113,32 @@
                     <canvas id="networth-history-chart"></canvas>
                 </div>
 
-                <!-- Karty kont -->
-                <p class="text-xs text-slate-500">Kliknij konta, by zawęzić dashboard. Brak zaznaczenia = wszystkie konta.</p>
+                <!-- Karty kont. Filtr dziala tez na wykres Przychody vs Wydatki w zakladce
+                     Podsumowanie (dashboardAccountIds w 13_dashboard.js) — stad wzmianka
+                     ponizej, mimo ze sam wykres tu juz nie stoi. -->
+                <p class="text-xs text-slate-500">Kliknij konta, by zawęzić dashboard i wykres w zakładce Podsumowanie. Brak zaznaczenia = wszystkie konta.</p>
                 <div id="dashboard-accounts" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
-
-                <!-- Wykres -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <div class="flex justify-between items-center mb-5">
-                        <h2 class="font-bold text-slate-800">Przychody vs Wydatki</h2>
-                        <div class="flex gap-2">
-                            <button id="dashboard-toggle-monthly" onclick="setDashboardView('monthly')" class="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white font-medium transition-colors">Miesięcznie</button>
-                            <button id="dashboard-toggle-yearly" onclick="setDashboardView('yearly')" class="px-3 py-1.5 text-sm rounded-lg bg-slate-100 text-slate-600 font-medium hover:bg-slate-200 transition-colors">Rocznie</button>
-                        </div>
-                    </div>
-                    <canvas id="dashboard-chart"></canvas>
-                </div>
-
-                <!-- Ostatnie transakcje -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                        <h2 class="font-semibold text-slate-800">Ostatnie transakcje</h2>
-                        <button onclick="switchTab('transactions')" class="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">Zobacz wszystkie →</button>
-                    </div>
-                    <div id="dashboard-recent-tx" class="divide-y divide-slate-100"></div>
-                </div>
             </div>
 
             <!-- ZAKŁADKA 1: TRANSAKCJE -->
             <div id="tab-transactions" class="tab-hidden space-y-8">
                 <!-- Formularz dodawania/edycji -->
                 <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <div class="flex justify-between items-center mb-4">
+                    <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
                         <h2 id="form-title" class="text-lg font-bold text-slate-700 flex items-center gap-2">
                             <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                             Dodaj transakcję
                         </h2>
-                    <div class="flex gap-2">
+                    <div class="flex flex-wrap gap-2">
                         <button onclick="openReconcileModal()" class="flex items-center gap-2 px-3 py-1.5 bg-sky-100 text-sky-700 hover:bg-sky-200 rounded-lg text-sm font-medium transition-colors shadow-sm focus:ring-2 focus:ring-sky-400">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                             Uzgodnij saldo
                         </button>
-                        <button id="openImportModalBtn" class="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg text-sm font-medium transition-colors shadow-sm focus:ring-2 focus:ring-emerald-400">
+                        <!-- Ukryty na telefonie: import CSV zaklada plik z banku na dysku,
+                             czego zwiedzajacy na telefonie zwykle nie ma pod reka. Samouczek
+                             (17_tour.js) sam pomija krok wskazujacy ten przycisk, gdy jest
+                             niewidoczny — patrz krokWidoczny w startTour(). -->
+                        <button id="openImportModalBtn" class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg text-sm font-medium transition-colors shadow-sm focus:ring-2 focus:ring-emerald-400">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                             Import CSV
                         </button>
@@ -215,7 +202,7 @@
                         </button>
                     </div>
                     <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse min-w-[1000px]">
+                    <table class="tabela-karty w-full text-left border-collapse sm:min-w-[1000px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                     <th class="p-4 font-semibold w-10">
@@ -267,7 +254,7 @@
                         <button onclick="setStagingFilter('duplicate')" id="sf-duplicate" class="text-xs px-3 py-1 rounded-full font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200">Możliwy duplikat (<span id="sf-count-duplicate">0</span>)</button>
                     </div>
                     <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse table-fixed min-w-[860px]">
+                    <table class="tabela-karty w-full text-left border-collapse sm:table-fixed sm:min-w-[860px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                     <th class="p-3 font-semibold w-[9%] cursor-pointer select-none whitespace-nowrap" onclick="toggleStagingSort('date')">Data <span id="sort-icon-date" class="ml-0.5 text-slate-300">↕</span></th>
@@ -353,10 +340,26 @@
                     </div>
                 </div>
 
+                <!-- Przeniesione z Dashboardu: trend 12 miesiecy / 5 lat, niezalezny od
+                     wybranego wyzej okresu. Filtr kont dziedziczy z kart na Dashboardzie
+                     (dashboardAccountIds w 13_dashboard.js) — renderowany przy kazdym
+                     renderSummary(), bo canvas jest ukryty (display:none), dopoki ta
+                     zakladka nie jest aktywna, i Chart.js zmierzylby zerowa szerokosc. -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex justify-between items-center mb-5">
+                        <h2 class="font-bold text-slate-800">Przychody vs Wydatki</h2>
+                        <div class="flex gap-2">
+                            <button id="dashboard-toggle-monthly" onclick="setDashboardView('monthly')" class="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white font-medium transition-colors">Miesięcznie</button>
+                            <button id="dashboard-toggle-yearly" onclick="setDashboardView('yearly')" class="px-3 py-1.5 text-sm rounded-lg bg-slate-100 text-slate-600 font-medium hover:bg-slate-200 transition-colors">Rocznie</button>
+                        </div>
+                    </div>
+                    <canvas id="dashboard-chart"></canvas>
+                </div>
+
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100 bg-slate-50">Zestawienie kategorii</h3>
                     <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm min-w-[500px]">
+                    <table class="tabela-karty w-full text-left text-sm sm:min-w-[500px]">
                             <thead class="bg-slate-100/50">
                                 <tr>
                                     <th class="p-4 font-semibold text-slate-600 w-1/2">Kategoria</th>
@@ -405,7 +408,7 @@
 
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm min-w-[700px]">
+                        <table class="tabela-karty w-full text-left text-sm sm:min-w-[700px]">
                             <thead class="bg-slate-100/50">
                                 <tr>
                                     <th class="px-4 py-3 font-semibold text-slate-600">Kategoria</th>
@@ -423,11 +426,13 @@
 
             <!-- ZAKŁADKA 3: KATEGORIE -->
             <div id="tab-categories" class="tab-hidden">
-                <div class="flex gap-6">
+                <div class="flex flex-col sm:flex-row gap-4 sm:gap-6">
 
-                    <!-- Sidebar: nawigacja słowników -->
-                    <div class="w-44 shrink-0">
-                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden sticky top-4">
+                    <!-- Sidebar: nawigacja słowników. Na telefonie w-44 zostawial panelowi
+                         ~140px z 375px ekranu — plakietki typu kategorii wychodzily poza
+                         kadr. Full-width nad panelem ponizej sm, jak dotychczas obok. -->
+                    <div class="w-full sm:w-44 sm:shrink-0">
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden sm:sticky sm:top-4">
                             <div class="px-4 py-3 border-b border-slate-100 bg-slate-50">
                                 <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Słowniki</p>
                             </div>
@@ -623,7 +628,7 @@
                         <div class="h-6 w-px bg-slate-200 mx-1"></div>
 
                         <!-- Zakres dat -->
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
                             <span class="text-xs text-slate-500 font-medium">Od:</span>
                             <input type="date" id="rpt-date-from" onchange="applyRptFilters()" class="p-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                             <span class="text-xs text-slate-500 font-medium">Do:</span>
@@ -704,7 +709,7 @@
                         <input type="text" id="rpt-table-search" placeholder="Szukaj w wynikach..." oninput="renderRptTable()" class="p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-64">
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse min-w-[900px]">
+                        <table class="tabela-karty w-full text-left border-collapse sm:min-w-[900px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                     <th class="p-4 font-semibold w-28 cursor-pointer hover:text-slate-700 select-none" onclick="rptSortTable('date')">Data <span id="rpt-sort-date">↓</span></th>
@@ -730,7 +735,7 @@
     <!-- Modal Importu CSV -->
     <!-- MODAL: zgłoszenie uwagi o aplikacji -->
     <div id="feedback-modal" class="fixed inset-0 bg-slate-900/50 hidden flex-col items-center justify-center z-50 px-4 backdrop-blur-sm transition-opacity">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center p-5 border-b border-slate-200">
                 <h3 class="text-lg font-semibold text-slate-800">Zgłoś uwagę</h3>
                 <button onclick="closeFeedbackModal()" class="text-slate-400 hover:text-slate-600 focus:outline-none transition-colors rounded-lg">
@@ -758,14 +763,14 @@
     </div>
 
     <div id="import-modal" class="fixed inset-0 bg-slate-900/50 hidden flex-col items-center justify-center z-50 px-4 backdrop-blur-sm transition-opacity">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
-            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
                 <h3 class="text-lg font-bold text-slate-800">Import transakcji</h3>
                 <button id="closeImportModalBtn" class="text-slate-400 hover:text-slate-600 focus:outline-none transition-colors rounded-lg">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            <div class="p-6">
+            <div class="p-6 overflow-y-auto">
                 {% if config.DEMO_ENABLED %}
                 <!-- Tryb demo: zwiedzający nie ma pod ręką wyciągu z banku, więc podsuwamy
                      gotowy plik od razu na wejściu — bez niego cała zakładka importu jest
@@ -1208,8 +1213,8 @@
 
     <!-- Kreator pierwszego konta. Pokazywany po rejestracji: bez konta nie da sie
          dodac zadnej transakcji, wiec pusta aplikacja jest slepym zaulkiem. -->
-    <div id="first-account-modal" class="hidden fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[100] backdrop-blur-sm">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+    <div id="first-account-modal" class="hidden fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[100] px-4 backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 class="text-2xl font-bold text-slate-800 text-center mb-2">Dodaj pierwsze konto</h2>
             <p class="text-slate-500 text-center mb-6">Konto to miejsce, w którym trzymasz pieniądze — rachunek w banku, portfel z gotówką albo cel oszczędnościowy.</p>
             <form id="first-account-form">

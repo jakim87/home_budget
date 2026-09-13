@@ -267,8 +267,8 @@ function renderStaging() {
         const row = document.createElement('tr');
         row.className = `${rowBg} transition-colors`;
         row.innerHTML = `
-            <td class="p-3 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
-            <td class="p-3 border-b border-slate-100 font-medium text-slate-800 break-words">
+            <td data-label="Data" class="p-3 border-b border-slate-100 text-sm text-slate-500 whitespace-nowrap">${t.date}</td>
+            <td data-label="Tytuł" class="p-3 border-b border-slate-100 font-medium text-slate-800 break-words">
                 <div class="flex flex-wrap items-center gap-1.5 mb-0.5">
                     <span>${escapeHtml(t.title)}</span>
                     ${badgeHtml}
@@ -281,7 +281,7 @@ function renderStaging() {
                 </div>` : ''}
                 ${dupHtml}
             </td>
-            <td class="p-3 border-b border-slate-100">
+            <td data-label="Przypisanie" class="p-3 border-b border-slate-100">
                 ${hasSuggestion ? `
                 <div class="flex items-center gap-1 mb-2 p-1.5 bg-amber-50 border border-amber-200 rounded-lg">
                     <span class="text-xs text-amber-700 font-medium shrink-0">Sugestia:</span>
@@ -302,8 +302,8 @@ function renderStaging() {
                     ${getCategoryOptionsHtml(t.proposed_category)}
                 </select>
             </td>
-            <td class="p-3 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
-            <td class="p-3 border-b border-slate-100 text-center">
+            <td data-label="Kwota" class="p-3 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
+            <td data-label="Akcje" class="p-3 border-b border-slate-100 text-center">
                 <button onclick="approveStaging(${t.id})" ${btnDisabled ? `disabled title="${isTransfer ? 'Uzupełnij kategorię i konto docelowe, aby zatwierdzić' : 'Uzupełnij kategorię i kontrahenta, aby zatwierdzić'}"` : ''} class="px-3 py-2 ${btnClass} text-sm font-medium rounded-lg transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 whitespace-nowrap w-full ${btnDisabled ? '' : 'text-white'}">
                     Zatwierdź
                 </button>

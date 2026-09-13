@@ -206,6 +206,10 @@ function balanceAfterByTxId(accountId) {
 
 const WEEKDAYS = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
 const collapsedDays = new Set();
+// Na telefonie pierwsze otwarcie zakładki zwija wszystkie dni oprócz dzisiejszego —
+// lista karta-na-dzień jest zbyt dluga, zeby przegladac ja calą od razu. Dzieje się to
+// raz na wczytanie strony (flaga), pozniej stan zwiniecia jest juz w rekach uzytkownika.
+let domyslneZwiniecieWykonane = false;
 
 // Zwijanie dnia operuje na klasach już wyrenderowanych wierszy — bez przerysowywania
 // całej tabeli. Stan przeżywa render, bo wiersze pytają o niego przy tworzeniu.
@@ -241,10 +245,12 @@ function dayHeaderRow(day, rows, colspan) {
     tr.setAttribute('onclick', `toggleDay('${day}')`);
     tr.innerHTML = `
         <td colspan="${colspan}" class="px-4 py-2 border-b border-slate-200">
-            <span class="inline-flex items-baseline gap-2 text-sm">
-                <span id="day-icon-${day}" class="text-slate-400 w-3 inline-block">${collapsed ? '▸' : '▾'}</span>
-                <span class="font-semibold text-slate-700">${weekday}, ${day}</span>
-                <span class="text-slate-400 text-xs">${n} ${opsLabel} · suma dnia
+            <span class="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-2 text-sm">
+                <span class="inline-flex items-baseline gap-2">
+                    <span id="day-icon-${day}" class="text-slate-400 w-3 inline-block">${collapsed ? '▸' : '▾'}</span>
+                    <span class="font-semibold text-slate-700">${weekday}, ${day}</span>
+                </span>
+                <span class="text-slate-400 text-xs pl-5 sm:pl-0">${n} ${opsLabel} · suma dnia
                     <span class="tabular-nums font-medium ${sum < 0 ? 'text-rose-600' : 'text-emerald-600'}">${sum >= 0 ? '+' : ''}${sum.toFixed(2)} PLN</span>
                 </span>
             </span>
@@ -302,6 +308,15 @@ function renderTransactions() {
         // Nagłówek dnia przed pierwszą operacją każdej daty. `filtered` jest już
         // posortowane malejąco po dacie, więc wystarczy pilnować zmiany wartości.
         const byDay = filtered.reduce((acc, t) => ((acc[t.date] ||= []).push(t), acc), {});
+
+        if (!domyslneZwiniecieWykonane) {
+            domyslneZwiniecieWykonane = true;
+            if (window.matchMedia('(max-width: 639px)').matches) {
+                const dzisiaj = toLocalISODate(new Date());
+                Object.keys(byDay).forEach(day => { if (day !== dzisiaj) collapsedDays.add(day); });
+            }
+        }
+
         let lastDay = null;
 
         filtered.forEach(t => {
@@ -312,15 +327,14 @@ function renderTransactions() {
             const isSplit = t.splits && t.splits.length > 0;
             const row = document.createElement('tr');
             row.dataset.day = t.date;
-            if (collapsedDays.has(t.date)) row.classList.add('hidden');
             const balanceCellHtml = !showBalance ? '' : (() => {
                 const g = balanceMap.get(t.id);
                 // Projekcje cykliczne nie są jeszcze pieniędzmi — nie mają salda.
-                if (g === undefined) return `<td class="p-4 border-b border-slate-100 text-right text-slate-300">—</td>`;
-                return `<td class="p-4 border-b border-slate-100 text-right text-sm text-slate-600 tabular-nums whitespace-nowrap">${(g / 100).toFixed(2)}</td>`;
+                if (g === undefined) return `<td data-label="Saldo po" class="p-4 border-b border-slate-100 text-right text-slate-300"><span class="komorka-pusta">—</span></td>`;
+                return `<td data-label="Saldo po" class="p-4 border-b border-slate-100 text-right text-sm text-slate-600 tabular-nums whitespace-nowrap">${(g / 100).toFixed(2)}</td>`;
             })();
             const accountCellHtml = showAccountColumn
-                ? `<td class="p-4 border-b border-slate-100 text-sm text-slate-600 break-words whitespace-normal">${escapeHtml(accountLabelById(t.account_id))}</td>`
+                ? `<td data-label="Konto" class="p-4 border-b border-slate-100 text-sm text-slate-600 break-words whitespace-normal">${escapeHtml(accountLabelById(t.account_id))}</td>`
                 : '';
 
             if (inlineEditingTxId === t.id && !t.isVirtual) {
@@ -395,7 +409,7 @@ function renderTransactions() {
                 
                 const commentHtml = (() => {
                     const c = t.comment || '';
-                    if (!c) return `<span class="text-slate-300 text-xs">—</span>`;
+                    if (!c) return `<span class="komorka-pusta text-slate-300 text-xs">—</span>`;
                     const maxLen = 40;
                     if (c.length <= maxLen) return `<span class="text-slate-600 text-xs">${escapeHtml(c)}</span>`;
                     const uid = `cmt-${t.id}`;
@@ -406,30 +420,30 @@ function renderTransactions() {
                 row.className = `transition-colors group hover:bg-slate-50 ${isVirtual ? 'bg-indigo-50/30' : ''}`;
                 const selectCellHtml = isVirtual
                     ? '<td class="p-4 border-b border-slate-100"></td>'
-                    : `<td class="p-4 border-b border-slate-100">
+                    : `<td data-label="Zaznacz" class="p-4 border-b border-slate-100">
                         <input type="checkbox" class="tx-select-check w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                value="${t.id}" onchange="toggleTxSelection(${t.id})">
                        </td>`;
 
                 row.innerHTML = `
                     ${selectCellHtml}
-                    <td class="p-4 border-b border-slate-100 text-sm text-slate-400 whitespace-nowrap tabular-nums" title="${t.date}">${Number(t.date.slice(8))}</td>
+                    <td data-label="Data" class="p-4 border-b border-slate-100 text-sm text-slate-400 whitespace-nowrap tabular-nums" title="${t.date}">${Number(t.date.slice(8))}</td>
                     ${accountCellHtml}
-                    <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
+                    <td data-label="Kontrahent" class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${iconHtml}${escapeHtml(t.contractor_name || t.contractor || '-')}
                     </td>
-                    <td class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
+                    <td data-label="Kategoria" class="p-4 border-b border-slate-100 text-slate-600 text-sm break-words whitespace-normal min-w-[120px]">
                         ${isSplit ?
                             `<span role="button" tabindex="0" onclick="openSplitModal(${t.id})" onkeydown="openSplitModal(${t.id}, event)" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100 cursor-pointer font-medium text-xs border border-indigo-100" title="Edytuj podział"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Sprawdź szczegóły</span>`
                             :
                             escapeHtml(t.category)
                         }
                     </td>
-                    <td class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${escapeHtml(t.desc)}${t.transfer_unmatched ? ` <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider align-middle" title="Przelew wewnętrzny bez drugiej strony — powiąże się automatycznie po zaimportowaniu wyciągu drugiego konta">Do zmapowania</span>` : ''}</td>
-                    <td class="p-4 border-b border-slate-100 text-sm">${commentHtml}</td>
-                    <td class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
+                    <td data-label="Opis" class="p-4 border-b border-slate-100 font-medium text-slate-800 break-words whitespace-normal min-w-[200px]">${escapeHtml(t.desc)}${t.transfer_unmatched ? ` <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider align-middle" title="Przelew wewnętrzny bez drugiej strony — powiąże się automatycznie po zaimportowaniu wyciągu drugiego konta">Do zmapowania</span>` : ''}</td>
+                    <td data-label="Komentarz" class="p-4 border-b border-slate-100 text-sm">${commentHtml}</td>
+                    <td data-label="Kwota" class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
                     ${balanceCellHtml}
-                    <td class="p-4 border-b border-slate-100 text-center">
+                    <td data-label="Akcje" class="p-4 border-b border-slate-100 text-center">
                         ${isVirtual ? `
                             <span class="text-xs font-semibold text-indigo-500 bg-indigo-100 px-2 py-1 rounded-md inline-block">Zaplanowana</span>
                         ` : `
@@ -448,6 +462,9 @@ function renderTransactions() {
                     </td>
                 `;
             }
+            // Musi byc PO ustawieniu row.className wyzej (obie galezie je nadpisuja
+            // calym stringiem) — classList.add przed tym momentem zostalby skasowany.
+            if (collapsedDays.has(t.date)) row.classList.add('hidden');
             list.appendChild(row);
         });
     }

@@ -126,19 +126,19 @@ function budgetWierszHtml(p, uplyw) {
 
     return `
         <tr class="hover:bg-slate-50/70">
-            <td class="px-4 py-3 text-sm text-slate-700">
+            <td data-label="Kategoria" class="px-4 py-3 text-sm text-slate-700">
                 ${escapeHtml(p.category_name)}
                 ${stan.ostrzezenie ? '<span class="ml-2 text-xs font-semibold text-rose-600">przekroczono</span>' : ''}
             </td>
-            <td class="px-4 py-3 text-right">
+            <td data-label="Plan" class="px-4 py-3 text-right">
                 <input type="number" step="0.01" min="0" value="${planValue}" placeholder="—"
                        onchange="budgetZapiszPlan(${p.category_id}, this.value)"
                        class="w-28 p-1.5 text-right border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
                 ${budgetSugestiaHtml(p)}
             </td>
-            <td class="px-4 py-3 text-right text-sm text-slate-700">${budgetFmt(p.wykonane)}</td>
-            <td class="px-4 py-3 text-right text-sm ${p.zarezerwowane > 0 ? 'text-slate-500' : 'text-slate-300'}">${budgetFmt(p.zarezerwowane)}</td>
-            <td class="px-4 py-3 w-1/3">
+            <td data-label="Wykonane" class="px-4 py-3 text-right text-sm text-slate-700">${budgetFmt(p.wykonane)}</td>
+            <td data-label="Zarezerwowane" class="px-4 py-3 text-right text-sm ${p.zarezerwowane > 0 ? 'text-slate-500' : 'text-slate-300'}">${budgetFmt(p.zarezerwowane)}</td>
+            <td data-label="Postęp" class="px-4 py-3 w-1/3">
                 <div class="relative h-3 bg-slate-100 rounded-full overflow-hidden">
                     <div class="absolute inset-y-0 left-0 ${stan.kolor}" style="width:${stan.szerWykonane.toFixed(1)}%"></div>
                     <div class="absolute inset-y-0 ${stan.kolor} opacity-40"

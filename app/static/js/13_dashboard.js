@@ -68,26 +68,9 @@ function renderDashboard() {
 
     computeNetWorthSeries();
     renderNetWorthHistoryChart();
-    renderDashboardChart();
-
-    // Ostatnie 5 transakcji
-    const recentEl = document.getElementById('dashboard-recent-tx');
-    if (recentEl) {
-        const recent = dashboardTransactions().slice(0, 5);
-        if (recent.length === 0) {
-            recentEl.innerHTML = '<p class="p-4 text-sm text-slate-500">Brak transakcji.</p>';
-        } else {
-            recentEl.innerHTML = recent.map(t => `
-                <div class="px-4 py-3 flex justify-between items-center hover:bg-slate-50">
-                    <div class="min-w-0 mr-4">
-                        <p class="text-sm font-medium text-slate-800 truncate">${escapeHtml(t.desc)}</p>
-                        <p class="text-xs text-slate-400">${t.date} · ${escapeHtml(t.category)}${t.contractor_name ? ` · ${escapeHtml(t.contractor_name)}` : ''}</p>
-                    </div>
-                    <span class="text-sm font-bold whitespace-nowrap ${t.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${t.amount >= 0 ? '+' : ''}${t.amount.toFixed(2)} PLN</span>
-                </div>
-            `).join('');
-        }
-    }
+    // renderDashboardChart() nie stoi tu juz celowo — jej canvas przeniesiony jest do
+    // zakladki Podsumowanie i renderowany z renderSummary() (12_summary.js), zeby nie
+    // rysowac wykresu do ukrytego (display:none) kontenera o zerowej szerokosci.
 }
 
 // --- MAJĄTEK W CZASIE ---
@@ -203,6 +186,9 @@ function renderNetWorthHistoryChart() {
 document.getElementById('networth-range-from')?.addEventListener('change', renderNetWorthHistoryChart);
 document.getElementById('networth-range-to')?.addEventListener('change', renderNetWorthHistoryChart);
 
+// Canvas #dashboard-chart stoi w zakladce Podsumowanie, nie Dashboard — nazwa (i
+// dashboardView/dashboardAccountIds ponizej) zostala z czasow, gdy tam stal wykres.
+// Wolane z renderSummary() (12_summary.js), nie z renderDashboard().
 function renderDashboardChart() {
     const ctx = document.getElementById('dashboard-chart');
     if (!ctx) return;

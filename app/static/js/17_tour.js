@@ -15,11 +15,6 @@ const TOURS = {
             efekt: 'Wykres poniżej pokaże, jak Twój majątek zmieniał się w wybranym okresie. Przydaje się, żeby zobaczyć trend zamiast pojedynczej liczby.',
         },
         {
-            el: '#dashboard-toggle-yearly',
-            akcja: 'Kliknij „Rocznie"',
-            efekt: 'Wykres przychodów i wydatków przełączy się z ujęcia miesięcznego na roczne. Ten sam zestaw operacji, inna skala.',
-        },
-        {
             el: '#global-account-filter',
             akcja: 'Wybierz konto z listy „Widok konta"',
             efekt: 'Zawęża CAŁĄ aplikację do jednego konta — dashboard, historię i podsumowanie; w historii dochodzi wtedy kolumna „Saldo po" ze stanem konta po każdej operacji. Wróć na „Wszystkie konta", jeśli czegoś nie widzisz tam, gdzie się spodziewasz.',
@@ -123,6 +118,11 @@ const TOURS = {
             el: '#summary-total',
             akcja: 'Sprawdź bilans okresu',
             efekt: 'Różnica między przychodami a wydatkami. Wartość ujemna oznacza, że w tym okresie wydałeś więcej, niż wpłynęło.',
+        },
+        {
+            el: '#dashboard-toggle-yearly',
+            akcja: 'Kliknij „Rocznie"',
+            efekt: 'Wykres poniżej przełączy się z ujęcia miesięcznego na roczne — trend niezależny od wybranego wyżej okresu.',
         },
         {
             el: '#summary-category-list',

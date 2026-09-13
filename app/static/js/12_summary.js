@@ -157,6 +157,11 @@ function renderSummary() {
             list.innerHTML += buildSummaryRow(cat, catTotals[cat], null, 'sky');
         });
     }
+
+    // Wykres trendu (przeniesiony z Dashboardu, 13_dashboard.js) — niezalezny od
+    // monthFilter/startFilter/endFilter powyzej, ale renderujemy go tutaj, bo to
+    // jedyne miejsce wolane, gdy ta zakladka jest faktycznie widoczna.
+    renderDashboardChart();
 }
 
 function buildSummaryRow(catName, amount, percentage, colorPrefix) {

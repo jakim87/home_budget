@@ -113,30 +113,11 @@
                     <canvas id="networth-history-chart"></canvas>
                 </div>
 
-                <!-- Karty kont -->
-                <p class="text-xs text-slate-500">Kliknij konta, by zawęzić dashboard. Brak zaznaczenia = wszystkie konta.</p>
+                <!-- Karty kont. Filtr dziala tez na wykres Przychody vs Wydatki w zakladce
+                     Podsumowanie (dashboardAccountIds w 13_dashboard.js) — stad wzmianka
+                     ponizej, mimo ze sam wykres tu juz nie stoi. -->
+                <p class="text-xs text-slate-500">Kliknij konta, by zawęzić dashboard i wykres w zakładce Podsumowanie. Brak zaznaczenia = wszystkie konta.</p>
                 <div id="dashboard-accounts" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
-
-                <!-- Wykres -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <div class="flex justify-between items-center mb-5">
-                        <h2 class="font-bold text-slate-800">Przychody vs Wydatki</h2>
-                        <div class="flex gap-2">
-                            <button id="dashboard-toggle-monthly" onclick="setDashboardView('monthly')" class="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white font-medium transition-colors">Miesięcznie</button>
-                            <button id="dashboard-toggle-yearly" onclick="setDashboardView('yearly')" class="px-3 py-1.5 text-sm rounded-lg bg-slate-100 text-slate-600 font-medium hover:bg-slate-200 transition-colors">Rocznie</button>
-                        </div>
-                    </div>
-                    <canvas id="dashboard-chart"></canvas>
-                </div>
-
-                <!-- Ostatnie transakcje -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                        <h2 class="font-semibold text-slate-800">Ostatnie transakcje</h2>
-                        <button onclick="switchTab('transactions')" class="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">Zobacz wszystkie →</button>
-                    </div>
-                    <div id="dashboard-recent-tx" class="divide-y divide-slate-100"></div>
-                </div>
             </div>
 
             <!-- ZAKŁADKA 1: TRANSAKCJE -->
@@ -357,6 +338,22 @@
                         <p class="text-sm font-medium text-slate-500 mb-1">Bilans</p>
                         <p id="summary-total" class="text-2xl font-bold text-slate-800">0.00 PLN</p>
                     </div>
+                </div>
+
+                <!-- Przeniesione z Dashboardu: trend 12 miesiecy / 5 lat, niezalezny od
+                     wybranego wyzej okresu. Filtr kont dziedziczy z kart na Dashboardzie
+                     (dashboardAccountIds w 13_dashboard.js) — renderowany przy kazdym
+                     renderSummary(), bo canvas jest ukryty (display:none), dopoki ta
+                     zakladka nie jest aktywna, i Chart.js zmierzylby zerowa szerokosc. -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex justify-between items-center mb-5">
+                        <h2 class="font-bold text-slate-800">Przychody vs Wydatki</h2>
+                        <div class="flex gap-2">
+                            <button id="dashboard-toggle-monthly" onclick="setDashboardView('monthly')" class="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white font-medium transition-colors">Miesięcznie</button>
+                            <button id="dashboard-toggle-yearly" onclick="setDashboardView('yearly')" class="px-3 py-1.5 text-sm rounded-lg bg-slate-100 text-slate-600 font-medium hover:bg-slate-200 transition-colors">Rocznie</button>
+                        </div>
+                    </div>
+                    <canvas id="dashboard-chart"></canvas>
                 </div>
 
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

@@ -151,7 +151,11 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                             Uzgodnij saldo
                         </button>
-                        <button id="openImportModalBtn" class="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg text-sm font-medium transition-colors shadow-sm focus:ring-2 focus:ring-emerald-400">
+                        <!-- Ukryty na telefonie: import CSV zaklada plik z banku na dysku,
+                             czego zwiedzajacy na telefonie zwykle nie ma pod reka. Samouczek
+                             (17_tour.js) sam pomija krok wskazujacy ten przycisk, gdy jest
+                             niewidoczny — patrz krokWidoczny w startTour(). -->
+                        <button id="openImportModalBtn" class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg text-sm font-medium transition-colors shadow-sm focus:ring-2 focus:ring-emerald-400">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                             Import CSV
                         </button>

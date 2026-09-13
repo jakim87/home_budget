@@ -157,6 +157,11 @@ function renderSummary() {
             list.innerHTML += buildSummaryRow(cat, catTotals[cat], null, 'sky');
         });
     }
+
+    // Wykres trendu (przeniesiony z Dashboardu, 13_dashboard.js) — niezalezny od
+    // monthFilter/startFilter/endFilter powyzej, ale renderujemy go tutaj, bo to
+    // jedyne miejsce wolane, gdy ta zakladka jest faktycznie widoczna.
+    renderDashboardChart();
 }
 
 function buildSummaryRow(catName, amount, percentage, colorPrefix) {
@@ -171,9 +176,9 @@ function buildSummaryRow(catName, amount, percentage, colorPrefix) {
 
     return `
         <tr class="hover:bg-slate-50">
-            <td class="p-4 border-b border-slate-100 font-medium text-slate-700">${escapeHtml(catName)}</td>
-            <td class="p-4 border-b border-slate-100 font-bold text-right text-${colorPrefix}-600">${amount.toFixed(2)} PLN</td>
-            <td class="p-4 border-b border-slate-100">
+            <td data-label="Kategoria" class="p-4 border-b border-slate-100 font-medium text-slate-700">${escapeHtml(catName)}</td>
+            <td data-label="Kwota" class="p-4 border-b border-slate-100 font-bold text-right text-${colorPrefix}-600">${amount.toFixed(2)} PLN</td>
+            <td data-label="Udział" class="p-4 border-b border-slate-100">
                 ${percentageHtml}
             </td>
         </tr>

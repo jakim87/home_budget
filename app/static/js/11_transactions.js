@@ -245,10 +245,12 @@ function dayHeaderRow(day, rows, colspan) {
     tr.setAttribute('onclick', `toggleDay('${day}')`);
     tr.innerHTML = `
         <td colspan="${colspan}" class="px-4 py-2 border-b border-slate-200">
-            <span class="inline-flex items-baseline gap-2 text-sm">
-                <span id="day-icon-${day}" class="text-slate-400 w-3 inline-block">${collapsed ? '▸' : '▾'}</span>
-                <span class="font-semibold text-slate-700">${weekday}, ${day}</span>
-                <span class="text-slate-400 text-xs">${n} ${opsLabel} · suma dnia
+            <span class="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-2 text-sm">
+                <span class="inline-flex items-baseline gap-2">
+                    <span id="day-icon-${day}" class="text-slate-400 w-3 inline-block">${collapsed ? '▸' : '▾'}</span>
+                    <span class="font-semibold text-slate-700">${weekday}, ${day}</span>
+                </span>
+                <span class="text-slate-400 text-xs pl-5 sm:pl-0">${n} ${opsLabel} · suma dnia
                     <span class="tabular-nums font-medium ${sum < 0 ? 'text-rose-600' : 'text-emerald-600'}">${sum >= 0 ? '+' : ''}${sum.toFixed(2)} PLN</span>
                 </span>
             </span>

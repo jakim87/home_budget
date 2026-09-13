@@ -133,7 +133,4 @@ body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
     #transaction-list td[data-label="Data"] { display: none; }
     /* Komorka bez wartosci ("—") zajmowalaby caly wiersz karty. */
     .tabela-karty td:has(> .komorka-pusta:only-child) { display: none; }
-
-    /* Naglowek dnia: data i suma nie mieszcza sie w jednej linii na 375 px. */
-    .tabela-karty td[colspan] > span { flex-wrap: wrap; row-gap: 0.125rem; }
 }

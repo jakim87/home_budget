@@ -83,7 +83,9 @@
             <button onclick="switchTab('summary')" id="btn-tab-summary" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Podsumowanie</button>
             <button onclick="switchTab('budget')" id="btn-tab-budget" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Budżet</button>
             <button onclick="switchTab('categories')" id="btn-tab-categories" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Słowniki</button>
-            <button onclick="switchTab('reports')" id="btn-tab-reports" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none flex items-center gap-1.5">
+            <!-- Ukryta na telefonie: wykresy i tabela raportow zakladaja szeroki ekran,
+                 a to i tak siodmy przycisk w nawigacji, ktora juz jest ciasna. -->
+            <button onclick="switchTab('reports')" id="btn-tab-reports" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none hidden sm:flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                 Raporty
             </button>

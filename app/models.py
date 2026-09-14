@@ -105,6 +105,15 @@ class User(db.Model, UserMixin):
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     token: Mapped[str] = mapped_column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
 
+    def get_id(self):
+        """Identyfikator w ciasteczku sesji = id + znacznik wersji hasła.
+
+        Dzięki temu zmiana/reset hasła unieważnia istniejące sesje (A9): fragment
+        hasha w ciasteczku przestaje pasować, więc load_user odrzuca stare ciasteczko.
+        Werkzeug hashuje z solą, więc każda zmiana hasła zmienia końcówkę hasha.
+        """
+        return f"{self.id}|{self.password_hash[-8:]}"
+
     # Relacja zwrotna do kont
     accounts: Mapped[list['Account']] = relationship(back_populates="user")
     # Relacja do transakcji cyklicznych

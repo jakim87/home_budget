@@ -38,7 +38,19 @@ from app import models
 
 @login_manager.user_loader
 def load_user(user_id):
-    return db.session.get(models.User, int(user_id))
+    # user_id z ciasteczka to "id|końcówka_hasha" (patrz User.get_id). Znacznik hasła
+    # musi się zgadzać — inaczej ciasteczko pochodzi sprzed zmiany hasła i sesja
+    # została unieważniona (A9). Stare ciasteczka bez '|' odpadają na etapie parsowania.
+    raw_id, _, pwd_tag = str(user_id).partition('|')
+    if not pwd_tag:
+        return None
+    try:
+        user = db.session.get(models.User, int(raw_id))
+    except (TypeError, ValueError):
+        return None
+    if user and user.password_hash[-8:] == pwd_tag:
+        return user
+    return None
 
 # Globalna obsługa braku autoryzacji dla zapytań API
 @login_manager.unauthorized_handler

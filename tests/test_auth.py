@@ -77,3 +77,32 @@ def test_me_returns_current_user(logged_in_client, app, test_user):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data['username'] == 'testuser'
+
+
+def test_zmiana_hasla_uniewaznia_istniejace_sesje(logged_in_client, test_user):
+    """Reset/zmiana hasła musi wyrzucić już otwarte sesje (A9).
+
+    Sesja to podpisane ciasteczko z identyfikatorem użytkownika. Jeśli identyfikator
+    nie zależy od hasła, przejęta sesja przeżywa reset-password — jedyną obroną była
+    zmiana SECRET_KEY (wylogowuje wszystkich). Po poprawce ciasteczko niesie znacznik
+    wersji hasła, więc zmiana hasła unieważnia stare sesje punktowo.
+    """
+    from werkzeug.security import generate_password_hash
+    from app import load_user
+
+    assert logged_in_client.get('/api/me').status_code == 200, "sesja powinna być aktywna"
+    # Identyfikator z ciasteczka sesji — to on jest przekazywany do load_user przy
+    # każdym żądaniu i to on decyduje, czy sesja nadal obowiązuje.
+    with logged_in_client.session_transaction() as sess:
+        cookie_uid = sess['_user_id']
+    assert load_user(cookie_uid) is not None, "przed zmianą hasła sesja jest ważna"
+
+    test_user.password_hash = generate_password_hash('calkiem-nowe-haslo-123')
+    db.session.commit()
+    # W produkcji kolejne żądanie ma świeżą sesję DB (teardown robi remove()), więc
+    # load_user czyta nowy hash z bazy. Testy trzymają jedną sesję przez cały czas —
+    # expire_all() odtwarza ten świeży odczyt, bez którego widać stary obiekt z identity map.
+    db.session.expire_all()
+
+    # Sedno A9: identyfikator wystawiony przy starym haśle nie waliduje się już wobec nowego.
+    assert load_user(cookie_uid) is None, "stara sesja musi przestać działać po zmianie hasła"

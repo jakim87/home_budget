@@ -700,7 +700,9 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
             transactions.append(parsed_row)
         except (ValueError, StopIteration, IndexError) as e:
             if line.strip() and line.strip()[0].isdigit():
-                logger.warning("Odrzucono wiersz CSV przy imporcie (user_token=%s): %s | powód: %s", user_token, line, e)
+                # Logujemy sam powód, NIE treść wiersza — wiersz z wyciągu zawiera
+                # kontrahenta, tytuł, kwotę i numer konta, czyli dane finansowe (A10).
+                logger.warning("Odrzucono wiersz CSV przy imporcie (user_token=%s): %s", user_token, e)
             continue
 
     logger.info(

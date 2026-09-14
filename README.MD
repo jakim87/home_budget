@@ -1,4 +1,4 @@
-# Aplikacja Budżetu Domowego
+# Ile mam kasy
 
 **Wersja produkcyjna:** https://ilemamkasy.pl
 

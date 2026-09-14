@@ -1,4 +1,4 @@
-# Dokumentacja projektu: Home Budget App
+# Dokumentacja projektu: Ile mam kasy
 
 > Ostatnia aktualizacja: 2026-06-21
 > Zakres: dokumentacja biznesowa (procesy, wymagania, przepływy)
@@ -29,7 +29,7 @@
 
 ## 1. Cel i zakres aplikacji
 
-**Home Budget App** to webowa aplikacja do osobistego zarządzania finansami, docelowo przeznaczona dla dowolnego użytkownika jako rozwiązanie self-hosted lub SaaS.
+**Ile mam kasy** to webowa aplikacja do osobistego zarządzania finansami, docelowo przeznaczona dla dowolnego użytkownika jako rozwiązanie self-hosted lub SaaS.
 
 ### Główne funkcje
 

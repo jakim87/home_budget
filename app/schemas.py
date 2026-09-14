@@ -1,3 +1,4 @@
+from decimal import Decimal
 from app import ma
 from marshmallow import EXCLUDE, fields, validate, post_load
 from app.models import Frequency # Import models for nested schemas or enums
@@ -143,6 +144,26 @@ class RecurringTransactionSchema(ma.Schema):
             raise validate.ValidationError("day_of_month is required for MONTHLY frequency.", "day_of_month")
             
         return data
+
+class ReconcileSchema(ma.Schema):
+    """Wejście uzgadniania salda konta.
+
+    new_balance przez fields.Decimal z allow_nan=False: NaN/Infinity przechodzą
+    przez zwykłe Decimal(str(...)), a PostgreSQL przyjmuje je do kolumny numeric —
+    saldo staje się NaN i psuje JSON /api/init (aplikacja przestaje się ładować).
+    Range odpowiada kolumnie Numeric(10, 2): |saldo| < 10^8. Saldo bywa ujemne
+    (konto typu Kredyt), więc dolna granica też jest ujemna.
+    """
+    class Meta:
+        unknown = EXCLUDE
+
+    new_balance = fields.Decimal(
+        required=True, allow_nan=False,
+        validate=validate.Range(min=Decimal('-99999999.99'), max=Decimal('99999999.99'))
+    )
+    date = fields.Date(required=False, format='%Y-%m-%d')
+    comment = fields.String(load_default=None, allow_none=True, validate=validate.Length(max=255))
+
 
 class BudgetPlanSchema(ma.Schema):
     """Kwota planu budzetu. Gorny limit chroni przed literowka w rodzaju 100000000

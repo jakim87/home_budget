@@ -1,11 +1,9 @@
 from flask import Blueprint, request, jsonify
 from marshmallow import ValidationError
 from flask_login import login_required, current_user
-from app.schemas import AccountSchema
+from app.schemas import AccountSchema, ReconcileSchema
 from app.services.account_service import create_account, update_account, soft_delete_account, reorder_accounts
 from app.services.budget_service import reconcile_account_balance
-from decimal import Decimal, InvalidOperation
-from datetime import date
 
 accounts_bp = Blueprint('accounts', __name__, url_prefix='/api/accounts')
 
@@ -74,28 +72,17 @@ def reconcile_account(account_id):
     Endpoint do uzgadniania salda konta.
     Przyjmuje nowe saldo i tworzy transakcję korygującą.
     """
-    data = request.get_json()
-    if not data or 'new_balance' not in data:
-        return jsonify({'error': 'Brak pola "new_balance" w żądaniu.'}), 400
+    try:
+        data = ReconcileSchema().load(request.get_json() or {})
+    except ValidationError as err:
+        return jsonify({'error': err.messages}), 400
 
     try:
-        new_balance = Decimal(str(data['new_balance']))
-    except InvalidOperation:
-        return jsonify({'error': 'Nieprawidłowy format salda.'}), 400
-
-    # Brak pola 'date' = uzgodnienie "na teraz"; serwis podstawi dziś.
-    transaction_date = None
-    if data.get('date'):
-        try:
-            transaction_date = date.fromisoformat(str(data['date']))
-        except ValueError:
-            return jsonify({'error': 'Nieprawidłowy format daty (oczekiwano RRRR-MM-DD).'}), 400
-
-    try:
-        comment = data.get('comment') or None
+        # Brak pola 'date' = uzgodnienie "na teraz"; serwis podstawi dziś.
         reconciliation_tx = reconcile_account_balance(
-            current_user.token, account_id, new_balance,
-            comment=comment, transaction_date=transaction_date
+            current_user.token, account_id, data['new_balance'],
+            comment=data.get('comment') or None,
+            transaction_date=data.get('date')
         )
         if reconciliation_tx:
             return jsonify({'message': 'Saldo uzgodnione pomyślnie.', 'transaction_id': reconciliation_tx.id}), 200

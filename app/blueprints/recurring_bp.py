@@ -51,8 +51,12 @@ def preview_recurring_transactions():
         month = int(request.args['month'])
         if not (1 <= month <= 12):
             raise ValueError('month must be between 1 and 12')
+        # Zakres roku ogranicza koszt: bez tego year=9999 przy harmonogramie dziennym
+        # to miliony iteracji w pętli projekcji (DoS), a year=0 wywraca date().
+        if not (1900 <= year <= 2999):
+            raise ValueError('year out of range')
     except (KeyError, ValueError):
-        return jsonify({'error': 'Wymagane parametry: year (int) i month (int, 1-12)'}), 400
+        return jsonify({'error': 'Wymagane parametry: year (int, 1900-2999) i month (int, 1-12)'}), 400
 
     result = get_recurring_preview(current_user.token, year, month)
     return jsonify(result), 200

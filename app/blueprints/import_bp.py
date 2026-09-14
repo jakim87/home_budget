@@ -7,8 +7,14 @@ from app.services.demo_service import build_sample_statement_csv
 from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging, dismiss_staging_as_duplicate
 from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf, parse_ing_pdf
 from app.services.import_history_service import list_import_history, record_batch
+from app import limiter
 
 import_bp = Blueprint('import', __name__)
+
+# Limit na wgrywanie wyciągów: każde żądanie wczytuje plik (do 10 MB) do pamięci
+# i parsuje go (PDF przez PyMuPDF), więc jest znacznie droższe niż zwykły odczyt.
+# Klucz = IP; sensowny pod realny import (kilka plików naraz), zaporowy dla automatu.
+IMPORT_RATE_LIMIT = "20 per minute; 100 per hour"
 
 # Rejestr parserów wyciągów wg banku (CSV, ścieżka /api/import/<bank>).
 # Każdy parser ma tę samą sygnaturę (file_content, user_token, main_account_id)
@@ -92,6 +98,7 @@ def import_history():
 
 @import_bp.route('/api/import/auto', methods=['POST'])
 @login_required
+@limiter.limit(IMPORT_RATE_LIMIT)
 def import_auto():
     """Import z automatyczną detekcją banku i formatu po zawartości pliku."""
     user_token = current_user.token
@@ -148,6 +155,7 @@ def import_auto():
 
 @import_bp.route('/api/import/<bank>', methods=['POST'])
 @login_required
+@limiter.limit(IMPORT_RATE_LIMIT)
 def import_csv(bank):
     user_token = current_user.token
 

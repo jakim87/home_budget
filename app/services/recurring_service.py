@@ -68,11 +68,20 @@ def _calculate_first_occurrence_date(start_date: date, frequency: Frequency, int
 
     return next_run
 
+_PREVIEW_MAX_YEARS = 10
+
+
 def get_recurring_preview(user_token, year: int, month: int) -> list:
     """
     Zwraca wirtualne wystąpienia aktywnych transakcji cyklicznych
     dla podanego roku i miesiąca. Nie modyfikuje bazy danych.
     """
+    # Druga warstwa ochrony (obok walidacji w recurring_bp), bo tę funkcję woła też
+    # zakładka Budżet: rok odległy od dziś o więcej niż _PREVIEW_MAX_YEARS nie ma
+    # realnych projekcji, a pętla dzień-po-dniu liczyłaby się długo (patrz #178).
+    if abs(year - date.today().year) > _PREVIEW_MAX_YEARS:
+        return []
+
     month_start = date(year, month, 1)
     month_end = date(year, month, monthrange(year, month)[1])
 

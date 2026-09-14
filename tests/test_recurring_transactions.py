@@ -344,3 +344,32 @@ def test_preview_zwraca_kwote_jako_liczbe(logged_in_client, app, setup_for_recur
         assert zabronione not in p, (
             f"'{zabronione}' to nazwa z rozjechanego kontraktu — front czyta desc/category"
         )
+
+
+def test_preview_odrzuca_rok_poza_zakresem(logged_in_client, setup_for_recurring):
+    """Podgląd bez limitu roku był wektorem DoS: year=9999 przy harmonogramie
+    dziennym to miliony iteracji w Pythonie, a gunicorn ma 3 synchroniczne workery.
+    Rok spoza zakresu (i year=0, który wywracał date()) musi dać 400, nie zawis."""
+    for rok in (9999, 0):
+        odp = logged_in_client.get(
+            f'/api/recurring-transactions/preview?year={rok}&month=6'
+        )
+        assert odp.status_code == 400, f"rok {rok} powinien dać 400"
+
+
+def test_preview_serwis_pomija_rok_odlegly(app, setup_for_recurring):
+    """Druga warstwa: sam serwis (wołany też przez zakładkę Budżet) zwraca pustą
+    listę dla roku odległego o >10 lat, zamiast iterować dzień po dniu."""
+    from app.services.recurring_service import get_recurring_preview
+    user_token, account_id, category_id = setup_for_recurring
+    dzis = date.today()
+
+    db.session.add(RecurringTransaction(
+        user_token=user_token, account_id=account_id, category_id=category_id,
+        title='Codzienny', amount=Decimal('-1.00'),
+        frequency=Frequency.DAILY, interval=1,
+        start_date=dzis, next_run_date=dzis,
+    ))
+    db.session.commit()
+
+    assert get_recurring_preview(user_token, dzis.year + 50, 6) == []

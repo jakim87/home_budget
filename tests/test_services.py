@@ -289,3 +289,36 @@ def test_reconcile_na_dzis_nie_rusza_wczesniejszych_uzgodnien(app, test_user_tok
 
         assert sierpniowe.amount == Decimal("50.00")
         assert Decimal(account.balance) == Decimal("1300.00")
+
+
+def test_api_reconcile_odrzuca_nan(logged_in_client, test_user_token):
+    """NaN da się wpisać do kolumny numeric w PostgreSQL i psuje JSON /api/init
+    (saldo=NaN), więc musi odbić się na wejściu — 400, saldo bez zmian."""
+    account = Account(name="Konto", bank_name="Bank", balance=Decimal("1000.00"), user_token=test_user_token)
+    db.session.add(account)
+    db.session.commit()
+
+    resp = logged_in_client.post(
+        f'/api/accounts/{account.id}/reconcile',
+        json={'new_balance': 'NaN'},
+    )
+
+    assert resp.status_code == 400
+    assert db.session.query(Transaction).count() == 0
+    assert db.session.get(Account, account.id).balance == Decimal("1000.00")
+
+
+def test_api_reconcile_odrzuca_kwote_ponad_zakres_kolumny(logged_in_client, test_user_token):
+    """Numeric(10,2) mieści |saldo| < 10^8; większa kwota kończyła się 500
+    (NumericValueOutOfRange z bazy) zamiast czytelnego 400."""
+    account = Account(name="Konto", bank_name="Bank", balance=Decimal("1000.00"), user_token=test_user_token)
+    db.session.add(account)
+    db.session.commit()
+
+    resp = logged_in_client.post(
+        f'/api/accounts/{account.id}/reconcile',
+        json={'new_balance': '100000000.00'},
+    )
+
+    assert resp.status_code == 400
+    assert db.session.query(Transaction).count() == 0

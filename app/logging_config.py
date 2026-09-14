@@ -17,6 +17,7 @@ wiersze, każdy oznaczony poziomem ważności):
   nasz handler plikowy RAZ do root loggera, a złapie wiadomości ze WSZYSTKICH
   modułów aplikacji.
 """
+import copy
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -26,6 +27,23 @@ LOG_DIR = os.path.join(BASE_DIR, 'logs')
 LOG_FILE = os.path.join(LOG_DIR, 'app.log')
 
 
+class ControlSafeFormatter(logging.Formatter):
+    """Formatter, który zamienia znaki nowej linii w TREŚCI komunikatu na widoczne
+    `\\n` / `\\r`, żeby dane od użytkownika (nazwa logowania, tytuł z wyciągu) nie
+    mogły podrobić kolejnych linii-wpisów w logu (log injection — A3).
+
+    Escapujemy wyłącznie `record.getMessage()` (msg % args), a nie cały sformatowany
+    rekord: wieloliniowy traceback z `exc_info` jest legalny i zostaje nietknięty.
+    Pracujemy na płytkiej kopii rekordu, bo ten sam obiekt trafia do innych handlerów.
+    """
+
+    def format(self, record):
+        record = copy.copy(record)
+        record.msg = record.getMessage().replace('\r', '\\r').replace('\n', '\\n')
+        record.args = None  # message jest już rozwinięty — bez tego %-formatting powtórzyłby się
+        return super().format(record)
+
+
 def configure_logging(app):
     """Wywoływane raz, przy starcie aplikacji (w create_app())."""
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -33,7 +51,7 @@ def configure_logging(app):
     log_level_name = app.config.get('LOG_LEVEL', 'INFO').upper()
     log_level = getattr(logging, log_level_name, logging.INFO)
 
-    formatter = logging.Formatter(
+    formatter = ControlSafeFormatter(
         fmt='%(asctime)s %(levelname)s [%(name)s] %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
     )

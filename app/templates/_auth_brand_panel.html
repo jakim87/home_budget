@@ -1,0 +1,54 @@
+<!-- Panel marki w modalu logowania/rejestracji (widoczny od md w gore).
+     Dotad pierwszym kontaktem z aplikacja byl goly formularz na rozmytym tle —
+     nic nie mowilo, co to za aplikacja i po co zakladac konto.
+
+     Kolory biora sie z tokenow classical.css; kazdy var() ma fallback, bo
+     wycofanie warstwy Classical to usuniecie dwoch <link> z <head> (patrz
+     naglowek classical.css) i panel musi to przezyc.
+
+     Wersja mobilna tego samego przekazu (logo + jedno zdanie) siedzi w
+     base.html nad formularzem — tu jest ukryta, bo na waskim ekranie na
+     kolumne marki nie ma miejsca. -->
+<aside class="hidden md:flex md:flex-col md:flex-none md:w-[42%] relative overflow-hidden p-9"
+       style="background-color: var(--color-neutral-900, #1e293b); color: var(--color-neutral-100, #f8fafc)">
+
+    <!-- Znak wodny: duza wersja logo wypuszczona poza krawedz panelu. -->
+    <svg width="120" height="120" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+         stroke="var(--color-accent-700, #d97706)" stroke-width="1"
+         class="absolute -right-5 -bottom-2.5 opacity-35">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+    </svg>
+
+    <div class="flex items-center gap-2">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+             stroke="var(--color-accent-400, #fbbf24)" stroke-width="1.6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <span class="text-[17px] font-medium"
+              style="font-family: var(--font-heading, Georgia, serif); color: var(--color-accent-200, #fde68a)">Ile mam kasy</span>
+    </div>
+    <p class="text-xs mt-1.5 mb-0" style="color: var(--color-neutral-400, #94a3b8)">Kontroluj swoje wydatki i przychody w jednym miejscu.</p>
+
+    <div class="my-6" style="border-top: 1px solid var(--color-accent-800, #92400e)"></div>
+
+    <!-- Trzy rzeczy, ktore aplikacja robi za uzytkownika. Kolejnosc = droga
+         nowej osoby: najpierw wciagnij dane, potem je uporzadkuj, na koncu
+         zaplanuj. -->
+    <div class="relative z-10 flex flex-col gap-4">
+        <div>
+            <div class="text-sm mb-0.5" style="font-family: var(--font-heading, Georgia, serif); color: var(--color-accent-300, #fcd34d)">Import z wyciągów</div>
+            <div class="text-[11.5px]" style="color: var(--color-neutral-400, #94a3b8)">Wyciągi bankowe — CSV, PDF, HTML, bez ręcznego wpisywania.</div>
+        </div>
+        <div>
+            <div class="text-sm mb-0.5" style="font-family: var(--font-heading, Georgia, serif); color: var(--color-accent-300, #fcd34d)">Kategoryzacja i wykresy</div>
+            <div class="text-[11.5px]" style="color: var(--color-neutral-400, #94a3b8)">Transakcje same trafiają na właściwą półkę.</div>
+        </div>
+        <div>
+            <div class="text-sm mb-0.5" style="font-family: var(--font-heading, Georgia, serif); color: var(--color-accent-300, #fcd34d)">Budżet miesięczny</div>
+            <div class="text-[11.5px]" style="color: var(--color-neutral-400, #94a3b8)">Plan kontra wykonanie, na jednym ekranie.</div>
+        </div>
+    </div>
+
+    <p class="relative z-10 mt-auto mb-0 text-[12.5px] italic"
+       style="font-family: var(--font-heading, Georgia, serif); color: var(--color-neutral-500, #64748b)">Zbudowane, żeby dokładnie wiedzieć, ile zostaje.</p>
+</aside>

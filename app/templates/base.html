@@ -1127,8 +1127,31 @@
     <div id="login-modal" class="hidden fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[100] backdrop-blur-sm">
         <!-- max-h/overflow: formularz rejestracji jest wyzszy niz niskie okno (ok. 770 px),
              a modal jest wysrodkowany w warstwie fixed — bez tego jego gora (naglowek i
-             pole nazwy uzytkownika) wychodzi poza ekran i nie da sie do niej doscrollowac. -->
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
+             pole nazwy uzytkownika) wychodzi poza ekran i nie da sie do niej doscrollowac.
+             Przewija sie kolumna z formularzem, nie cala karta — inaczej panel marki
+             odjezdzalby w gore razem z trescia. -->
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm md:max-w-3xl max-h-[90vh] flex overflow-hidden">
+
+            {% include '_auth_brand_panel.html' %}
+
+            <!-- Kolumna formularza. Oba widoki (logowanie i rejestracja) siedza w niej
+                 obok siebie i przelacza je showAuthView(); panel marki jest ich wspolnym
+                 sasiadem, wiec nie miga przy przelaczaniu. -->
+            <div class="flex-1 p-8 overflow-y-auto">
+
+            <!-- Naglowek marki dla waskich ekranow — odpowiednik panelu obok,
+                 skrocony do logo i jednego zdania. Poza widokami, zeby nie dublowac
+                 go w logowaniu i rejestracji. -->
+            <div class="md:hidden text-center mb-5 pb-5 border-b border-slate-200">
+                <div class="flex items-center justify-center gap-2.5 mb-1.5">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+                         stroke="var(--color-accent-700, #2563eb)" stroke-width="1.6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="text-lg font-medium text-slate-800" style="font-family: var(--font-heading, Georgia, serif)">Ile mam kasy</span>
+                </div>
+                <p class="text-[12.5px] text-slate-500">Kontroluj swoje wydatki i przychody w jednym miejscu.</p>
+            </div>
 
             <!-- WIDOK: logowanie -->
             <div id="auth-view-login">
@@ -1207,6 +1230,7 @@
                     <button type="button" onclick="showAuthView(&#39;login&#39;)" class="text-blue-600 hover:text-blue-800 font-medium hover:underline">Zaloguj się</button>
                 </p>
                 {% include '_auth_legal_links.html' %}
+            </div>
             </div>
         </div>
     </div>

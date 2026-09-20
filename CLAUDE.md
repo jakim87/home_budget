@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Home Budget App** — Flask + PostgreSQL web app for personal finance management. Features: bank account tracking, import wyciągów z ING i mBanku (CSV/PDF/HTML, z automatyczną detekcją banku i formatu), transaction categorization, recurring/planned transactions, internal transfers, dashboard z Net Worth i zakładka Raporty (oba na Chart.js), publiczna rejestracja użytkowników. Codebase and UI are in **Polish**.
+**Ile mam kasy** (dawniej „Budżet domowy”) — Flask + PostgreSQL web app for personal finance management. Features: bank account tracking, import wyciągów z ING i mBanku (CSV/PDF/HTML, z automatyczną detekcją banku i formatu), transaction categorization, recurring/planned transactions, internal transfers, dashboard z Net Worth i zakładka Raporty (oba na Chart.js), publiczna rejestracja użytkowników. Codebase and UI are in **Polish**.
 
 ## Zasady pracy nad tym repo
 

@@ -19,10 +19,15 @@ BACKUP_PASSPHRASE_FILE=/etc/budget-backup.passphrase
 # Ile najnowszych kopii zostawic (starsze sa kasowane po udanym przebiegu).
 BACKUP_KEEP=14
 
-# Katalog na kopie POZA tym serwerem: zamontowany dysk sieciowy, katalog
-# rclone, pendrive. Puste = wylaczone.
-#
-# Dopoki to jest puste, kopie leza na tej samej maszynie co baza — czyli
-# chronia przed pomylka ("skasowalem nie te transakcje"), ale NIE przed
-# awaria dysku ani utrata serwera.
+# Katalog na kopie POZA tym serwerem: zamontowany dysk sieciowy, pendrive.
+# Puste = wylaczone.
 BACKUP_MIRROR_DIR=
+
+# Zdalny storage przez rclone: nazwa_remote:nazwa_bucketa.
+# Przyklad dla OVH Object Storage: BACKUP_RCLONE_REMOTE=ovh:budget-backups
+# Przyklad dla Backblaze B2:       BACKUP_RCLONE_REMOTE=b2:budget-backups
+# Puste = wylaczone.
+#
+# Konfiguracja rclone: /root/.config/rclone/rclone.conf (lub sudo -u postgres).
+# Dopoki to jest puste, kopie leza wylacznie na tej samej maszynie co baza.
+BACKUP_RCLONE_REMOTE=

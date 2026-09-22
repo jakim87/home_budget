@@ -30,6 +30,7 @@ fi
 : "${BACKUP_PASSPHRASE_FILE:?BACKUP_PASSPHRASE_FILE nie ustawione (plik z haslem do szyfrowania)}"
 BACKUP_KEEP="${BACKUP_KEEP:-14}"
 BACKUP_MIRROR_DIR="${BACKUP_MIRROR_DIR:-}"
+BACKUP_RCLONE_REMOTE="${BACKUP_RCLONE_REMOTE:-}"
 
 if [[ ! -r "$BACKUP_PASSPHRASE_FILE" ]]; then
     echo "BLAD: nie moge odczytac pliku z haslem: $BACKUP_PASSPHRASE_FILE" >&2
@@ -68,11 +69,24 @@ fi
 echo "      OK — $LICZBA_OBIEKTOW obiektow, $(du -h "$TARGET" | cut -f1)"
 
 if [[ -n "$BACKUP_MIRROR_DIR" ]]; then
-    # Kopia poza tym serwerem (zamontowany dysk sieciowy, rclone, cokolwiek).
-    # Bez tego awaria maszyny zabiera baze RAZEM z jej kopiami zapasowymi.
+    # Kopia na zamontowany katalog sieciowy lub lokalny dysk zapasowy.
     echo "[3b/4] Kopia do $BACKUP_MIRROR_DIR"
     mkdir -p "$BACKUP_MIRROR_DIR"
     cp "$TARGET" "$BACKUP_MIRROR_DIR/"
+fi
+
+if [[ -n "$BACKUP_RCLONE_REMOTE" ]]; then
+    # Kopia do zdalnego storage przez rclone (np. OVH Object Storage, B2, S3).
+    # Format: nazwa_remote:nazwa_bucketa, np. ovh:budget-backups
+    echo "[3c/4] Kopia zdalna → $BACKUP_RCLONE_REMOTE"
+    if ! command -v rclone &>/dev/null; then
+        echo "BLAD: rclone nie jest zainstalowane." >&2
+        exit 1
+    fi
+    rclone copy "$TARGET" "$BACKUP_RCLONE_REMOTE/" \
+        --s3-no-check-bucket \
+        --log-level INFO
+    echo "      OK — plik przeslany"
 fi
 
 echo "[4/4] Rotacja — zostawiam $BACKUP_KEEP najnowszych"

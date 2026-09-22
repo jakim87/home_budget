@@ -54,7 +54,6 @@ flask process-scheduled          # Execute due recurring & planned transactions
 flask cleanup-archive            # Remove archived transactions older than 60 days
 flask reset-password             # Ustawia nowe hasło użytkownika (jedyna droga odzyskania
                                  #   konta — aplikacja nie wysyła maili)
-flask import-excel-balance-history  # Jednorazowa migracja historii sald z XLSX (domyślnie dry-run)
 flask seed-demo                  # Odtwarza konto demo od zera (idempotentne — pod nocny timer)
 flask feedback-list              # Wypisuje uwagi użytkowników (jedyna droga odczytu)
 flask feedback-delete --id N     # Kasuje zgłoszenie na stałe
@@ -111,7 +110,6 @@ app/
 │   ├── budget_plan_service.py      # Plan miesieczny vs wykonanie (zakladka Budzet)
 │   ├── statement_parsers.py        # detect_bank_and_format + parsery PDF/HTML
 │   ├── import_history_service.py   # Historia importów (model StatementImport)
-│   ├── excel_history_import_service.py  # Jednorazowa migracja historii sald z XLSX
 │   ├── init_service.py             # Payload dla GET /api/init (cały stan frontu)
 │   ├── transaction_service.py      # Transaction archive & cleanup
 │   ├── recurring_service.py        # Recurring transaction execution

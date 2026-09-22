@@ -78,7 +78,7 @@ STARTER_CATEGORIES = [
 ]
 
 
-def create_starter_categories(user_token, commit=True):
+def create_starter_categories(user_token):
     """Zaklada nowemu uzytkownikowi komplet kategorii startowych.
 
     Bez tego swiezo zarejestrowana osoba widzi pusta aplikacje i nie moze dodac
@@ -88,16 +88,14 @@ def create_starter_categories(user_token, commit=True):
     Kategorie sa PRYWATNE (user_token wypelniony), nie globalne — dzieki temu
     kazdy moze skasowac te, ktorych nie uzywa, nie ruszajac cudzych.
 
-    commit=False pozwala wolajacemu (rejestracja) domknac utworzenie uzytkownika
-    i jego kategorii jednym commitem.
+    Nie commituje — wolajacy (rejestracja, konto demo) domyka utworzenie
+    uzytkownika i jego kategorii jednym commitem.
     """
     utworzone = [
         Category(name=name, type=cat_type, user_token=user_token)
         for name, cat_type in STARTER_CATEGORIES
     ]
     db.session.add_all(utworzone)
-    if commit:
-        db.session.commit()
     return utworzone
 
 

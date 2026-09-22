@@ -64,16 +64,13 @@ pytest                           # Run all tests (~250 testów w 28 plikach; kil
 npm test                         # Testy JS (vitest): liczenie na Dashboardzie i w Raportach
 pytest tests/test_file.py        # Single file
 pytest tests/test_file.py::test_name -vv --tb=long  # Single test, verbose
-
-# DB connectivity check
-python test_db.py
 ```
 
 ## Setup
 
 ```bash
 python -m venv venv && venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 # Edit .env: DATABASE_URL=postgresql://postgres:PASSWORD@localhost:5432/budget_db
 #            SECRET_KEY=...           (opcjonalny; fallback 'dev-key-123' w config.py)
 #            LOG_LEVEL=DEBUG|INFO|... (opcjonalny; domyślnie INFO — patrz Logging & Diagnostyka)
@@ -94,7 +91,7 @@ Default dev credentials after `flask seed`: **default_user / password**. Hasło 
 - **Backend**: Python 3.12+, Flask 3.1.3, SQLAlchemy 2.0 (`Mapped` type hints), Flask-Migrate
 - **Database**: PostgreSQL (prod), in-memory SQLite (tests via `tests/conftest.py`)
 - **Auth**: Flask-Login + Flask-Limiter (limity per-IP na `/api/login` i `/api/register`)
-- **Serialization**: Marshmallow + flask-marshmallow
+- **Serialization**: Marshmallow
 - **Parsowanie wyciągów**: PyMuPDF (PDF), BeautifulSoup4 (HTML mBanku), `csv` ze stdlib
 - **Frontend**: Jinja2 (jeden szablon `base.html` = SPA z zakładkami) + Tailwind CSS + Chart.js (dashboard i Raporty) + driver.js (samouczek) — wszystko z CDN
 
@@ -280,7 +277,7 @@ Konfiguracja w `app/logging_config.py` (`configure_logging()`, wołane raz w `cr
 | `.flaskenv`            | Public Flask env (`FLASK_DEBUG=1`)                              |
 | `migrations/versions/` | Alembic migration scripts — always review before committing      |
 | `ruff.toml`            | Konfiguracja lintera — celowo wąska, patrz Testing                |
-| `requirements-dev.txt` | Narzędzia CI (ruff); nie instalowane na produkcji                 |
+| `requirements-dev.txt` | Narzędzia dev/CI (pytest, ruff); nie instalowane na produkcji    |
 | `README.md`            | Opis dla ludzi — trzymaj zgodny z tym plikiem                     |
 | `docs/`                | `DOCUMENTATION.md` (procesy biznesowe), `PRZEWODNIK_UZYTKOWNIKA.md` |
 

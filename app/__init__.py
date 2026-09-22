@@ -6,7 +6,6 @@ from flask_migrate import Migrate
 from config import Config
 from sqlalchemy.orm import DeclarativeBase
 from flask_login import LoginManager, current_user
-from flask_marshmallow import Marshmallow
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.exceptions import HTTPException
@@ -18,7 +17,6 @@ class Base(DeclarativeBase):
 
 db = SQLAlchemy(model_class=Base)
 migrate = Migrate()
-ma = Marshmallow()
 login_manager = LoginManager()
 
 # Limity ruchu na wrażliwych endpointach (logowanie, rejestracja). Klucz = adres IP,
@@ -69,7 +67,6 @@ def create_app(config_class=Config):
 
     db.init_app(app)
     migrate.init_app(app, db)
-    ma.init_app(app)
     login_manager.init_app(app)
     limiter.init_app(app)
 

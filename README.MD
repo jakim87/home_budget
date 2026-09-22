@@ -50,7 +50,6 @@ Import ma dwa tryby:
 Poza importem z banku dostępne są:
 
 - Ręczne dodawanie transakcji (również gotówkowych)
-- Jednorazowa migracja historii sald z arkusza XLSX (`flask import-excel-balance-history`)
 
 Docelowo planowana obsługa: Millennium, Pekao, Revolut.
 
@@ -126,10 +125,6 @@ flask reset-password --user NAZWA   # Ustaw nowe hasło (jedyna droga odzyskania
 flask feedback-list                 # Wypisz zgłoszenia, od najnowszego
 flask feedback-delete --id 7        # Usuń zgłoszenie nr 7
 
-# Jednorazowa migracja historii sald z arkusza XLSX (domyślnie dry-run)
-flask import-excel-balance-history --file historia.xlsx --user default_user
-flask import-excel-balance-history --file historia.xlsx --user default_user --execute
-
 # Testy
 pytest                              # Uruchom wszystkie testy (backend)
 npm install                         # Jednorazowo: zależności testów frontu
@@ -163,7 +158,6 @@ app/
 │   ├── init_service.py               # Payload dla GET /api/init (cały stan frontu)
 │   ├── transaction_service.py        # Archiwizacja i czyszczenie transakcji
 │   ├── recurring_service.py          # Wykonywanie transakcji cyklicznych
-│   ├── excel_history_import_service.py  # Jednorazowa migracja historii sald z XLSX
 │   ├── planned_transaction_service.py
 │   └── *.py                          # Serwisy kategorii, kontrahentów, kont, auth
 ├── blueprints/         # Warstwa HTTP — obsługuje żądania, wywołuje serwisy

@@ -342,8 +342,7 @@ def handle_internal_transfer(
         db.session.delete(matching_staging)
 
 def get_or_create_reconciliation_category() -> Category:
-    """Kategoria systemowa 'Uzgadnianie salda' — współdzielona przez ręczne
-    uzgodnienie salda (UI) i migrację historycznych sald z Excela."""
+    """Kategoria systemowa 'Uzgadnianie salda' dla ręcznego uzgodnienia salda (UI)."""
     category = db.session.query(Category).filter_by(name="Uzgadnianie salda", is_system_category=True).first()
     if not category:
         category = Category(name="Uzgadnianie salda", type="system_reconciliation", is_system_category=True)

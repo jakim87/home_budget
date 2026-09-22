@@ -1,9 +1,8 @@
 from decimal import Decimal
-from app import ma
-from marshmallow import EXCLUDE, fields, validate, post_load
+from marshmallow import EXCLUDE, Schema, fields, validate, post_load
 from app.models import Frequency # Import models for nested schemas or enums
 
-class RegisterSchema(ma.Schema):
+class RegisterSchema(Schema):
     username = fields.String(required=True, validate=validate.Length(min=3, max=64))
     email = fields.Email(required=True)
     # Minimum 10 znakow: aplikacja trzyma dane finansowe, a rejestracja jest publiczna.
@@ -12,12 +11,12 @@ class RegisterSchema(ma.Schema):
     # zapamietania, a wymuszanie znakow specjalnych pcha ludzi w "Haslo1!".
     password = fields.String(required=True, validate=validate.Length(min=10, max=128))
 
-class LoginSchema(ma.Schema):
+class LoginSchema(Schema):
     username = fields.String(required=False)
     email = fields.String(required=False)
     password = fields.String(required=True)
 
-class FeedbackSchema(ma.Schema):
+class FeedbackSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
@@ -30,7 +29,7 @@ class FeedbackSchema(ma.Schema):
     context = fields.String(load_default=None, allow_none=True, validate=validate.Length(max=120))
 
 
-class AccountSchema(ma.Schema):
+class AccountSchema(Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))
     bank_name = fields.String(load_default="")
     account_number = fields.String(load_default="")
@@ -39,17 +38,17 @@ class AccountSchema(ma.Schema):
     co_owner = fields.String(load_default=None, allow_none=True)
     account_type = fields.String(load_default=None, allow_none=True)
 
-class CategorySchema(ma.Schema):
+class CategorySchema(Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))
     type = fields.String(required=True, validate=validate.OneOf(['income', 'expense', 'transfer']))
 
-class ContractorSchema(ma.Schema):
+class ContractorSchema(Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))
     rules = fields.String(load_default="")
     default_category_id = fields.Integer(load_default=None, allow_none=True)
     category = fields.String(load_default=None, allow_none=True)
 
-class SplitSchema(ma.Schema):
+class SplitSchema(Schema):
     # Front wysyła podziały razem z własnym `id` (dla nowych wierszy to tymczasowy
     # identyfikator z Date.now(), nie liczba z bazy). Serwer i tak odtwarza podziały
     # od zera z amount/desc/category, więc nadmiarowe pola ignorujemy zamiast
@@ -61,7 +60,7 @@ class SplitSchema(ma.Schema):
     desc = fields.String(load_default="")
     category = fields.String(required=True)
 
-class TransactionSchema(ma.Schema):
+class TransactionSchema(Schema):
     title = fields.String(required=False)
     desc = fields.String(required=False)
     amount = fields.Decimal(required=True, as_string=False)
@@ -72,7 +71,7 @@ class TransactionSchema(ma.Schema):
     splits = fields.List(fields.Nested(SplitSchema), load_default=[])
     comment = fields.String(load_default=None, allow_none=True, validate=validate.Length(max=255))
 
-class BulkTransactionSchema(ma.Schema):
+class BulkTransactionSchema(Schema):
     """Wejście operacji zbiorczych na transakcjach.
 
     Górny limit listy jest celowy: jedno żądanie ładuje wszystkie wskazane
@@ -88,11 +87,11 @@ class BulkTransactionSchema(ma.Schema):
     category = fields.String(load_default=None, allow_none=True)
 
 
-class StagingApproveSchema(ma.Schema):
+class StagingApproveSchema(Schema):
     category = fields.String(required=True)
     contractor_id = fields.Integer(required=True)
 
-class PlannedTransactionSchema(ma.Schema):
+class PlannedTransactionSchema(Schema):
     id = fields.Integer(dump_only=True)
     account_id = fields.Integer(required=True)
     category_id = fields.Integer(required=True, allow_none=False)
@@ -105,7 +104,7 @@ class PlannedTransactionSchema(ma.Schema):
     status = fields.String(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
 
-class RecurringTransactionSchema(ma.Schema):
+class RecurringTransactionSchema(Schema):
     id = fields.Integer(dump_only=True)
     account_id = fields.Integer(required=True)
     category_id = fields.Integer(allow_none=True)
@@ -145,7 +144,7 @@ class RecurringTransactionSchema(ma.Schema):
             
         return data
 
-class ReconcileSchema(ma.Schema):
+class ReconcileSchema(Schema):
     """Wejście uzgadniania salda konta.
 
     new_balance przez fields.Decimal z allow_nan=False: NaN/Infinity przechodzą
@@ -165,7 +164,7 @@ class ReconcileSchema(ma.Schema):
     comment = fields.String(load_default=None, allow_none=True, validate=validate.Length(max=255))
 
 
-class BudgetPlanSchema(ma.Schema):
+class BudgetPlanSchema(Schema):
     """Kwota planu budzetu. Gorny limit chroni przed literowka w rodzaju 100000000
     przy kolumnie Numeric(10, 2) — bez niego bledem byloby dopiero DataError z bazy."""
     class Meta:

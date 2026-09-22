@@ -59,7 +59,7 @@ Docelowo planowana obsługa: Millennium, Pekao, Revolut.
 - **Backend:** Python 3.12+, Flask 3.1, SQLAlchemy 2.0 (składnia `Mapped`), Flask-Migrate (Alembic)
 - **Baza danych:** PostgreSQL (produkcja), SQLite in-memory (testy)
 - **Uwierzytelnianie:** Flask-Login
-- **Serializacja:** Marshmallow + flask-marshmallow
+- **Serializacja:** Marshmallow
 - **Frontend:** Jinja2, Tailwind CSS (CDN), Chart.js (CDN), driver.js (samouczek, CDN)
 - **Testy:** pytest
 
@@ -82,7 +82,7 @@ venv\Scripts\activate          # Windows
 # source venv/bin/activate     # Linux / macOS
 
 # Zainstaluj zależności
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt   # dev-owe: pytest, ruff
 
 # Skonfiguruj zmienne środowiskowe (.env)
 # DATABASE_URL=postgresql://postgres:HASLO@localhost:5432/budget_db
@@ -138,7 +138,6 @@ pytest tests/test_plik.py           # Pojedynczy plik
 pytest tests/test_plik.py::test_nazwa -vv --tb=long   # Pojedynczy test, tryb szczegółowy
 
 # Diagnostyka
-python test_db.py                   # Sprawdź połączenie z bazą danych
 
 # Kopie zapasowe (na serwerze — patrz deploy/backup/README.md)
 deploy/backup/budget-backup.sh                     # Kopia: zrzut, szyfrowanie, weryfikacja, rotacja
@@ -234,7 +233,6 @@ budget/
 ├── config.py                     # Klasy Config i TestConfig
 ├── requirements.txt
 ├── run.py                        # Punkt wejścia aplikacji
-├── test_db.py                    # Skrypt weryfikujący połączenie z bazą
 └── README.MD
 ```
 

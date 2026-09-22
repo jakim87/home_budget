@@ -179,7 +179,7 @@ def seed_demo(username: str, password: str) -> dict:
         db.session.execute(text("DELETE FROM categories WHERE user_token = :t"), {'t': utok})
         db.session.flush()
 
-        create_starter_categories(utok, commit=False)
+        create_starter_categories(utok)
         db.session.flush()
         cats = {c.name: c for c in db.session.query(Category).filter_by(user_token=utok).all()}
 

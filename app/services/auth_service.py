@@ -23,7 +23,7 @@ def register_user(data):
         # kategorii startowych. Jeden commit ponizej domyka konto i jego kategorie
         # atomowo: nie da sie zalozyc uzytkownika bez kategorii ani odwrotnie.
         db.session.flush()
-        create_starter_categories(new_user.token, commit=False)
+        create_starter_categories(new_user.token)
 
         db.session.commit()
         logger.info("Zarejestrowano uzytkownika %s (token=%s)", new_user.username, new_user.token)

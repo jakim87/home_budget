@@ -47,7 +47,7 @@ def test_import_dispatch_mbank_bank_param(logged_in_client, app, import_account)
 
 def test_import_unknown_bank_returns_400(logged_in_client, app, import_account):
     """Nieobsługiwany bank w URL → 400, brak wpisów w stagingu."""
-    resp = _upload(logged_in_client, import_account.id, CSV_PL.encode('utf-8'), bank="pekao")
+    resp = _upload(logged_in_client, import_account.id, CSV_PL.encode('utf-8'), bank="nieznanybank")
     assert resp.status_code == 400
     assert db.session.query(TransactionStaging).count() == 0
 
@@ -482,3 +482,22 @@ def test_staging_preview_lustro_gdy_konto_docelowe_bez_wyciagow(logged_in_client
     k = dwa_konta
     wyplyw = _stg(test_user.token, k['a'], "-500.00", k['cont_b'], k['cat'])
     assert _poczekalnia(logged_in_client)[wyplyw.id]['transfer_pair'] == 'mirror'
+
+
+PEKAO_CSV_WPLYW_PIERWSZY = """Data księgowania;Data waluty;Nadawca / Odbiorca;Adres nadawcy / odbiorcy;Rachunek źródłowy;Rachunek docelowy;Tytułem;Kwota operacji;Waluta;Numer referencyjny;Typ operacji
+08.09.2026;08.09.2026;JAN TESTOWY;;'99888877776666555544443333;'22334455667788990011223344;Zwrot za obiad;24,58;PLN;'C000000000000001;PRZELEW BLIK PRZYCHODZĄCY
+07.09.2026;07.09.2026;SKLEP TESTOWY          WARSZAWA;;'22334455667788990011223344;;*********0000001;-1 372,50;PLN;'C000000000000002;TRANSAKCJA KARTĄ PŁATNICZĄ
+"""
+
+
+def test_import_auto_pekao_csv_resolves_account_from_rows(logged_in_client, app, iban_account):
+    """Pekao nie ma numeru rachunku w nagłówku — konto rozpoznane z wierszy.
+    Pierwszy wiersz to WPŁYW: własny rachunek jest wtedy docelowym, nie źródłowym."""
+    resp = _upload_auto_no_account(logged_in_client, PEKAO_CSV_WPLYW_PIERWSZY.encode('utf-8'), filename="pekao.csv")
+    assert resp.status_code == 201
+    body = resp.get_json()
+    assert body['detected'] == {'bank': 'pekao', 'format': 'csv'}
+    assert body['resolved_account']['id'] == iban_account.id
+    rows = db.session.query(TransactionStaging).order_by(TransactionStaging.amount).all()
+    assert [r.amount for r in rows] == [Decimal("-1372.50"), Decimal("24.58")]
+    assert all(r.account_id == iban_account.id for r in rows)

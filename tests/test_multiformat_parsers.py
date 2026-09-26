@@ -13,6 +13,7 @@ from app.services.statement_parsers import (
     detect_bank_and_format,
     parse_mbank_html,
     parse_mbank_pdf,
+    parse_pekao_csv,
 )
 
 # --- Fixtures treściowe -----------------------------------------------------
@@ -328,3 +329,44 @@ def test_parse_mbank_pdf_date_on_own_line_title_fallback(app, mf_user):
     assert len(txs) == 1
     assert txs[0]['title'] == "FIRMA TESTOWA SP Z OO, Dziecko"
     assert txs[0]['amount'] == Decimal("440.00")
+
+
+# --- Parser Pekao CSV -------------------------------------------------------
+
+PEKAO_CSV_SAMPLE = """Data księgowania;Data waluty;Nadawca / Odbiorca;Adres nadawcy / odbiorcy;Rachunek źródłowy;Rachunek docelowy;Tytułem;Kwota operacji;Waluta;Numer referencyjny;Typ operacji;Kategoria
+25.09.2026;25.09.2026;SKLEP TESTOWY          WARSZAWA;;'11111111111111111111111111;;*********0000001;-1 372,50;PLN;'C000000000000001;TRANSAKCJA KARTĄ PŁATNICZĄ;Artykuły spożywcze
+24.09.2026;23.09.2026;SERWIS STREAMINGOWY    PRAGUE;;'11111111111111111111111111;;;-19,99;PLN;'C000000000000002;TRANSAKCJA KARTĄ PŁATNICZĄ;Internet, TV, telefon
+01.09.2026;01.09.2026;JAN TESTOWY;UL. PRZYKŁADOWA 1 00-001 WARSZAWA;'99888877776666555544443333;'11111111111111111111111111;Zwrot za obiad;1 000,00;PLN;'C000000000000003;PRZELEW KRAJOWY MIĘDZYBANKOWY;Bez kategorii
+"""
+
+
+def test_detect_pekao_csv():
+    assert detect_bank_and_format(PEKAO_CSV_SAMPLE.encode('utf-8'), 'x.csv') == ('pekao', 'csv')
+
+
+def test_parse_pekao_csv(app, mf_user):
+    user_token, acc_id = mf_user
+    with app.app_context():
+        result = parse_pekao_csv(PEKAO_CSV_SAMPLE, user_token, main_account_id=acc_id)
+
+    wydatek, bez_tytulu, wplyw = result['transactions']
+    assert result['skipped_count'] == 0
+    # spacja tysięczna, data księgowania (nie waluty), zwinięte spacje w nazwie
+    assert wydatek['amount'] == Decimal("-1372.50")
+    assert bez_tytulu['date'] == date(2026, 9, 24)
+    assert wydatek['contractor'] == "SKLEP TESTOWY WARSZAWA"
+    # pusty 'Tytułem' → typ operacji, żeby tytuł nie był pusty
+    assert bez_tytulu['title'] == "TRANSAKCJA KARTĄ PŁATNICZĄ"
+    # kontrahent to rachunek PO DRUGIEJ stronie — zależnie od znaku kwoty, bez apostrofu
+    assert wydatek['counterparty_account'] is None
+    assert wplyw['counterparty_account'] == "99888877776666555544443333"
+    assert wplyw['amount'] == Decimal("1000.00")
+    assert result['statement_ibans'] == ["11111111111111111111111111"]
+    assert (result['period_start'], result['period_end']) == (date(2026, 9, 1), date(2026, 9, 25))
+
+
+def test_parse_pekao_csv_requires_account(app, mf_user):
+    user_token, _ = mf_user
+    with app.app_context():
+        with pytest.raises(ValueError):
+            parse_pekao_csv(PEKAO_CSV_SAMPLE, user_token, main_account_id=None)

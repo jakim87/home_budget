@@ -10,7 +10,7 @@ Projekt jest budowany jako aplikacja edukacyjna, rozwijana krok po kroku z wykor
 
 Zrealizowane:
 
-- Import transakcji z wyciągów bankowych (ING, mBank — CSV, PDF, HTML) z automatyczną detekcją banku i formatu
+- Import transakcji z wyciągów bankowych (ING, mBank, Pekao — CSV, PDF, HTML) z automatyczną detekcją banku i formatu
 - Historia importów z ostrzeżeniem o nakładających się zakresach dat
 - Kategoryzacja transakcji z automatycznym dopasowywaniem kontrahentów
 - Wykrywanie transferów wewnętrznych i parowanie obu nóg przelewu
@@ -38,6 +38,7 @@ Aktualnie obsługiwane formaty wyciągów:
 | --------------------------- | :-: | :-: | :--: |
 | **ING Bank Śląski** | ✅ | ✅ |  —  |
 | **mBank**             | ✅ | ✅ |  ✅  |
+| **Pekao SA**          | ✅ |  —  |  —  |
 
 Pliki CSV i HTML są dekodowane z UTF-8-sig lub Windows-1250 (oba warianty eksportu z banku).
 
@@ -153,7 +154,7 @@ app/
 ├── cli.py              # Komendy Flask CLI
 ├── services/           # Logika biznesowa — oddzielona od warstwy HTTP
 │   ├── budget_service.py             # Główne CRUD, staging, uzgadnianie salda
-│   ├── statement_parsers.py          # Parsery wyciągów (ING/mBank, CSV/PDF/HTML) + detekcja
+│   ├── statement_parsers.py          # Parsery wyciągów (ING/mBank/Pekao, CSV/PDF/HTML) + detekcja
 │   ├── import_history_service.py     # Ewidencja importów, wykrywanie nakładających się zakresów
 │   ├── init_service.py               # Payload dla GET /api/init (cały stan frontu)
 │   ├── transaction_service.py        # Archiwizacja i czyszczenie transakcji

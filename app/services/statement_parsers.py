@@ -11,6 +11,8 @@ Dodatkowo parsery zwracają, gdy da się je wyczytać z nagłówka wyciągu:
   'statement_ibans' — numery rachunków, których dotyczy plik (pod walidację
       konta i analizę pokrycia przy imporcie wielu plików).
 """
+import csv
+import io
 import logging
 import re
 from datetime import datetime
@@ -84,7 +86,10 @@ def detect_bank_and_format(raw: bytes, filename: str = '') -> tuple[Optional[str
             return 'mbank', 'html'
         return None, 'html'
 
-    # CSV — po charakterystycznych nagłówkach kolumn
+    # CSV — po charakterystycznych nagłówkach kolumn. Pekao przed ING:
+    # oba mają kolumnę 'Data księgowania', ale tylko Pekao tę parę kolumn.
+    if _PEKAO_HEADER_MARKER in text[:500]:
+        return 'pekao', 'csv'
     if '#Data operacji' in text or text.lstrip().startswith('mBank S.A.'):
         return 'mbank', 'csv'
     if 'Data transakcji' in text:
@@ -103,6 +108,12 @@ def extract_statement_ibans(raw: bytes, bank: Optional[str], fmt: Optional[str])
     ING: pliki wielokontowe same przypisują konta (sekcja 'Wybrane rachunki'),
     więc nie ma potrzeby rozpoznawania — zwracamy pustą listę.
     """
+    if bank == 'pekao':
+        try:
+            rows = _pekao_rows(decode_statement_bytes(raw))
+            return [_pekao_own_and_other(next(rows))[0]]
+        except (UnicodeDecodeError, StopIteration, KeyError):
+            return []
     if bank != 'mbank':
         return []
     if fmt == 'pdf':
@@ -505,5 +516,79 @@ def parse_ing_pdf(raw: bytes, user_token: str, main_account_id: Optional[int] = 
         'skipped_count': skipped_count,
         'period_start': period_start,
         'period_end': period_end,
+        'statement_ibans': list(ibans_set),
+    }
+
+
+_PEKAO_HEADER_MARKER = 'Nadawca / Odbiorca;Adres nadawcy / odbiorcy'
+
+
+def _pekao_rows(content: str):
+    """Wiersze CSV Pekao jako słowniki; pomija linie bez daty (puste/stopka)."""
+    reader = csv.DictReader(io.StringIO(content), delimiter=';')
+    return (r for r in reader if _ING_DATE_RE.match((r.get('Data księgowania') or '').strip()))
+
+
+def _pekao_own_and_other(row: dict) -> tuple[str, str]:
+    """(rachunek wyciągu, rachunek kontrahenta). Pekao nie ma numeru konta
+    w nagłówku — własny rachunek jest źródłowym przy wydatku, docelowym przy
+    wpływie. Apostrof to zabezpieczenie eksportu przed Excelem."""
+    src = row['Rachunek źródłowy'].strip().lstrip("'")
+    dst = row['Rachunek docelowy'].strip().lstrip("'")
+    return (src, dst) if row['Kwota operacji'].strip().startswith('-') else (dst, src)
+
+
+def parse_pekao_csv(content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
+    """Parsuje 'Historię operacji' Pekao w CSV (jednokontowe, UTF-8, średnik).
+
+    Kolumna 'Kategoria' (opcjonalna w eksporcie) jest ignorowana — kategorie
+    banku nie pokrywają się z kategoriami aplikacji. Brak salda po operacji.
+    """
+    if main_account_id is None:
+        raise ValueError("Wyciąg Pekao dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+
+    transactions: list[dict] = []
+    skipped_count = 0
+    ibans_set = set()
+
+    for row in _pekao_rows(content):
+        amount = _clean_amount(row['Kwota operacji'])
+        if amount is None:
+            logger.warning("Odrzucono wiersz Pekao CSV — nieprawidłowa kwota (user_token=%s)", user_token)
+            skipped_count += 1
+            continue
+        try:
+            tx_date = datetime.strptime(row['Data księgowania'].strip(), '%d.%m.%Y').date()
+        except ValueError:
+            skipped_count += 1
+            continue
+
+        own, other = _pekao_own_and_other(row)
+        if own:
+            ibans_set.add(own)
+        # Nazwy z terminali kartowych mają miasto dopełnione spacjami.
+        contractor = re.sub(r'\s+', ' ', row['Nadawca / Odbiorca']).strip() or None
+        title = row['Tytułem'].strip() or row['Typ operacji'].strip()
+
+        transactions.append({
+            'date': tx_date,
+            'contractor': contractor,
+            'title': title,
+            'amount': amount,
+            'counterparty_account': other or None,
+            'account_id': main_account_id,
+        })
+
+    dates = [t['date'] for t in transactions]
+    logger.info(
+        "Import CSV Pekao zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
+        user_token, len(transactions), skipped_count
+    )
+    return {
+        'transactions': transactions,
+        'csv_accounts': [],
+        'skipped_count': skipped_count,
+        'period_start': min(dates, default=None),
+        'period_end': max(dates, default=None),
         'statement_ibans': list(ibans_set),
     }

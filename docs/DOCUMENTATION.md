@@ -34,7 +34,7 @@
 ### Główne funkcje
 
 - **Śledzenie kont bankowych i portfeli** — wiele kont na użytkownika (konto bankowe, portfel gotówkowy, konto oszczędnościowe), każde z osobnym saldem aktualizowanym automatycznie przy każdej transakcji
-- **Import wyciągów bankowych** — ING Bank Śląski i mBank, w formatach CSV, PDF i HTML, z automatycznym rozpoznaniem banku i formatu po zawartości pliku; dwuetapowy przepływ: parsowanie → staging → zatwierdzenie przez użytkownika
+- **Import wyciągów bankowych** — ING Bank Śląski, mBank i Pekao SA, w formatach CSV, PDF i HTML, z automatycznym rozpoznaniem banku i formatu po zawartości pliku; dwuetapowy przepływ: parsowanie → staging → zatwierdzenie przez użytkownika
 - **Automatyczne rozpoznawanie kontrahentów** — trójstopniowy algorytm dopasowania: numer rachunku kontrahenta → reguły mapowania → dopasowanie rozmyte (fuzzy match)
 - **Kategoryzacja transakcji** — własne kategorie wydatków, przychodów i transferów; obsługa podziałów transakcji (split) na wiele kategorii
 - **Transakcje cykliczne** — definicje automatycznie wykonywanych transakcji wg harmonogramu (dziennie, tygodniowo, miesięcznie, rocznie)
@@ -93,6 +93,7 @@ Architektura nie przewiduje ról administracyjnych w UI. Aplikacja nie wysyła e
 |------|-----|-----|------|
 | **ING Bank Śląski** | ✅ | ✅ | — |
 | **mBank** | ✅ | ✅ | ✅ |
+| **Pekao SA** | ✅ | — | — |
 
 Bank i format rozpoznawane są **po zawartości pliku, nie po rozszerzeniu** — użytkownik nie musi ich wskazywać. Pliki tekstowe (CSV, HTML) dekodowane są z UTF-8-sig lub windows-1250; oba warianty pojawiają się w eksportach z banków. CSV z ING ma separator `;`, a nagłówek tabeli zaczyna się od wiersza `Data transakcji`.
 
@@ -440,7 +441,7 @@ Archiwum jest czyszczone automatycznie przez `flask cleanup-archive` — usuwa w
 
 | Funkcja | Opis |
 |---------|------|
-| **Obsługa kolejnych banków** | Rozszerzenie o formaty PKO BP, Revolut i innych — obecnie obsługiwane są ING Bank Śląski i mBank. Nowy format wymaga parsera i jednego wpisu w mapie `STATEMENT_PARSERS` |
+| **Obsługa kolejnych banków** | Rozszerzenie o formaty PKO BP, Revolut i innych — obecnie obsługiwane są ING Bank Śląski, mBank i Pekao SA. Nowy format wymaga parsera i jednego wpisu w mapie `STATEMENT_PARSERS` |
 | **Masowa zmiana kontrahenta** | Edycja zbiorcza obejmuje dziś kategorię i usuwanie; zmiana kontrahenta dla wielu transakcji naraz nie jest zrealizowana |
 | **Rollover budżetu** | Niewykorzystana kwota planu nie przenosi się na kolejny miesiąc; nie ma też projektów wielomiesięcznych ani kopiowania planu na kilka miesięcy naprzód |
 
@@ -450,7 +451,7 @@ Archiwum jest czyszczone automatycznie przez `flask cleanup-archive` — usuwa w
 
 | Ograniczenie | Szczegóły |
 |--------------|-----------|
-| **Dwa banki** | Import obsługuje ING Bank Śląski i mBank; transakcje z innych banków należy wprowadzać ręcznie |
+| **Trzy banki** | Import obsługuje ING Bank Śląski, mBank i Pekao SA (tylko CSV); transakcje z innych banków należy wprowadzać ręcznie |
 | **Brak wielodostępu współbieżnego** | Brak mechanizmu blokad optymistycznych — równoczesna edycja tej samej transakcji przez dwóch użytkowników może prowadzić do wyścigu |
 | **Brak zarządzania rolami w UI** | Nie ma panelu administracyjnego; rejestracja jest samoobsługowa, ale każda inna operacja na kontach wymaga dostępu do serwera |
 | **Brak resetu hasła przez e-mail** | Aplikacja nie wysyła wiadomości; zapomniane hasło ustawia administrator komendą `flask reset-password` |

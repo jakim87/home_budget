@@ -5,7 +5,7 @@ from app.schemas import StagingApproveSchema
 from app.services.account_service import resolve_statement_account
 from app.services.demo_service import build_sample_statement_csv
 from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging, dismiss_staging_as_duplicate
-from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf, parse_ing_pdf, parse_pekao_csv
+from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf, parse_ing_pdf, parse_pekao_csv, parse_millennium_csv
 from app.services.import_history_service import list_import_history, record_batch
 from app import limiter
 
@@ -29,6 +29,7 @@ STATEMENT_PARSERS = {
     ('mbank', 'html'): (parse_mbank_html, 'text'),
     ('mbank', 'pdf'): (parse_mbank_pdf, 'bytes'),
     ('pekao', 'csv'): (parse_pekao_csv, 'text'),
+    ('millennium', 'csv'): (parse_millennium_csv, 'text'),
 }
 
 

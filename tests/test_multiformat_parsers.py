@@ -13,6 +13,7 @@ from app.services.statement_parsers import (
     detect_bank_and_format,
     parse_mbank_html,
     parse_mbank_pdf,
+    parse_millennium_csv,
     parse_pekao_csv,
 )
 
@@ -383,3 +384,98 @@ def test_bank_category_z_mbank_csv_i_html(app, mf_user):
         html_txs = parse_mbank_html(MBANK_HTML_SAMPLE, user_token, main_account_id=acc_id)['transactions']
     assert csv_txs[0]['bank_category'] == "Zakupy"
     assert [t['bank_category'] for t in html_txs] == ["Wpływy - inne", "Zakupy"]
+
+
+# --- Millennium CSV + kolizje detekcji --------------------------------------
+
+# Pola wielowierszowe Millennium rozdziela niełamliwą spacją (\xa0).
+MILLENNIUM_CSV_SAMPLE = (
+    '"Numer rachunku/karty","Data transakcji","Data rozliczenia","Rodzaj transakcji","Na konto/Z konta","Odbiorca/Zleceniodawca","Opis","Obciążenia","Uznania","Saldo","Waluta"\n'
+    '"PL11 1111 1111 1111 1111 1111 1111","2026-09-02","2026-09-03","OPŁATA","16 1111 2222 3333 4444 5555 6666","Bank Testowy SA","Opłata za prowadzenie rachunku\xa0za miesiąc 8/2026","-8.00","","1247.30","PLN"\n'
+    '"PL11 1111 1111 1111 1111 1111 1111","2026-08-31","2026-08-31","PRZELEW PRZYCHODZĄCY","99 8888 7777 6666 5555 4444 3333","JAN TESTOWY\xa0UL. PRZYKŁADOWA 1\xa000-001 WARSZAWA","Dziecko","","1000.00","1255.30","PLN"\n'
+    '"PL11 1111 1111 1111 1111 1111 1111","2026-08-15","2026-08-15","PRZELEW WYCHODZĄCY","","SKLEP TESTOWY","","-1234.56","","255.30","PLN"\n'
+)
+
+
+def _pdf_z_linii(lines: list[str]) -> bytes:
+    """PDF z podanymi liniami tekstu (fitz.Story — font z polskimi znakami)."""
+    import fitz
+    import os
+    import tempfile
+    fd, path = tempfile.mkstemp(suffix='.pdf')
+    os.close(fd)
+    try:
+        writer = fitz.DocumentWriter(path)
+        story = fitz.Story("".join(f"<p>{l}</p>" for l in lines))
+        more = True
+        while more:
+            dev = writer.begin_page(fitz.paper_rect('a4'))
+            more, _ = story.place(fitz.Rect(36, 36, 559, 806))
+            story.draw(dev)
+            writer.end_page()
+        writer.close()
+        with open(path, 'rb') as f:
+            return f.read()
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+MILLENNIUM_PDF_LINES = [
+    "Ul. Przykładowa 1", "00-001 Warszawa", "www.bankmillennium.pl",
+    "Lista transakcji na rachunku nr: PL 11 1111 1111 1111 1111 1111 1111",
+]
+
+
+@pytest.mark.parametrize("raw, oczekiwane", [
+    (ING_CSV_SAMPLE.encode('utf-8'), ('ing', 'csv')),
+    (MBANK_CSV_SAMPLE.encode('utf-8'), ('mbank', 'csv')),
+    (MBANK_HTML_SAMPLE.encode('utf-8'), ('mbank', 'html')),
+    (PEKAO_CSV_SAMPLE.encode('utf-8'), ('pekao', 'csv')),
+    (MILLENNIUM_CSV_SAMPLE.encode('utf-8-sig'), ('millennium', 'csv')),
+    (b'\xef\xbb\xbf<html><body><table><tr><td>Bank Millennium SA</td></tr></table></body></html>',
+     ('millennium', 'html')),
+], ids=['ing-csv', 'mbank-csv', 'mbank-html', 'pekao-csv', 'millennium-csv', 'millennium-html'])
+def test_detekcja_kazdy_bank_rozpoznany_jako_swoj(raw, oczekiwane):
+    """Każda próbka musi trafić do swojego banku. Nowy bank = nowy wiersz tutaj;
+    kolizja znaczników (jak 'Data transakcji' u ING i Millennium) wyjdzie w teście."""
+    assert detect_bank_and_format(raw, 'plik') == oczekiwane
+
+
+def test_detect_millennium_pdf_nie_jako_ing():
+    """PDF Millennium ma w nagłówku 'Lista transakcji' — znacznik ING."""
+    assert detect_bank_and_format(_pdf_z_linii(MILLENNIUM_PDF_LINES), 'x.pdf') == ('millennium', 'pdf')
+
+
+def test_parse_millennium_csv(app, mf_user):
+    user_token, acc_id = mf_user
+    with app.app_context():
+        result = parse_millennium_csv(MILLENNIUM_CSV_SAMPLE, user_token, main_account_id=acc_id)
+
+    oplata, wplyw, bez_opisu = result['transactions']
+    assert result['skipped_count'] == 0
+    # obciążenie już ze znakiem, uznanie dodatnie
+    assert oplata['amount'] == Decimal("-8.00")
+    assert wplyw['amount'] == Decimal("1000.00")
+    assert bez_opisu['amount'] == Decimal("-1234.56")
+    # data transakcji, nie rozliczenia
+    assert oplata['date'] == date(2026, 9, 2)
+    # \xa0 w opisie → spacja; w kontrahencie odcina adres
+    assert oplata['title'] == "Opłata za prowadzenie rachunku za miesiąc 8/2026"
+    assert wplyw['contractor'] == "JAN TESTOWY"
+    # pusty opis → rodzaj transakcji
+    assert bez_opisu['title'] == "PRZELEW WYCHODZĄCY"
+    assert wplyw['counterparty_account'] == "99888877776666555544443333"
+    assert bez_opisu['counterparty_account'] is None
+    assert all(t['account_id'] == acc_id and t['bank_category'] is None for t in result['transactions'])
+    assert result['statement_ibans'] == ["PL11111111111111111111111111"]
+    assert (result['period_start'], result['period_end']) == (date(2026, 8, 15), date(2026, 9, 2))
+
+
+def test_parse_millennium_csv_requires_account(app, mf_user):
+    user_token, _ = mf_user
+    with app.app_context():
+        with pytest.raises(ValueError):
+            parse_millennium_csv(MILLENNIUM_CSV_SAMPLE, user_token, main_account_id=None)

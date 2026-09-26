@@ -516,3 +516,29 @@ def test_import_auto_pekao_csv_resolves_account_from_rows(logged_in_client, app,
     rows = db.session.query(TransactionStaging).order_by(TransactionStaging.amount).all()
     assert [r.amount for r in rows] == [Decimal("-1372.50"), Decimal("24.58")]
     assert all(r.account_id == iban_account.id for r in rows)
+
+
+MILLENNIUM_CSV = (
+    '"Numer rachunku/karty","Data transakcji","Data rozliczenia","Rodzaj transakcji","Na konto/Z konta","Odbiorca/Zleceniodawca","Opis","Obciążenia","Uznania","Saldo","Waluta"\n'
+    '"PL22 3344 5566 7788 9900 1122 3344","2026-09-02","2026-09-02","OPŁATA","","Bank Testowy SA","Opłata za prowadzenie rachunku","-8.00","","1247.30","PLN"\n'
+    '"PL22 3344 5566 7788 9900 1122 3344","2026-08-31","2026-08-31","PRZELEW PRZYCHODZĄCY","99 8888 7777 6666 5555 4444 3333","JAN TESTOWY","Dziecko","","1000.00","1255.30","PLN"\n'
+).encode('utf-8-sig')
+
+
+def test_import_auto_millennium_csv_resolves_account_from_rows(logged_in_client, app, iban_account):
+    """Millennium CSV: bank rozpoznany (nie jako ING), konto po numerze z wierszy."""
+    resp = _upload_auto_no_account(logged_in_client, MILLENNIUM_CSV, filename="millennium.csv")
+    assert resp.status_code == 201
+    body = resp.get_json()
+    assert body['detected'] == {'bank': 'millennium', 'format': 'csv'}
+    assert body['resolved_account']['id'] == iban_account.id
+    rows = db.session.query(TransactionStaging).order_by(TransactionStaging.amount).all()
+    assert [r.amount for r in rows] == [Decimal("-8.00"), Decimal("1000.00")]
+    assert all(r.account_id == iban_account.id for r in rows)
+
+
+def test_import_auto_millennium_csv_rejects_wrong_account(logged_in_client, app, import_account, iban_account):
+    """Wybrane konto ma inny numer niż wyciąg Millennium → 400, nic nie trafia do poczekalni."""
+    resp = _upload(logged_in_client, import_account.id, MILLENNIUM_CSV, filename="m.csv", bank="auto")
+    assert resp.status_code == 400
+    assert db.session.query(TransactionStaging).count() == 0

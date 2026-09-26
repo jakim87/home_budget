@@ -23,6 +23,7 @@ from bs4 import BeautifulSoup
 
 from app.services.budget_service import (
     _MBANK_ACCOUNT_RE,
+    _normalize_acc_num,
     build_ing_account_maps,
     resolve_ing_account_label,
 )
@@ -69,6 +70,10 @@ def detect_bank_and_format(raw: bytes, filename: str = '') -> tuple[Optional[str
         # 'mBank' może wystąpić w danych KONTRAHENTA na wyciągu innego banku.
         # ING najpierw: 'Lista transakcji' / 'Wybrane rachunki' to jego
         # unikalne nagłówki (mBank używa 'Lista operacji' / 'dla rachunków').
+        # Millennium przed ING: też ma 'Lista transakcji'. Adres strony, nie nazwa
+        # banku — 'Bank Millennium SA' bywa kontrahentem na cudzych wyciągach.
+        if 'www.bankmillennium.pl' in text:
+            return 'millennium', 'pdf'
         if 'Lista transakcji' in text or 'Wybrane rachunki' in text:
             return 'ing', 'pdf'
         if 'Lista operacji' in text or 'Listaoperacji' in text or 'mBank S.A. Bankowo' in text:
@@ -84,12 +89,16 @@ def detect_bank_and_format(raw: bytes, filename: str = '') -> tuple[Optional[str
     if '<html' in lowered[:2000]:
         if 'mbank' in lowered or 'bre.pl' in lowered:
             return 'mbank', 'html'
+        if 'millennium' in lowered:
+            return 'millennium', 'html'
         return None, 'html'
 
-    # CSV — po charakterystycznych nagłówkach kolumn. Pekao przed ING:
-    # oba mają kolumnę 'Data księgowania', ale tylko Pekao tę parę kolumn.
+    # CSV — po charakterystycznych nagłówkach kolumn. Pekao i Millennium przed ING:
+    # Pekao ma 'Data księgowania', Millennium 'Data transakcji' — tak jak ING.
     if _PEKAO_HEADER_MARKER in text[:500]:
         return 'pekao', 'csv'
+    if _MILLENNIUM_HEADER_MARKER in text[:500]:
+        return 'millennium', 'csv'
     if '#Data operacji' in text or text.lstrip().startswith('mBank S.A.'):
         return 'mbank', 'csv'
     if 'Data transakcji' in text:
@@ -112,6 +121,12 @@ def extract_statement_ibans(raw: bytes, bank: Optional[str], fmt: Optional[str])
         try:
             rows = _pekao_rows(decode_statement_bytes(raw))
             return [_pekao_own_and_other(next(rows))[0]]
+        except (UnicodeDecodeError, StopIteration, KeyError):
+            return []
+    if bank == 'millennium' and fmt == 'csv':
+        try:
+            rows = _millennium_rows(decode_statement_bytes(raw))
+            return [next(filter(None, map(_millennium_iban, rows)))]
         except (UnicodeDecodeError, StopIteration, KeyError):
             return []
     if bank != 'mbank':
@@ -584,6 +599,72 @@ def parse_pekao_csv(content: str, user_token: str, main_account_id: Optional[int
     dates = [t['date'] for t in transactions]
     logger.info(
         "Import CSV Pekao zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
+        user_token, len(transactions), skipped_count
+    )
+    return {
+        'transactions': transactions,
+        'csv_accounts': [],
+        'skipped_count': skipped_count,
+        'period_start': min(dates, default=None),
+        'period_end': max(dates, default=None),
+        'statement_ibans': list(ibans_set),
+    }
+
+
+_MILLENNIUM_HEADER_MARKER = '"Numer rachunku/karty","Data transakcji"'
+
+
+def _millennium_rows(content: str):
+    """Wiersze CSV Millennium jako słowniki; pomija linie bez daty."""
+    reader = csv.DictReader(io.StringIO(content))
+    return (r for r in reader if _DATE_RE.match((r.get('Data transakcji') or '').strip()))
+
+
+def _millennium_iban(row: dict) -> Optional[str]:
+    """Numer rachunku wyciągu z wiersza; None, gdy w kolumnie jest numer karty."""
+    num = row['Numer rachunku/karty'].replace(' ', '')
+    return num if len(_normalize_acc_num(num)) == 26 else None
+
+
+def parse_millennium_csv(content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
+    """Parsuje 'Listę transakcji' Millennium w CSV (jednokontowe, UTF-8, przecinek).
+
+    Pola wielowierszowe (nazwa + adres kontrahenta, opis) bank skleja niełamliwą
+    spacją. Brak kategorii z banku.
+    """
+    if main_account_id is None:
+        raise ValueError("Wyciąg Millennium dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+
+    transactions: list[dict] = []
+    skipped_count = 0
+    ibans_set = set()
+
+    for row in _millennium_rows(content):
+        amount = _clean_amount(row['Obciążenia'] or row['Uznania'])
+        if amount is None:
+            logger.warning("Odrzucono wiersz Millennium CSV — nieprawidłowa kwota (user_token=%s)", user_token)
+            skipped_count += 1
+            continue
+
+        iban = _millennium_iban(row)
+        if iban:
+            ibans_set.add(iban)
+        contractor = row['Odbiorca/Zleceniodawca'].split('\xa0')[0].strip() or None
+        title = row['Opis'].replace('\xa0', ' ').strip() or row['Rodzaj transakcji'].strip()
+
+        transactions.append({
+            'date': datetime.strptime(row['Data transakcji'].strip(), '%Y-%m-%d').date(),
+            'contractor': contractor,
+            'title': title,
+            'amount': amount,
+            'counterparty_account': row['Na konto/Z konta'].replace(' ', '') or None,
+            'account_id': main_account_id,
+            'bank_category': None,
+        })
+
+    dates = [t['date'] for t in transactions]
+    logger.info(
+        "Import CSV Millennium zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
         user_token, len(transactions), skipped_count
     )
     return {

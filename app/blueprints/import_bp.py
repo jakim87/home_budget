@@ -16,17 +16,10 @@ import_bp = Blueprint('import', __name__)
 # Klucz = IP; sensowny pod realny import (kilka plików naraz), zaporowy dla automatu.
 IMPORT_RATE_LIMIT = "20 per minute; 100 per hour"
 
-# Rejestr parserów wyciągów wg banku (CSV, ścieżka /api/import/<bank>).
+# Pełny rejestr (bank, format) -> (parser, tryb_wejścia).
 # Każdy parser ma tę samą sygnaturę (file_content, user_token, main_account_id)
 # i zwraca ten sam kształt wyniku, dzięki czemu dalszy przepływ
 # (save_transactions_to_staging) jest bank-agnostyczny.
-CSV_PARSERS = {
-    'ing': parse_ing_csv,
-    'mbank': parse_mbank_csv,
-    'pekao': parse_pekao_csv,
-}
-
-# Pełny rejestr (bank, format) -> (parser, tryb_wejścia).
 # 'text' = parser przyjmuje zdekodowany str; 'bytes' = surowe bajty (PDF).
 # Dodanie parsera = jedna pozycja tutaj + funkcja w services.
 STATEMENT_PARSERS = {
@@ -156,23 +149,31 @@ def import_auto():
 
 
 @import_bp.route('/api/import/<bank>', methods=['POST'])
+@import_bp.route('/api/import/<bank>/<fmt>', methods=['POST'])
 @login_required
 @limiter.limit(IMPORT_RATE_LIMIT)
-def import_csv(bank):
+def import_manual(bank, fmt='csv'):
+    """Import z bankiem i formatem wskazanym ręcznie (bez /<fmt> = CSV)."""
     user_token = current_user.token
+    bank, fmt = bank.lower(), fmt.lower()
 
-    parser = CSV_PARSERS.get(bank.lower())
-    if parser is None:
-        return jsonify({'error': f"Nieobsługiwany bank: '{bank}'. Dostępne: {', '.join(sorted(CSV_PARSERS))}."}), 400
+    entry = STATEMENT_PARSERS.get((bank, fmt))
+    if entry is None:
+        dostepne = ', '.join(f'{b}/{f}' for b, f in STATEMENT_PARSERS)
+        return jsonify({'error': f"Nieobsługiwany wyciąg: '{bank}/{fmt}'. Dostępne: {dostepne}."}), 400
+    parser, input_mode = entry
 
     raw, err = _read_upload()
     if err:
         return err
 
-    try:
-        file_content = decode_statement_bytes(raw)
-    except UnicodeDecodeError:
-        return jsonify({'error': 'Nieobsługiwane kodowanie pliku. Oczekiwano UTF-8 lub Windows-1250 (eksport z banku).'}), 400
+    if input_mode == 'text':
+        try:
+            file_content = decode_statement_bytes(raw)
+        except UnicodeDecodeError:
+            return jsonify({'error': 'Nieobsługiwane kodowanie pliku. Oczekiwano UTF-8 lub Windows-1250 (eksport z banku).'}), 400
+    else:
+        file_content = raw
 
     account_id = request.form.get('account_id')
 
@@ -196,7 +197,7 @@ def import_csv(bank):
 
     return _stage_and_respond(result, user_token,
                               meta={'filename': request.files['file'].filename,
-                                    'bank': bank, 'format': 'csv'})
+                                    'bank': bank, 'format': fmt})
 
 @import_bp.route('/api/staging/pending', methods=['GET'])
 @login_required

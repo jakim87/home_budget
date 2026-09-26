@@ -137,7 +137,7 @@ app/
 1. Parse → save to `TransactionStaging` with auto-categorization (contractor matching, internal transfer detection)
 2. User reviews pending staging rows → approves → moves to `Transaction`, updates account balance
 
-Bank i format rozpoznaje `detect_bank_and_format()` (`statement_parsers.py`) **po zawartości pliku, nie po rozszerzeniu**. Mapa `STATEMENT_PARSERS` w `import_bp.py:24` wiąże parę `(bank, format)` z parserem i trybem wejścia (`'text'` po zdekodowaniu / `'bytes'` surowo):
+Bank i format rozpoznaje `detect_bank_and_format()` (`statement_parsers.py`) **po zawartości pliku, nie po rozszerzeniu**. Mapa `STATEMENT_PARSERS` w `import_bp.py:25` wiąże parę `(bank, format)` z parserem i trybem wejścia (`'text'` po zdekodowaniu / `'bytes'` surowo):
 
 | Bank | CSV | PDF | HTML |
 | ---- | --- | --- | ---- |

@@ -60,6 +60,21 @@ MBANK_HTML_MINI = '''<HTML xmlns:ns1="http://www.bre.pl"><BODY>
 </table></BODY></HTML>'''
 
 
+def test_import_reczny_wybor_banku_i_formatu(logged_in_client, app, import_account):
+    """Ręczny wybór z listy obejmuje też formaty inne niż CSV (/api/import/<bank>/<format>)."""
+    resp = _upload(logged_in_client, import_account.id,
+                   MBANK_HTML_MINI.encode('utf-8'), filename="zestawienie.html", bank="mbank/html")
+    assert resp.status_code == 201
+    assert db.session.query(TransactionStaging).count() == 1
+    assert db.session.query(StatementImport).one().file_format == 'html'
+
+
+def test_import_nieobslugiwany_format_banku_returns_400(logged_in_client, app, import_account):
+    resp = _upload(logged_in_client, import_account.id, CSV_PL.encode('utf-8'), bank="pekao/pdf")
+    assert resp.status_code == 400
+    assert db.session.query(TransactionStaging).count() == 0
+
+
 def test_import_auto_detects_mbank_html(logged_in_client, app, import_account):
     """POST /api/import/auto: wykrywa mBank HTML, zapisuje do stagingu,
     zwraca wykryty bank/format w odpowiedzi."""

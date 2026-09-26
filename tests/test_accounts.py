@@ -195,3 +195,18 @@ def test_konto_z_harmonogramem_bez_transakcji_archiwizowane(logged_in_client, te
     assert resp.get_json()['result'] == 'archived'
     db.session.expire_all()
     assert db.session.get(Account, acc.id).is_active is False
+
+
+def test_lista_powiazan_konta_obejmuje_kazdy_klucz_obcy(app):
+    """Kolumna wskazująca na konto, a nieobecna w _POWIAZANIA_KONTA, sprawi, że
+    serwer uzna konto za puste i spróbuje je usunąć — PostgreSQL odrzuci to błędem.
+    SQLite w testach kluczy obcych nie pilnuje, więc bez tego testu nikt by tego nie zauważył."""
+    from app.services.account_service import _POWIAZANIA_KONTA
+    klucze_obce = {
+        (tabela.name, kolumna.name)
+        for tabela in db.Model.metadata.tables.values()
+        for kolumna in tabela.columns
+        if any(fk.column.table.name == 'accounts' for fk in kolumna.foreign_keys)
+    }
+    na_liscie = {(kolumna.table.name, kolumna.name) for _, kolumna in _POWIAZANIA_KONTA}
+    assert klucze_obce == na_liscie

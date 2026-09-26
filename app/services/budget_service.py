@@ -1,7 +1,7 @@
 from app import db
 from app.models import Transaction, Account, TransactionStaging, Contractor, Category, TransactionSplit
 from app.services.import_history_service import account_has_statement_imports
-from app.services.category_service import find_by_name as find_category_by_name, find_owned as find_category_owned
+from app.services.category_service import find_by_name as find_category_by_name, find_owned as find_category_owned, list_active as list_active_categories
 from app.services.contractor_service import find_owned as find_contractor_owned
 from datetime import date, timedelta
 from typing import Optional
@@ -753,6 +753,7 @@ def parse_mbank_csv(file_content: str, user_token: str, main_account_id: Optiona
         amount_col = header_map['Kwota']
     except KeyError as e:
         raise ValueError(f"Brak oczekiwanej kolumny w pliku CSV z mBanku: {e}")
+    category_col = header_map.get('Kategoria')
 
     transactions: list[dict] = []
     skipped_count = 0
@@ -770,6 +771,7 @@ def parse_mbank_csv(file_content: str, user_token: str, main_account_id: Optiona
 
         date_str = parts[date_col].strip()
         raw_desc = parts[desc_col].strip() if desc_col < len(parts) else ''
+        bank_category = parts[category_col].strip() if category_col is not None and category_col < len(parts) else ''
         amount_str = parts[amount_col].strip() if amount_col < len(parts) else ''
 
         # Kwota: usuń sufiks 'PLN', spacje tysięczne (zwykłe i twarde), przecinek → kropka.
@@ -810,6 +812,7 @@ def parse_mbank_csv(file_content: str, user_token: str, main_account_id: Optiona
             'amount': amount,
             'counterparty_account': counterparty_account,
             'account_id': main_account_id,
+            'bank_category': bank_category or None,
         })
 
     logger.info(
@@ -889,6 +892,22 @@ def analyze_transaction_data(
     suggested = normalize_contractor_name(raw_contractor or '') or normalize_contractor_name(title or '')
     return None, None, suggested or None
 
+def _bank_category_map(user_token: str) -> dict:
+    """(nazwa małymi literami, typ) -> id kategorii — pod dopasowanie kategorii
+    nadanej przez bank. Tylko przychody i wydatki: kategoria banku nie może
+    oznaczyć operacji jako przelewu ani korekty systemowej."""
+    return {(c.name.casefold(), c.type): c.id for c in list_active_categories(user_token)
+            if c.type in ('expense', 'income') and not c.is_system_category}
+
+
+def _bank_category_id(bank_category: Optional[str], amount: Decimal, category_map: dict) -> Optional[int]:
+    """Kategoria aplikacji o nazwie kategorii z banku, typem zgodna ze znakiem kwoty.
+    Brak odpowiednika = None — nie tworzymy kategorii za użytkownika."""
+    if not bank_category:
+        return None
+    return category_map.get((bank_category.strip().casefold(), 'expense' if amount < 0 else 'income'))
+
+
 def _existing_import_keys(user_token: str) -> set:
     """Zbiera klucze (data, kwota, tytuł, konto) już istniejących transakcji i wierszy
     stagingu użytkownika — do wykrywania duplikatów przy ponownym wgraniu tego samego pliku."""
@@ -923,6 +942,7 @@ def save_transactions_to_staging(
         if user_token:
             accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
             contractors = db.session.query(Contractor).filter_by(user_token=user_token, is_active=True).all()
+            category_map = _bank_category_map(user_token)
             seen_keys = _existing_import_keys(user_token)
 
         staging_records = []
@@ -944,6 +964,9 @@ def save_transactions_to_staging(
                     accounts=accounts,
                     contractors=contractors
                 )
+                # Kategoria z banku tylko uzupełnia lukę — reguła kontrahenta i przelew wygrywają.
+                prop_cat_id = prop_cat_id or _bank_category_id(
+                    tx_data.get('bank_category'), tx_data['amount'], category_map)
 
             staging_tx = TransactionStaging(
                 date=tx_data['date'],
@@ -955,7 +978,8 @@ def save_transactions_to_staging(
                 proposed_category_id=prop_cat_id,
                 proposed_contractor_id=prop_contractor_id,
                 suggested_contractor_name=suggested_name,
-                counterparty_account=tx_data.get('counterparty_account')
+                counterparty_account=tx_data.get('counterparty_account'),
+                bank_category=tx_data.get('bank_category'),
             )
             db.session.add(staging_tx)
             staging_records.append(staging_tx)
@@ -1236,6 +1260,7 @@ def reanalyze_all_staging(user_token: str) -> int:
     try:
         accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
         contractors = db.session.query(Contractor).filter_by(user_token=user_token, is_active=True).all()
+        category_map = _bank_category_map(user_token)
         rows = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending').all()
         for row in rows:
             cat_id, cont_id, suggested = analyze_transaction_data(
@@ -1243,7 +1268,7 @@ def reanalyze_all_staging(user_token: str) -> int:
                 counterparty_account=row.counterparty_account,
                 accounts=accounts, contractors=contractors
             )
-            row.proposed_category_id = cat_id
+            row.proposed_category_id = cat_id or _bank_category_id(row.bank_category, row.amount, category_map)
             row.proposed_contractor_id = cont_id
             row.suggested_contractor_name = suggested
         db.session.commit()

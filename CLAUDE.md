@@ -147,7 +147,9 @@ Bank i format rozpoznaje `detect_bank_and_format()` (`statement_parsers.py`) **p
 
 Pekao CSV nie ma numeru rachunku w nagłówku — `extract_statement_ibans` bierze go z pierwszego wiersza (rachunek źródłowy przy wydatku, docelowy przy wpływie). TXT z Pekao niesie te same dane minus adres kontrahenta, więc świadomie nie jest obsługiwany.
 
-Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie. Każdy import zapisuje ślad w `StatementImport` (historia importów).
+Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie.
+
+**Kategoria z banku** (Pekao CSV, mBank CSV/HTML; #192): parser oddaje ją jako `bank_category`, a poczekalnia trzyma surową nazwę w `TransactionStaging.bank_category`. Podpowiada kategorię aplikacji **tylko przy dokładnej zgodności nazwy** (bez wielkości liter) i typu ze znakiem kwoty (`expense`/`income` — nigdy `transfer`); brak odpowiednika = brak podpowiedzi, nic nie jest tworzone. Uzupełnia jedynie lukę: przelew wewnętrzny i kategoria domyślna kontrahenta wygrywają. Surowa nazwa jest zapisywana, bo `reanalyze_all_staging` musi ją ponownie dopasować po dodaniu kategorii przez użytkownika. Każdy import zapisuje ślad w `StatementImport` (historia importów).
 
 **Internal Transfers**: Category type `"transfer"` + contractor name matching `"Moje konto: {account_name}"` wskazuje konto docelowe. Druga noga bierze się z jednego z dwóch źródeł, nigdy z obu naraz (`_handle_internal_transfer`): jeśli konto docelowe dostaje własne wyciągi — przyjdzie z importu i zostanie sparowana (okno dat ±4 dni); jeśli nie dostaje (np. cel oszczędnościowy) — powstaje lustro. Wynika stąd reguła dla parserów wyciągów: **żaden parser nie może wyrzucać strony wpływu** przelewu między kontami z tego samego pliku — bez niej noga wypływu zostaje sierotą na zawsze (#164).
 

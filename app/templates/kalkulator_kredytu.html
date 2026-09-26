@@ -1,0 +1,97 @@
+{% extends 'legal_base.html' %}
+{% block title %}Kalkulator kredytu{% endblock %}
+{% block heading %}Kalkulator kredytu{% endblock %}
+
+{% block content %}
+<p>Plan spłaty przed wzięciem kredytu: rata, odsetki, koszt całkowity i RRSO. Wszystko liczy się w Twojej przeglądarce — nic nie jest wysyłane ani zapisywane.</p>
+
+<form id="kk-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4 my-6 text-sm" onsubmit="return false">
+    <label class="flex flex-col gap-1">Kwota kredytu (zł)
+        <input id="kk-kwota" type="number" min="0" step="1000" value="300000" inputmode="decimal" class="p-2 border border-slate-300 rounded-lg">
+    </label>
+    <label class="flex flex-col gap-1">Okres (lata)
+        <input id="kk-lata" type="number" min="1" max="50" step="1" value="25" class="p-2 border border-slate-300 rounded-lg">
+    </label>
+    <label class="flex flex-col gap-1">Oprocentowanie roczne (%)
+        <input id="kk-oprocentowanie" type="number" min="0" step="0.01" value="7.00" inputmode="decimal" class="p-2 border border-slate-300 rounded-lg">
+    </label>
+    <label class="flex flex-col gap-1">Pierwsza rata (miesiąc)
+        <input id="kk-start" type="month" class="p-2 border border-slate-300 rounded-lg">
+    </label>
+    <fieldset class="flex flex-col gap-1">
+        <legend class="mb-1">Rodzaj rat</legend>
+        <label><input type="radio" name="kk-rodzaj" value="rowne" checked> równe</label>
+        <label><input type="radio" name="kk-rodzaj" value="malejace"> malejące</label>
+    </fieldset>
+    <label class="flex flex-col gap-1">Prowizja (% kwoty)
+        <input id="kk-prowizja-procent" type="number" min="0" step="0.1" value="0" inputmode="decimal" class="p-2 border border-slate-300 rounded-lg">
+    </label>
+    <label class="flex flex-col gap-1">Prowizja kwotowa (zł)
+        <input id="kk-prowizja-kwota" type="number" min="0" step="100" value="0" inputmode="decimal" class="p-2 border border-slate-300 rounded-lg">
+    </label>
+    <label class="sm:col-span-2"><input id="kk-prowizja-kredytowana" type="checkbox"> Prowizja doliczona do kredytu (zamiast płatnej z góry)</label>
+    <label class="flex flex-col gap-1">Opłaty miesięczne (zł) — ubezpieczenie, konto itp.
+        <input id="kk-oplata" type="number" min="0" step="10" value="0" inputmode="decimal" class="p-2 border border-slate-300 rounded-lg">
+    </label>
+    <label class="flex flex-col gap-1">Nadpłata co miesiąc (zł)
+        <input id="kk-nadplata-miesieczna" type="number" min="0" step="100" value="0" inputmode="decimal" class="p-2 border border-slate-300 rounded-lg">
+    </label>
+    <div class="sm:col-span-2">
+        <p class="mb-1">Nadpłaty jednorazowe</p>
+        <div id="kk-nadplaty" class="flex flex-col gap-2"></div>
+        <button id="kk-dodaj-nadplate" type="button" class="mt-2 text-blue-600 hover:text-blue-800 font-medium">+ Dodaj nadpłatę</button>
+    </div>
+    <fieldset class="sm:col-span-2 flex flex-col gap-1">
+        <legend class="mb-1">Po nadpłacie</legend>
+        <label><input type="radio" name="kk-tryb" value="okres" checked> skróć okres (rata bez zmian)</label>
+        <label><input type="radio" name="kk-tryb" value="rata"> zmniejsz ratę (okres bez zmian)</label>
+    </fieldset>
+</form>
+
+<template id="kk-nadplata-wzor">
+    <div class="kk-nadplata flex flex-wrap items-center gap-2">
+        <input name="kwota" type="number" min="0" step="1000" placeholder="kwota zł" aria-label="Kwota nadpłaty" class="w-32 p-2 border border-slate-300 rounded-lg">
+        <span>w racie nr</span>
+        <input name="miesiac" type="number" min="1" step="1" placeholder="np. 12" aria-label="Numer raty" class="w-24 p-2 border border-slate-300 rounded-lg">
+        <button type="button" class="text-slate-500 hover:text-red-600" aria-label="Usuń nadpłatę">✕</button>
+    </div>
+</template>
+
+<section id="kk-wynik" hidden>
+    <h2>Podsumowanie</h2>
+    <table>
+        <tr><th>Rata</th><td id="kk-rata"></td></tr>
+        <tr><th>Liczba rat</th><td id="kk-liczba-rat"></td></tr>
+        <tr><th>Suma odsetek</th><td id="kk-odsetki"></td></tr>
+        <tr><th>Do oddania bankowi (kapitał + odsetki)</th><td id="kk-do-oddania"></td></tr>
+        <tr><th>Prowizja</th><td id="kk-prowizja"></td></tr>
+        <tr><th>Opłaty miesięczne łącznie</th><td id="kk-oplaty"></td></tr>
+        <tr><th>Koszt całkowity</th><td id="kk-koszt"></td></tr>
+        <tr><th>RRSO</th><td id="kk-rrso"></td></tr>
+    </table>
+    <p id="kk-efekt-nadplat" hidden></p>
+
+    <h2>Co jeśli stopy wzrosną?</h2>
+    <p>Pierwsza rata i suma odsetek, gdyby oprocentowanie od początku było wyższe (bez nadpłat).</p>
+    <div class="overflow-x-auto">
+        <table>
+            <thead><tr><th>Oprocentowanie</th><th>Rata</th><th>Różnica</th><th>Suma odsetek</th></tr></thead>
+            <tbody id="kk-test-stop"></tbody>
+        </table>
+    </div>
+
+    <h2>Harmonogram spłaty</h2>
+    <div class="overflow-auto max-h-[32rem]">
+        <table>
+            <thead><tr><th>Nr</th><th>Miesiąc</th><th>Rata</th><th>Kapitał</th><th>Odsetki</th><th>Nadpłata</th><th>Saldo</th></tr></thead>
+            <tbody id="kk-harmonogram"></tbody>
+        </table>
+    </div>
+
+    <p class="text-xs mt-4">Wynik orientacyjny: odsetki liczone jako 1/12 stopy rocznej od salda, oprocentowanie stałe przez cały okres. Bank może liczyć odsetki według rzeczywistej liczby dni, a przy kredycie o zmiennej stopie rata zmienia się razem z WIBOR-em. RRSO liczone bez nadpłat. To nie jest oferta ani doradztwo finansowe.</p>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/kalkulator_kredytu.js') }}"></script>
+{% endblock %}

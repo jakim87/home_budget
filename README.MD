@@ -11,6 +11,7 @@ Projekt jest budowany jako aplikacja edukacyjna, rozwijana krok po kroku z wykor
 Zrealizowane:
 
 - Import transakcji z wyciągów bankowych (ING, mBank, Pekao — CSV, PDF, HTML) z automatyczną detekcją banku i formatu
+- Publiczny kalkulator kredytu (`/kalkulator-kredytu`): harmonogram rat równych i malejących, prowizja, opłaty, RRSO, nadpłaty i test wzrostu stóp — liczony w przeglądarce
 - Historia importów z ostrzeżeniem o nakładających się zakresach dat
 - Kategoryzacja transakcji z automatycznym dopasowywaniem kontrahentów
 - Wykrywanie transferów wewnętrznych i parowanie obu nóg przelewu

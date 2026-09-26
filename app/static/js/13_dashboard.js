@@ -43,7 +43,7 @@ function renderDashboard() {
     const netWorth = dashboardAccounts().reduce((sum, a) => sum + a.balance, 0);
     const netWorthEl = document.getElementById('dashboard-net-worth');
     if (netWorthEl) {
-        netWorthEl.textContent = `${netWorth.toFixed(2)} PLN`;
+        netWorthEl.textContent = `${formatKwota(netWorth)} PLN`;
     }
 
     // Karty kont
@@ -59,7 +59,7 @@ function renderDashboard() {
                     class="text-left bg-white p-4 rounded-xl border shadow-sm transition-colors hover:border-blue-400 ${selected ? 'border-blue-600 ring-2 ring-blue-200' : 'border-slate-200'}">
                     <p class="text-xs font-medium text-slate-500 truncate">${escapeHtml(a.name)}${a.bank_name ? ` · ${escapeHtml(a.bank_name)}` : ''}</p>
                     ${(a.owner || a.co_owner) ? `<p class="text-xs text-slate-400 truncate">${escapeHtml([a.owner, a.co_owner].filter(Boolean).join(' / '))}</p>` : ''}
-                    <p class="text-lg font-bold ${a.balance >= 0 ? 'text-slate-800' : 'text-rose-600'} mt-1">${a.balance.toFixed(2)} PLN</p>
+                    <p class="text-lg font-bold ${a.balance >= 0 ? 'text-slate-800' : 'text-rose-600'} mt-1">${formatKwota(a.balance)} PLN</p>
                 </button>
                 `;
             }).join('');
@@ -168,14 +168,14 @@ function renderNetWorthHistoryChart() {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: ctx => `Majątek netto: ${ctx.parsed.y.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`
+                        label: ctx => `Majątek netto: ${formatKwota(ctx.parsed.y)} PLN`
                     }
                 }
             },
             scales: {
                 y: {
                     ticks: {
-                        callback: v => `${Number(v).toLocaleString('pl-PL')} PLN`
+                        callback: v => `${Number(v).toLocaleString('pl-PL', { useGrouping: 'always' })} PLN`
                     }
                 }
             }
@@ -272,14 +272,14 @@ function renderDashboardChart() {
                 legend: { position: 'top' },
                 tooltip: {
                     callbacks: {
-                        label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} PLN`
+                        label: ctx => `${ctx.dataset.label}: ${formatKwota(ctx.parsed.y)} PLN`
                     }
                 }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: { callback: val => `${val.toLocaleString('pl-PL')} PLN` }
+                    ticks: { callback: val => `${val.toLocaleString('pl-PL', { useGrouping: 'always' })} PLN` }
                 }
             }
         }

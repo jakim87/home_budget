@@ -24,7 +24,7 @@ const TOURS = {
     transactions: [
         {
             el: '#openImportModalBtn',
-            akcja: 'Kliknij „Importuj wyciąg"',
+            akcja: 'Kliknij „Importuj wyciąg z banku"',
             efekt: 'Otworzy się okno wgrywania wyciągu — CSV, HTML lub PDF z ING albo mBanku, CSV z Pekao, rozpoznawane automatycznie po zawartości pliku. Wgrane operacje trafiają najpierw do poczekalni w zakładce „Do weryfikacji" — saldo konta jeszcze się nie zmienia.',
         },
         {

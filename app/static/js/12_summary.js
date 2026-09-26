@@ -48,12 +48,12 @@ function renderSummary() {
             if (acc) {
                 const label = accounts.some(a => a.id == globalAccountFilter) ? acc.name : `${acc.name}, nieaktywne`;
                 balanceTitle.innerText = `Bieżące saldo (${label})`;
-                balanceValue.innerText = `${Number(acc.balance).toFixed(2)} PLN`;
+                balanceValue.innerText = `${formatKwota(acc.balance)} PLN`;
             }
         } else {
             const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0);
             balanceTitle.innerText = `Bieżące saldo (wszystkie konta)`;
-            balanceValue.innerText = `${totalBalance.toFixed(2)} PLN`;
+            balanceValue.innerText = `${formatKwota(totalBalance)} PLN`;
         }
     }
 
@@ -116,12 +116,12 @@ function renderSummary() {
         }
     });
 
-    document.getElementById('summary-income').innerText = `${income.toFixed(2)} PLN`;
-    document.getElementById('summary-expense').innerText = `${expense.toFixed(2)} PLN`;
+    document.getElementById('summary-income').innerText = `${formatKwota(income)} PLN`;
+    document.getElementById('summary-expense').innerText = `${formatKwota(expense)} PLN`;
     
     const total = income - expense;
     const totalEl = document.getElementById('summary-total');
-    totalEl.innerText = `${total >= 0 ? '+' : ''}${total.toFixed(2)} PLN`;
+    totalEl.innerText = `${total >= 0 ? '+' : ''}${formatKwota(total)} PLN`;
     totalEl.className = `text-2xl font-bold ${total >= 0 ? 'text-emerald-600' : 'text-rose-600'}`;
 
     const list = document.getElementById('summary-category-list');
@@ -177,7 +177,7 @@ function buildSummaryRow(catName, amount, percentage, colorPrefix) {
     return `
         <tr class="hover:bg-slate-50">
             <td data-label="Kategoria" class="p-4 border-b border-slate-100 font-medium text-slate-700">${escapeHtml(catName)}</td>
-            <td data-label="Kwota" class="p-4 border-b border-slate-100 font-bold text-right text-${colorPrefix}-600">${amount.toFixed(2)} PLN</td>
+            <td data-label="Kwota" class="p-4 border-b border-slate-100 font-bold text-right text-${colorPrefix}-600">${formatKwota(amount)} PLN</td>
             <td data-label="Udział" class="p-4 border-b border-slate-100">
                 ${percentageHtml}
             </td>

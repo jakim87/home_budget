@@ -52,8 +52,8 @@ beforeEach(() => {
 
 describe('podsumowanie podzialu', () => {
     it('pokazuje cala kwote transakcji, dopoki nie ma pozycji', () => {
-        expect(pozostalo()).toBe('26.36 PLN');
-        expect(document.getElementById('split-original-amount').innerText).toBe('26.36 PLN');
+        expect(pozostalo()).toBe('26,36 PLN');
+        expect(document.getElementById('split-original-amount').innerText).toBe('26,36 PLN');
     });
 
     it('odejmuje wpisana kwote juz przy pisaniu, bez przerysowania wierszy', () => {
@@ -62,7 +62,7 @@ describe('podsumowanie podzialu', () => {
         input.value = '2';
         updateSplit(currentSplits[0].id, 'amount', '2');
 
-        expect(pozostalo()).toBe('24.36 PLN');
+        expect(pozostalo()).toBe('24,36 PLN');
         // Ten sam wezel co przed przeliczeniem — gdyby wiersze zostaly
         // przerysowane, uzytkownik stracilby kursor w polu.
         expect(document.querySelector('#split-rows input[type=number]')).toBe(input);
@@ -75,7 +75,7 @@ describe('podsumowanie podzialu', () => {
         addSplitRow();
         updateSplit(currentSplits[1].id, 'amount', '6.36');
 
-        expect(pozostalo()).toBe('0.00 PLN');
+        expect(pozostalo()).toBe('0,00 PLN');
         expect(zapisZablokowany()).toBe(false);
     });
 
@@ -83,7 +83,7 @@ describe('podsumowanie podzialu', () => {
         addSplitRow();
         updateSplit(currentSplits[0].id, 'amount', '30');
 
-        expect(pozostalo()).toBe('-3.64 PLN');
+        expect(pozostalo()).toBe('-3,64 PLN');
         expect(zapisZablokowany()).toBe(true);
     });
 
@@ -93,7 +93,7 @@ describe('podsumowanie podzialu', () => {
         updateSplit(currentSplits[0].id, 'amount', '10');
 
         expect(zapisZablokowany()).toBe(false);
-        expect(pozostalo()).toBe('16.36 PLN');
+        expect(pozostalo()).toBe('16,36 PLN');
     });
 });
 

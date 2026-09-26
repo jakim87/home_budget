@@ -14,7 +14,7 @@ const BUDGET_MIESIACE = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czer
     'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
 
 function budgetFmt(v) {
-    return `${Math.abs(v).toFixed(2).replace('.', ',')} PLN`;
+    return `${formatKwota(Math.abs(v))} PLN`;
 }
 
 /**

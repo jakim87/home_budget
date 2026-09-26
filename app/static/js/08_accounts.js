@@ -90,7 +90,7 @@ function renderInactiveAccounts() {
                 ${a.account_number ? `<span class="text-xs text-slate-400 block break-all font-mono mt-0.5">${formatAccountNumber(a.account_number)}</span>` : ''}
             </div>
             <div class="flex items-center gap-3 shrink-0">
-                <span class="text-sm font-semibold ${Number(a.balance) < 0 ? 'text-rose-600' : 'text-slate-500'}">${Number(a.balance).toFixed(2)} PLN</span>
+                <span class="text-sm font-semibold ${Number(a.balance) < 0 ? 'text-rose-600' : 'text-slate-500'}">${formatKwota(a.balance)} PLN</span>
                 <button onclick="viewAccountSummary(${a.id})" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline whitespace-nowrap" title="Cała historia konta w Podsumowaniu (zakres dat)">Podsumowanie →</button>
                 <button onclick="viewAccountTransactions(${a.id})" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline whitespace-nowrap" title="Transakcje tego konta (miesięcznie)">Transakcje →</button>
             </div>
@@ -326,7 +326,7 @@ function odswiezSaldoOdniesienia() {
     label.innerText = isoDate === dzis
         ? 'Bieżące saldo w systemie:'
         : `Saldo w systemie na koniec dnia ${isoDate}:`;
-    reconcileCurrentBalance.innerText = `${saldo.toFixed(2)} PLN`;
+    reconcileCurrentBalance.innerText = `${formatKwota(saldo)} PLN`;
     saldoOdniesienia = saldo;
     reconcileNewBalanceInput.value = saldo.toFixed(2);
     odswiezOpisSkutku();
@@ -364,10 +364,10 @@ function odswiezOpisSkutku() {
 
     const nowaKwota = Math.round((nastepne.amount - roznica) * 100) / 100;
     warning.innerText = nowaKwota === 0
-        ? `Uzgodnienie z ${nastepne.date} (${nastepne.amount.toFixed(2)} PLN) zostanie usunięte — `
+        ? `Uzgodnienie z ${nastepne.date} (${formatKwota(nastepne.amount)} PLN) zostanie usunięte — `
           + 'ta korekta pokrywa je w całości.'
-        : `Uzgodnienie z ${nastepne.date} zostanie zmienione z ${nastepne.amount.toFixed(2)} `
-          + `na ${nowaKwota.toFixed(2)} PLN, żeby nadal pokazywało kwotę, którą wtedy wpisałeś.`;
+        : `Uzgodnienie z ${nastepne.date} zostanie zmienione z ${formatKwota(nastepne.amount)} `
+          + `na ${formatKwota(nowaKwota)} PLN, żeby nadal pokazywało kwotę, którą wtedy wpisałeś.`;
     warning.classList.remove('hidden');
 }
 window.onReconcileDateChange = odswiezSaldoOdniesienia;
@@ -390,7 +390,7 @@ window.openReconcileModal = function(accountId, accountName) {
         document.getElementById('reconcile-account-display').classList.add('hidden');
         const sel = document.getElementById('reconcile-account-select');
         sel.innerHTML = '<option value="">Wybierz konto...</option>' +
-            accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${a.balance.toFixed(2)} PLN)</option>`).join('');
+            accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${formatKwota(a.balance)} PLN)</option>`).join('');
     }
     odswiezSaldoOdniesienia();
     reconcileModal.classList.remove('hidden');

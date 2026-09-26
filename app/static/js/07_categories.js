@@ -182,7 +182,7 @@ function updateAccountSelects() {
     const globalAcc = document.getElementById('global-account-filter');
     if (globalAcc) {
         let gHtml = '<option value="">Wszystkie konta</option>';
-        accounts.forEach(a => gHtml += `<option value="${a.id}">${escapeHtml(a.name)} ${a.bank_name ? `(${escapeHtml(a.bank_name)})` : ''} (${a.balance.toFixed(2)} PLN)</option>`);
+        accounts.forEach(a => gHtml += `<option value="${a.id}">${escapeHtml(a.name)} ${a.bank_name ? `(${escapeHtml(a.bank_name)})` : ''} (${formatKwota(a.balance)} PLN)</option>`);
         // Konta nieaktywne w osobnej grupie — pozwala podejrzeć ich historię transakcji.
         if (inactiveAccounts && inactiveAccounts.length > 0) {
             gHtml += '<optgroup label="Konta nieaktywne">';

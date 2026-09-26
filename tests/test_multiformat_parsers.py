@@ -362,6 +362,8 @@ def test_parse_pekao_csv(app, mf_user):
     assert wplyw['counterparty_account'] == "99888877776666555544443333"
     assert wplyw['amount'] == Decimal("1000.00")
     assert result['statement_ibans'] == ["11111111111111111111111111"]
+    assert [t['bank_category'] for t in result['transactions']] == [
+        "Artykuły spożywcze", "Internet, TV, telefon", "Bez kategorii"]
     assert (result['period_start'], result['period_end']) == (date(2026, 9, 1), date(2026, 9, 25))
 
 
@@ -370,3 +372,14 @@ def test_parse_pekao_csv_requires_account(app, mf_user):
     with app.app_context():
         with pytest.raises(ValueError):
             parse_pekao_csv(PEKAO_CSV_SAMPLE, user_token, main_account_id=None)
+
+
+def test_bank_category_z_mbank_csv_i_html(app, mf_user):
+    """#192: kategoria banku przekazana dalej jako podpowiedź."""
+    from app.services.budget_service import parse_mbank_csv
+    user_token, acc_id = mf_user
+    with app.app_context():
+        csv_txs = parse_mbank_csv(MBANK_CSV_SAMPLE, user_token, main_account_id=acc_id)['transactions']
+        html_txs = parse_mbank_html(MBANK_HTML_SAMPLE, user_token, main_account_id=acc_id)['transactions']
+    assert csv_txs[0]['bank_category'] == "Zakupy"
+    assert [t['bank_category'] for t in html_txs] == ["Wpływy - inne", "Zakupy"]

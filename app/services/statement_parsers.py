@@ -219,6 +219,7 @@ def parse_mbank_html(content: str, user_token: str, main_account_id: Optional[in
             'amount': amount,
             'counterparty_account': counterparty_account,
             'account_id': main_account_id,
+            'bank_category': tds[3].get_text(strip=True) or None,
         })
 
     logger.info(
@@ -541,8 +542,8 @@ def _pekao_own_and_other(row: dict) -> tuple[str, str]:
 def parse_pekao_csv(content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
     """Parsuje 'Historię operacji' Pekao w CSV (jednokontowe, UTF-8, średnik).
 
-    Kolumna 'Kategoria' (opcjonalna w eksporcie) jest ignorowana — kategorie
-    banku nie pokrywają się z kategoriami aplikacji. Brak salda po operacji.
+    Kolumna 'Kategoria' jest opcjonalna w eksporcie — trafia do 'bank_category'
+    jako podpowiedź (#192). Brak salda po operacji.
     """
     if main_account_id is None:
         raise ValueError("Wyciąg Pekao dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
@@ -577,6 +578,7 @@ def parse_pekao_csv(content: str, user_token: str, main_account_id: Optional[int
             'amount': amount,
             'counterparty_account': other or None,
             'account_id': main_account_id,
+            'bank_category': (row.get('Kategoria') or '').strip() or None,
         })
 
     dates = [t['date'] for t in transactions]

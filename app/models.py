@@ -288,6 +288,9 @@ class TransactionStaging(db.Model):
     # by reanalyze_all_staging mogło ponownie rozpoznać przelew wewnętrzny po IBAN,
     # nie tylko przy pierwszym imporcie (patrz analyze_transaction_data, krok 1).
     counterparty_account: Mapped[Optional[str]] = mapped_column(String(50))
+    # Kategoria nadana przez bank (Pekao, mBank) — surowa nazwa, bo reanalyze_all_staging
+    # musi móc ją ponownie dopasować, gdy użytkownik doda kategorię o tej nazwie.
+    bank_category: Mapped[Optional[str]] = mapped_column(String(100))
 
 
 class Feedback(db.Model):

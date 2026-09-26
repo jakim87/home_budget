@@ -145,3 +145,53 @@ def test_update_account_with_bad_checksum_is_rejected_and_keeps_old_value(app):
 
     db.session.refresh(acc)
     assert acc.account_number == VALID_NRB
+
+
+# --- Archiwizacja vs trwałe usunięcie konta ---
+
+def test_konto_bez_zadnych_powiazan_usuwane_trwale(logged_in_client, test_user):
+    acc = create_account(test_user.token, {'name': 'Pomyłka', 'bank_name': 'X'})
+    acc_id = acc.id
+
+    resp = logged_in_client.delete(f'/api/accounts/{acc_id}')
+
+    assert resp.status_code == 200
+    assert resp.get_json()['result'] == 'deleted'
+    db.session.expire_all()
+    assert db.session.get(Account, acc_id) is None
+
+
+def test_konto_z_transakcjami_archiwizowane_z_zachowaniem_transakcji(logged_in_client, test_user):
+    from app.models import Transaction
+    from datetime import date
+    acc = create_account(test_user.token, {'name': 'Poż. Got.', 'bank_name': 'X'})
+    tx = Transaction(date=date(2026, 1, 5), title='Wpłata', amount=Decimal('100.00'),
+                     account_id=acc.id, user_token=test_user.token)
+    db.session.add(tx)
+    db.session.commit()
+
+    resp = logged_in_client.delete(f'/api/accounts/{acc.id}')
+
+    assert resp.status_code == 200
+    assert resp.get_json()['result'] == 'archived'
+    db.session.expire_all()
+    assert db.session.get(Account, acc.id).is_active is False
+    assert db.session.get(Transaction, tx.id) is not None
+
+
+def test_konto_z_harmonogramem_bez_transakcji_archiwizowane(logged_in_client, test_user):
+    """Klucz obcy z harmonogramu blokowałby DELETE na PostgreSQL — archiwizujemy."""
+    from app.models import RecurringTransaction, Frequency
+    from datetime import date
+    acc = create_account(test_user.token, {'name': 'Z harmonogramem', 'bank_name': 'X'})
+    db.session.add(RecurringTransaction(
+        user_token=test_user.token, account_id=acc.id, title='Czynsz', amount=Decimal('-100.00'),
+        frequency=Frequency.MONTHLY, day_of_month=1, interval=1,
+        start_date=date(2026, 1, 1), next_run_date=date(2026, 10, 1)))
+    db.session.commit()
+
+    resp = logged_in_client.delete(f'/api/accounts/{acc.id}')
+
+    assert resp.get_json()['result'] == 'archived'
+    db.session.expire_all()
+    assert db.session.get(Account, acc.id).is_active is False

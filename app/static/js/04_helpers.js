@@ -3,6 +3,12 @@ function escapeHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// Kwota do wyświetlenia: przecinek dziesiętny i twarda spacja co trzy cyfry
+// (1234.5 → "1 234,50"). Twarda, żeby kwota nie łamała się w wąskiej kolumnie.
+function formatKwota(v) {
+    return Number(v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
+}
+
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');

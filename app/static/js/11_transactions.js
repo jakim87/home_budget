@@ -251,7 +251,7 @@ function dayHeaderRow(day, rows, colspan) {
                     <span class="font-semibold text-slate-700">${weekday}, ${day}</span>
                 </span>
                 <span class="text-slate-400 text-xs pl-5 sm:pl-0">${n} ${opsLabel} · suma dnia
-                    <span class="tabular-nums font-medium ${sum < 0 ? 'text-rose-600' : 'text-emerald-600'}">${sum >= 0 ? '+' : ''}${sum.toFixed(2)} PLN</span>
+                    <span class="tabular-nums font-medium ${sum < 0 ? 'text-rose-600' : 'text-emerald-600'}">${sum >= 0 ? '+' : ''}${formatKwota(sum)} PLN</span>
                 </span>
             </span>
         </td>`;
@@ -331,7 +331,7 @@ function renderTransactions() {
                 const g = balanceMap.get(t.id);
                 // Projekcje cykliczne nie są jeszcze pieniędzmi — nie mają salda.
                 if (g === undefined) return `<td data-label="Saldo po" class="p-4 border-b border-slate-100 text-right text-slate-300"><span class="komorka-pusta">—</span></td>`;
-                return `<td data-label="Saldo po" class="p-4 border-b border-slate-100 text-right text-sm text-slate-600 tabular-nums whitespace-nowrap">${(g / 100).toFixed(2)}</td>`;
+                return `<td data-label="Saldo po" class="p-4 border-b border-slate-100 text-right text-sm text-slate-600 tabular-nums whitespace-nowrap">${formatKwota(g / 100)}</td>`;
             })();
             const accountCellHtml = showAccountColumn
                 ? `<td data-label="Konto" class="p-4 border-b border-slate-100 text-sm text-slate-600 break-words whitespace-normal">${escapeHtml(accountLabelById(t.account_id))}</td>`
@@ -400,7 +400,7 @@ function renderTransactions() {
                 } else {
                     amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
                 }
-                const amountText = `${isPositive ? '+' : ''}${t.amount.toFixed(2)} PLN`;
+                const amountText = `${isPositive ? '+' : ''}${formatKwota(t.amount)} PLN`;
                 
                 const isVirtual = t.isVirtual;
                 const iconHtml = isVirtual 
@@ -484,7 +484,7 @@ window.deleteTransaction = async function(id) {
     let confirmMsg = 'Czy na pewno chcesz usunąć tę transakcję?';
     if (tx && tx.linked_transaction_id) {
         const mirror = transactions.find(t => t.id === tx.linked_transaction_id);
-        const fmt = t => `• ${t.date}  ${t.desc}  ${Number(t.amount).toFixed(2)} PLN  (${accountLabelById(t.account_id)})`;
+        const fmt = t => `• ${t.date}  ${t.desc}  ${formatKwota(t.amount)} PLN  (${accountLabelById(t.account_id)})`;
         const legs = [tx, mirror].filter(Boolean).map(fmt).join('\n');
         confirmMsg = 'UWAGA: to jest przelew wewnętrzny (transakcja lustrzana).\n'
             + 'Usunięcie usunie OBIE powiązane transakcje:\n\n'
@@ -528,7 +528,7 @@ window.openSplitModal = function(id, event) {
     currentSplits = tx.splits ? JSON.parse(JSON.stringify(tx.splits)) : [];
     
     document.getElementById('split-original-desc').innerText = tx.desc;
-    document.getElementById('split-original-amount').innerText = `${originalAmount.toFixed(2)} PLN`;
+    document.getElementById('split-original-amount').innerText = `${formatKwota(originalAmount)} PLN`;
     document.getElementById('split-modal').classList.remove('hidden');
     document.getElementById('split-modal').classList.add('flex');
     
@@ -597,7 +597,7 @@ function aktualizujPodsumowanieSplitu() {
     const currentTotal = currentSplits.reduce((sum, s) => sum + s.amount, 0);
     const remaining = originalAmount - currentTotal;
     const remEl = document.getElementById('split-remaining');
-    remEl.innerText = `${remaining.toFixed(2)} PLN`;
+    remEl.innerText = `${formatKwota(remaining)} PLN`;
 
     const saveBtn = document.getElementById('split-save-btn');
     if (remaining < -0.01) {

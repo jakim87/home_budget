@@ -50,7 +50,7 @@ function przelicz({ od = '', do: doDaty = '', bezPrzelewow = true } = {}) {
 const kpi = id => document.getElementById(id).textContent;
 
 beforeAll(() => {
-    zaladujModuly('01_state.js', '16_reports.js');
+    zaladujModuly('01_state.js', '04_helpers.js', '16_reports.js');
     // Wykresy i tabela nie sa przedmiotem tych testow — rysowanie wymagaloby
     // Chart.js z CDN i canvasu. Podmieniamy je na puste funkcje, zeby zostac
     // przy tym, co faktycznie sprawdzamy: przy liczbach.
@@ -85,9 +85,9 @@ describe('przelewy wewnetrzne', () => {
     it('domyslnie nie wchodza do przychodow ani wydatkow', () => {
         przelicz({ bezPrzelewow: true });
 
-        expect(kpi('rpt-kpi-income')).toBe('5000,00 PLN');
+        expect(kpi('rpt-kpi-income')).toBe('5\u00A0000,00 PLN');
         expect(kpi('rpt-kpi-expense')).toBe('200,00 PLN');
-        expect(kpi('rpt-kpi-net')).toBe('+4800,00 PLN');
+        expect(kpi('rpt-kpi-net')).toBe('+4\u00A0800,00 PLN');
     });
 
     it('sa pokazane osobno, zeby nie znikaly bez sladu', () => {
@@ -105,11 +105,11 @@ describe('przelewy wewnetrzne', () => {
         // To jest dokladnie ten blad, przed ktorym chroni domyslne wykluczenie:
         // 1000 zl przelozone miedzy wlasnymi kontami wyglada jak przychod
         // i jak wydatek jednoczesnie.
-        expect(kpi('rpt-kpi-income')).toBe('6000,00 PLN');
-        expect(kpi('rpt-kpi-expense')).toBe('1200,00 PLN');
+        expect(kpi('rpt-kpi-income')).toBe('6\u00A0000,00 PLN');
+        expect(kpi('rpt-kpi-expense')).toBe('1\u00A0200,00 PLN');
         // Wynik netto zostaje poprawny, choc obroty sa zmyslone — dlatego
         // sam wynik netto nie wystarcza do wykrycia problemu.
-        expect(kpi('rpt-kpi-net')).toBe('+4800,00 PLN');
+        expect(kpi('rpt-kpi-net')).toBe('+4\u00A0800,00 PLN');
     });
 });
 
@@ -165,7 +165,7 @@ describe('rptGroupByMonth', () => {
 
 describe('rptFmt', () => {
     it('formatuje polskim przecinkiem i dwoma miejscami', () => {
-        expect(rptFmt(1234.5)).toBe('1234,50 PLN');
+        expect(rptFmt(1234.5)).toBe('1\u00A0234,50 PLN');
     });
 
     it('ze znakiem uzywa minusa typograficznego dla wartosci ujemnych', () => {

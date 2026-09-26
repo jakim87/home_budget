@@ -22,7 +22,7 @@
             </div>
             <div>
                 <label for="reconcile-date" class="block text-sm font-medium text-slate-700">Uzgadniam na dzień:</label>
-                <input type="date" id="reconcile-date" onchange="onReconcileDateChange()" class="mt-1 block w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                <input type="date" id="reconcile-date" onclick="this.showPicker?.()" onchange="onReconcileDateChange()" class="mt-1 block w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
                 <p id="reconcile-date-warning" class="hidden mt-1 text-xs text-amber-700"></p>
             </div>
             <div>

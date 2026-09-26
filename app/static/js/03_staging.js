@@ -210,7 +210,7 @@ function renderStaging() {
     displayList.forEach(t => {
         const isPositive = t.amount >= 0;
         const amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
-        const amountText = `${isPositive ? '+' : ''}${t.amount.toFixed(2)} PLN`;
+        const amountText = `${isPositive ? '+' : ''}${formatKwota(t.amount)} PLN`;
 
         const { hasSuggestion, isFullyMapped, isPartiallyMapped, isTransfer, hasDuplicate } = getStagingStatus(t);
 

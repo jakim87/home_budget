@@ -199,7 +199,7 @@ function applyRptFilters() {
 }
 
 function rptFmt(v, showSign = false) {
-    const abs = Math.abs(v).toFixed(2).replace('.', ',');
+    const abs = formatKwota(Math.abs(v));
     if (showSign) return `${v >= 0 ? '+' : '−'}${abs} PLN`;
     return `${abs} PLN`;
 }
@@ -276,10 +276,10 @@ function renderRptBarChart() {
             maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 12 } },
-                tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw.toFixed(2)} PLN` } }
+                tooltip: { callbacks: { label: c => `${c.dataset.label}: ${formatKwota(c.raw)} PLN` } }
             },
             scales: {
-                y: { beginAtZero: true, ticks: { callback: v => `${v} PLN` } }
+                y: { beginAtZero: true, ticks: { callback: v => `${Number(v).toLocaleString('pl-PL', { useGrouping: 'always' })} PLN` } }
             }
         }
     });
@@ -328,10 +328,10 @@ function renderRptLineChart() {
             maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 12 } },
-                tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw.toFixed(2)} PLN` } }
+                tooltip: { callbacks: { label: c => `${c.dataset.label}: ${formatKwota(c.raw)} PLN` } }
             },
             scales: {
-                y: { ticks: { callback: v => `${v} PLN` } }
+                y: { ticks: { callback: v => `${Number(v).toLocaleString('pl-PL', { useGrouping: 'always' })} PLN` } }
             }
         }
     });
@@ -381,7 +381,7 @@ function renderRptTable() {
     tbody.innerHTML = visible.map(tx => {
         const amtClass = tx.amount >= 0 ? 'text-emerald-600' : 'text-rose-600';
         const amtSign = tx.amount >= 0 ? '+' : '';
-        const amtText = `${amtSign}${tx.amount.toFixed(2).replace('.', ',')} PLN`;
+        const amtText = `${amtSign}${formatKwota(tx.amount)} PLN`;
         const catType = catTypeMap[tx.category];
         const catBadge = catType === 'transfer' ? 'bg-amber-50 text-amber-700 border-amber-200'
                        : catType === 'income'   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'

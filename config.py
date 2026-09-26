@@ -46,7 +46,7 @@ class Config:
 
     # Wersja pokazywana w nagłówku. Flask sam udostępnia `config` w szablonach,
     # więc wyświetlenie nie wymaga ani kontekstu, ani endpointa. Podbijaj ręcznie.
-    APP_VERSION = '0.9.0-beta'
+    APP_VERSION = '1.0.0'
 
     # --- Dane wyświetlane w Regulaminie / Polityce prywatności / O aplikacji ---
     # Autor projektu jest stały (fakt o repozytorium), ale administratorem danych

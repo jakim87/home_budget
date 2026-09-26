@@ -10,7 +10,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { tx, zaladujModuly } from './helpers.js';
 
 beforeAll(() => {
-    zaladujModuly('01_state.js', '13_dashboard.js');
+    zaladujModuly('01_state.js', '04_helpers.js', '13_dashboard.js');
 });
 
 beforeEach(() => {

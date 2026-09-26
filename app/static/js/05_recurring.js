@@ -381,7 +381,7 @@ function renderRecurringList() {
                     ${nextRunFormatted}
                 </td>
                 <td class="p-3 border-b border-slate-100 font-bold text-right ${isExp ? 'text-rose-600' : 'text-emerald-600'}">
-                    ${isExp ? '' : '+'}${parseFloat(rt.amount).toFixed(2)} PLN
+                    ${isExp ? '' : '+'}${formatKwota(rt.amount)} PLN
                 </td>
                 <td class="p-3 border-b border-slate-100 text-center">
                     <button onclick="openEndRecurringModal(${rt.id}, '${rt.end_date || ''}')" class="text-slate-400 hover:text-amber-600 p-1.5 rounded-md hover:bg-amber-50 transition-colors opacity-0 group-hover:opacity-100" title="Ustaw datę zakończenia">
@@ -420,7 +420,7 @@ function renderPlannedList() {
                     <div class="text-blue-600 font-medium">Dnia: ${pt.execution_date}</div>
                 </td>
                 <td class="p-3 border-b border-slate-100 font-bold text-right ${isExp ? 'text-rose-600' : 'text-emerald-600'}">
-                    ${isExp ? '' : '+'}${parseFloat(pt.amount).toFixed(2)} PLN
+                    ${isExp ? '' : '+'}${formatKwota(pt.amount)} PLN
                 </td>
                 <td class="p-3 border-b border-slate-100 text-center">
                     <button onclick="deletePlanned(${pt.id})" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100" title="Usuń plan">

@@ -54,8 +54,9 @@ function renderAccounts() {
                 <button onclick="editAccount(${a.id})" class="text-slate-400 hover:text-indigo-600 p-1.5 rounded-md hover:bg-indigo-50 transition-colors opacity-0 group-hover:opacity-100" title="Edytuj konto">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                 </button>
-                <button onclick="deleteAccount(${a.id})" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100" title="Usuń konto">
+                <button onclick="deleteAccount(${a.id})" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-1" title="Archiwizuj konto — transakcje zostają">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    <span class="text-xs">Archiwum</span>
                 </button>
                 <button onclick="openReconcileModal(${a.id}, ${escapeHtml(JSON.stringify(a.name))})" class="text-slate-400 hover:text-green-600 p-1.5 rounded-md hover:bg-green-50 transition-colors opacity-0 group-hover:opacity-100" title="Uzgadniaj saldo">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -237,14 +238,34 @@ document.getElementById('account-form').addEventListener('submit', async functio
     } catch (e) { showToast('Błąd zapisywania konta.', 'error'); }
 });
 
+// Konto z historią jest tylko archiwizowane; konto bez niczego serwer usuwa trwale.
+// Ostateczną decyzję podejmuje serwer (widzi też harmonogram i poczekalnię), więc
+// komunikat końcowy bierzemy z jego odpowiedzi, nie z pytania.
 window.deleteAccount = async function(id) {
-    if (!confirm('Usunąć to konto ze słownika?')) return;
+    const a = accounts.find(acc => acc.id === id);
+    if (!a) return;
+    const maTransakcje = transactions.some(t => t.account_id == id);
+    const msg = maTransakcje
+        ? `Zarchiwizować konto „${a.name}"?
+
+`
+          + `Nic nie zostanie usunięte: konto i wszystkie jego transakcje zostają w aplikacji. `
+          + `Konto trafi do sekcji „Konta nieaktywne", skąd nadal podejrzysz jego historię.`
+        : `Konto „${a.name}" nie ma żadnych transakcji.
+
+`
+          + `Zostanie usunięte trwale — tej operacji nie można cofnąć.`;
+    if (!confirm(msg)) return;
     const res = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
-    if (res.ok) {
-        accounts = accounts.filter(a => a.id !== id);
-        renderAccounts();
-        updateAccountSelects();
+    if (!res.ok) {
+        showToast('Nie udało się zarchiwizować konta.', 'error');
+        return;
     }
+    const { result } = await res.json();
+    showToast(result === 'deleted'
+        ? `Konto „${a.name}" usunięte trwale.`
+        : `Konto „${a.name}" zarchiwizowane — transakcje zachowane.`);
+    fetchInitialData();
 }
 
 // --- FLOW SPŁATY KREDYTU (Faza 2) ---

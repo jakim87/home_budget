@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from marshmallow import ValidationError
 from flask_login import login_required, current_user
 from app.schemas import AccountSchema, ReconcileSchema
-from app.services.account_service import create_account, update_account, soft_delete_account, reorder_accounts
+from app.services.account_service import create_account, update_account, delete_or_archive_account, reorder_accounts
 from app.services.budget_service import reconcile_account_balance
 
 accounts_bp = Blueprint('accounts', __name__, url_prefix='/api/accounts')
@@ -60,8 +60,8 @@ def reorder_accounts_endpoint():
 @login_required
 def delete_account(a_id):
     try:
-        soft_delete_account(current_user.token, a_id)
-        return jsonify({'message': 'Konto usunięte ze słownika.'}), 200
+        wynik = delete_or_archive_account(current_user.token, a_id)
+        return jsonify({'result': wynik}), 200
     except ValueError as err:
         return jsonify({'error': str(err)}), 404
 

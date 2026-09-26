@@ -1,6 +1,9 @@
 import re
 from app import db
-from app.models import Account, ACCOUNT_TYPES
+from app.models import (
+    Account, ACCOUNT_TYPES, Transaction, TransactionStaging, RecurringTransaction,
+    PlannedTransaction, StatementImport, Contractor,
+)
 from decimal import Decimal
 from sqlalchemy import func
 
@@ -141,13 +144,37 @@ def update_account(user_token, a_id, data):
         db.session.rollback()
         raise
 
-def soft_delete_account(user_token, a_id):
+# Wszystko, co wskazuje na konto kluczem obcym. Konto z choćby jednym takim wpisem
+# tylko archiwizujemy — trwałe usunięcie zerwałoby historię (albo klucz obcy).
+_POWIAZANIA_KONTA = (
+    (Transaction, Transaction.account_id),
+    (TransactionStaging, TransactionStaging.account_id),
+    (RecurringTransaction, RecurringTransaction.account_id),
+    (PlannedTransaction, PlannedTransaction.account_id),
+    (StatementImport, StatementImport.account_id),
+    (Contractor, Contractor.linked_account_id),
+)
+
+
+def delete_or_archive_account(user_token, a_id):
+    """Konto bez żadnych powiązań usuwa trwale, pozostałe archiwizuje (is_active=False).
+    Zwraca 'deleted' albo 'archived'."""
     try:
         acc = db.session.query(Account).filter_by(id=a_id, user_token=user_token).first()
         if not acc:
             raise ValueError('Nie znaleziono konta lub brak uprawnień.')
-        acc.is_active = False
+        ma_powiazania = any(
+            db.session.query(model.id).filter(kolumna == acc.id).first()
+            for model, kolumna in _POWIAZANIA_KONTA
+        )
+        if ma_powiazania:
+            acc.is_active = False
+            wynik = 'archived'
+        else:
+            db.session.delete(acc)
+            wynik = 'deleted'
         db.session.commit()
+        return wynik
     except Exception:
         db.session.rollback()
         raise

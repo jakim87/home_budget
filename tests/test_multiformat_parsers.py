@@ -474,6 +474,17 @@ def test_parse_millennium_csv(app, mf_user):
     assert (result['period_start'], result['period_end']) == (date(2026, 8, 15), date(2026, 9, 2))
 
 
+def test_parse_millennium_csv_obciety_wiersz_pominiety(app, mf_user):
+    """#200: wiersz bez kolumn kwot to None z DictReadera — pominąć, nie 500."""
+    user_token, acc_id = mf_user
+    obciety = '"PL11 1111 1111 1111 1111 1111 1111","2026-09-05"\n'
+    with app.app_context():
+        result = parse_millennium_csv(MILLENNIUM_CSV_SAMPLE + obciety, user_token, main_account_id=acc_id)
+
+    assert result['skipped_count'] == 1
+    assert len(result['transactions']) == 3
+
+
 def test_parse_millennium_csv_requires_account(app, mf_user):
     user_token, _ = mf_user
     with app.app_context():

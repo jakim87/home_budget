@@ -979,7 +979,8 @@ def save_transactions_to_staging(
                 proposed_contractor_id=prop_contractor_id,
                 suggested_contractor_name=suggested_name,
                 counterparty_account=tx_data.get('counterparty_account'),
-                bank_category=tx_data.get('bank_category'),
+                # Przycięcie do długości kolumny — za długa podpowiedź nie może wywrócić importu.
+                bank_category=(tx_data.get('bank_category') or '')[:TransactionStaging.bank_category.type.length] or None,
             )
             db.session.add(staging_tx)
             staging_records.append(staging_tx)

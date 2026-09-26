@@ -640,7 +640,9 @@ def parse_millennium_csv(content: str, user_token: str, main_account_id: Optiona
     ibans_set = set()
 
     for row in _millennium_rows(content):
-        amount = _clean_amount(row['Obciążenia'] or row['Uznania'])
+        # Obcięty wiersz: DictReader daje None — kolumny kwot są za wszystkimi
+        # pozostałymi, więc jeśli kwota jest, to reszta wiersza też.
+        amount = _clean_amount(row['Obciążenia'] or row['Uznania'] or '')
         if amount is None:
             logger.warning("Odrzucono wiersz Millennium CSV — nieprawidłowa kwota (user_token=%s)", user_token)
             skipped_count += 1

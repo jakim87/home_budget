@@ -46,7 +46,7 @@ Import ma dwa tryby:
 
 - **Automatyczny** (`POST /api/import/auto`) — bank i format rozpoznawane po zawartości pliku,
   konto po numerze rachunku z nagłówka wyciągu.
-- **Ręczny** (`POST /api/import/<bank>`) — użytkownik wskazuje bank i konto docelowe (tylko CSV).
+- **Ręczny** (`POST /api/import/<bank>/<format>`; bez `/<format>` = CSV) — użytkownik wskazuje bank, format i konto docelowe.
 
 Poza importem z banku dostępne są:
 

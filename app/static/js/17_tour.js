@@ -25,7 +25,7 @@ const TOURS = {
         {
             el: '#openImportModalBtn',
             akcja: 'Kliknij „Importuj wyciąg z banku"',
-            efekt: 'Otworzy się okno wgrywania wyciągu — CSV, HTML lub PDF z ING albo mBanku, CSV z Pekao, rozpoznawane automatycznie po zawartości pliku. Wgrane operacje trafiają najpierw do poczekalni w zakładce „Do weryfikacji" — saldo konta jeszcze się nie zmienia.',
+            efekt: 'Otworzy się okno wgrywania wyciągu — CSV, HTML lub PDF z ING albo mBanku, CSV z Pekao i Millennium, rozpoznawane automatycznie po zawartości pliku. Wgrane operacje trafiają najpierw do poczekalni w zakładce „Do weryfikacji" — saldo konta jeszcze się nie zmienia.',
         },
         {
             el: '#tx-contractor-input',
@@ -67,7 +67,7 @@ const TOURS = {
         {
             el: '#csvFileInput',
             akcja: 'Wskaż pliki z historią',
-            efekt: 'Naraz możesz wgrać wiele plików, także w różnych formatach — CSV, HTML i PDF z ING oraz mBanku, CSV z Pekao. Bank i format są rozpoznawane po zawartości, nie po rozszerzeniu.',
+            efekt: 'Naraz możesz wgrać wiele plików, także w różnych formatach — CSV, HTML i PDF z ING oraz mBanku, CSV z Pekao i Millennium. Bank i format są rozpoznawane po zawartości, nie po rozszerzeniu.',
         },
         {
             el: '#submitImportBtn',

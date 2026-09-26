@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Ile mam kasy** (dawniej „Budżet domowy”) — Flask + PostgreSQL web app for personal finance management. Features: bank account tracking, import wyciągów z ING, mBanku i Pekao (CSV/PDF/HTML, z automatyczną detekcją banku i formatu), transaction categorization, recurring/planned transactions, internal transfers, dashboard z Net Worth i zakładka Raporty (oba na Chart.js), publiczna rejestracja użytkowników. Codebase and UI are in **Polish**.
+**Ile mam kasy** (dawniej „Budżet domowy”) — Flask + PostgreSQL web app for personal finance management. Features: bank account tracking, import wyciągów z ING, mBanku, Pekao i Millennium (CSV/PDF/HTML, z automatyczną detekcją banku i formatu), transaction categorization, recurring/planned transactions, internal transfers, dashboard z Net Worth i zakładka Raporty (oba na Chart.js), publiczna rejestracja użytkowników. Codebase and UI are in **Polish**.
 
 ## Zasady pracy nad tym repo
 
@@ -144,8 +144,11 @@ Bank i format rozpoznaje `detect_bank_and_format()` (`statement_parsers.py`) **p
 | ING Bank Śląski | ✅ | ✅ | — |
 | mBank | ✅ | ✅ | ✅ |
 | Pekao SA | ✅ | — | — |
+| Bank Millennium | ✅ | — | — |
 
 Pekao CSV nie ma numeru rachunku w nagłówku — `extract_statement_ibans` bierze go z pierwszego wiersza (rachunek źródłowy przy wydatku, docelowy przy wpływie). TXT z Pekao niesie te same dane minus adres kontrahenta, więc świadomie nie jest obsługiwany.
+
+Millennium: obsługiwany tylko CSV — HTML i „XLS” (to ten sam HTML) oraz PDF niosą te same dane w gorszej postaci; detekcja rozpoznaje je, żeby zwrócić „format nieobsługiwany” zamiast wpuścić plik do parsera ING. Nagłówek CSV i PDF Millennium zawiera znaczniki ING (`Data transakcji`, `Lista transakcji`), dlatego Millennium sprawdzany jest przed ING; kolizje pilnuje `test_detekcja_kazdy_bank_rozpoznany_jako_swoj` — nowy bank = nowy wiersz w tym teście. Pola wielowierszowe Millennium sklejone są ` ` (w kontrahencie po nim jest adres).
 
 Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie.
 

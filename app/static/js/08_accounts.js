@@ -409,7 +409,8 @@ window.closeReconcileModal = function() {
     reconcileForm.reset();
 };
 
-reconcileModal.addEventListener('click', (e) => {
+// mousedown, nie click: zaznaczanie tekstu puszczone poza oknem dawałoby click na tle
+reconcileModal.addEventListener('mousedown', (e) => {
     if (e.target === reconcileModal) closeReconcileModal();
 });
 

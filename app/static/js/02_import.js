@@ -65,7 +65,8 @@ openImportModalBtn.addEventListener('click', openImportModal);
 closeImportModalBtn.addEventListener('click', closeImportModal);
 closeImportModalBtnAlt.addEventListener('click', closeImportModal);
 
-importModal.addEventListener('click', (e) => {
+// mousedown, nie click: zaznaczanie tekstu puszczone poza oknem dawałoby click na tle
+importModal.addEventListener('mousedown', (e) => {
     if (e.target === importModal) closeImportModal();
 });
 

@@ -88,3 +88,9 @@ def test_reanaliza_dopasowuje_kategorie_dodana_po_imporcie(app, test_user_token)
     paliwo = _cat(test_user_token, "Paliwo")
     reanalyze_all_staging(test_user_token)
     assert db.session.get(TransactionStaging, stg.id).proposed_category_id == paliwo.id
+
+
+def test_dluga_kategoria_banku_przycieta_do_dlugosci_kolumny(app, test_user_token):
+    """#199: nazwa dłuższa niż String(100) wywróciłaby na PostgreSQL cały import."""
+    stg = _stage(test_user_token, _tx("x" * 150))
+    assert stg.bank_category == "x" * 100

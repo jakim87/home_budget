@@ -55,8 +55,6 @@ Poza importem z banku dostępne są:
 
 - Ręczne dodawanie transakcji (również gotówkowych)
 
-Docelowo planowana obsługa: Revolut.
-
 ## Stack technologiczny
 
 - **Backend:** Python 3.12+, Flask 3.1, SQLAlchemy 2.0 (składnia `Mapped`), Flask-Migrate (Alembic)

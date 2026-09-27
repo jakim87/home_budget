@@ -16,7 +16,7 @@ Sprawdź argument podany przez użytkownika:
 - `arch` → tylko przegląd architektury (warstwy, modele, serwisy, blueprinty)
 - `security` → tylko bezpieczeństwo (auth, walidacja, SQL injection, XSS)
 - `tests` → tylko pokrycie testami i jakość testów
-- `frontend` → tylko warstwa JS/HTML (moduły `app/static/js/`, base.html, wzorce HTMX)
+- `frontend` → tylko warstwa JS/HTML (moduły `app/static/js/`, base.html)
 - `all` lub brak argumentu → pełny przegląd (wszystkie obszary)
 
 ---

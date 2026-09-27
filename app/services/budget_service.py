@@ -3,6 +3,7 @@ from app.models import Transaction, Account, TransactionStaging, Contractor, Cat
 from app.services.import_history_service import account_has_statement_imports
 from app.services.category_service import find_by_name as find_category_by_name, find_owned as find_category_owned, list_active as list_active_categories
 from app.services.contractor_service import find_owned as find_contractor_owned
+from collections import Counter
 from datetime import date, timedelta
 from typing import Optional
 from decimal import Decimal, InvalidOperation
@@ -940,19 +941,20 @@ def _bank_category_id(bank_category: Optional[str], amount: Decimal, category_ma
     return category_map.get((bank_category.strip().casefold(), 'expense' if amount < 0 else 'income'))
 
 
-def _existing_import_keys(user_token: str) -> set:
-    """Zbiera klucze (data, kwota, tytuł, konto) już istniejących transakcji i wierszy
-    stagingu użytkownika — do wykrywania duplikatów przy ponownym wgraniu tego samego pliku."""
-    keys: set = set()
+def _existing_import_keys(user_token: str) -> Counter:
+    """Liczy klucze (data, kwota, tytuł, konto) już istniejących transakcji i wierszy
+    stagingu użytkownika — do wykrywania duplikatów przy ponownym wgraniu tego samego pliku.
+    Licznik, nie zbiór: dwie identyczne operacje z jednego dnia to dwie operacje."""
+    keys: Counter = Counter()
     for tx in db.session.query(
         Transaction.date, Transaction.amount, Transaction.title, Transaction.account_id
     ).filter(Transaction.user_token == user_token).all():
-        keys.add((tx.date, tx.amount, tx.title, tx.account_id))
+        keys[(tx.date, tx.amount, tx.title, tx.account_id)] += 1
     for stg in db.session.query(
         TransactionStaging.date, TransactionStaging.amount,
         TransactionStaging.title, TransactionStaging.account_id
     ).filter(TransactionStaging.user_token == user_token, TransactionStaging.status == 'pending').all():
-        keys.add((stg.date, stg.amount, stg.title, stg.account_id))
+        keys[(stg.date, stg.amount, stg.title, stg.account_id)] += 1
     return keys
 
 
@@ -964,27 +966,29 @@ def save_transactions_to_staging(
 
     Pomija wiersze będące duplikatami transakcji lub oczekujących wierszy stagingu
     (ta sama data, kwota, tytuł i konto), aby ponowne wgranie tego samego wyciągu
-    nie tworzyło podwójnych zapisów.
+    nie tworzyło podwójnych zapisów. Porównuje krotności: z N identycznych wierszy
+    pliku importowana jest tylko nadwyżka ponad to, co już jest w bazie.
     """
     try:
         # Wczytaj słowniki RAZ — analyze_transaction_data operuje na nich w pamięci
         # zamiast odpytywać bazę przy każdym wierszu (unikamy N+1).
         accounts = contractors = None
-        seen_keys: set = set()
+        existing_keys: Counter = Counter()
+        file_keys: Counter = Counter()
         if user_token:
             accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
             contractors = db.session.query(Contractor).filter_by(user_token=user_token, is_active=True).all()
             category_map = _bank_category_map(user_token)
-            seen_keys = _existing_import_keys(user_token)
+            existing_keys = _existing_import_keys(user_token)
 
         staging_records = []
         skipped_duplicates = 0
         for tx_data in parsed_transactions:
             key = (tx_data['date'], tx_data['amount'], tx_data['title'], tx_data.get('account_id'))
-            if user_token and key in seen_keys:
+            file_keys[key] += 1
+            if user_token and file_keys[key] <= existing_keys[key]:
                 skipped_duplicates += 1
                 continue
-            seen_keys.add(key)
 
             prop_cat_id, prop_contractor_id, suggested_name = None, None, None
             # Parser sam wskazał własne konto po drugiej stronie (wymiana walut w

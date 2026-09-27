@@ -1,0 +1,18 @@
+# Rotacja logu aplikacji. Aplikacja pisze przez WatchedFileHandler
+# (app/logging_config.py) — po przemianowaniu pliku każdy worker gunicorna
+# sam otworzy nowy app.log, więc restart usługi nie jest potrzebny.
+#
+# Instalacja:
+#   sudo cp deploy/logrotate/budget /etc/logrotate.d/budget
+#   sudo logrotate --debug /etc/logrotate.d/budget   # próba na sucho
+/opt/budget/logs/app.log {
+    # katalog logs/ jest zapisywalny dla grupy ubuntu — bez `su` logrotate odmówi
+    su budget budget
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 budget budget
+}

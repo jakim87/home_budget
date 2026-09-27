@@ -41,3 +41,11 @@ def test_zachowuje_wieloliniowy_traceback():
     # Traceback z exc_info to legalna wielolinijkowość — nie wolno jej zabić.
     assert 'Traceback' in out
     assert '\n' in out
+
+
+def test_plik_logu_nie_rotuje_sie_w_procesie(app):
+    """Rotacja w każdym workerze gunicorna osobno gubi historię — robi ją logrotate."""
+    from logging.handlers import RotatingFileHandler, WatchedFileHandler
+    handlery = logging.getLogger().handlers
+    assert any(isinstance(h, WatchedFileHandler) for h in handlery)
+    assert not any(isinstance(h, RotatingFileHandler) for h in handlery)

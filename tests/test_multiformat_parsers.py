@@ -437,7 +437,9 @@ MILLENNIUM_PDF_LINES = [
     (MILLENNIUM_CSV_SAMPLE.encode('utf-8-sig'), ('millennium', 'csv')),
     (b'\xef\xbb\xbf<html><body><table><tr><td>Bank Millennium SA</td></tr></table></body></html>',
      ('millennium', 'html')),
-], ids=['ing-csv', 'mbank-csv', 'mbank-html', 'pekao-csv', 'millennium-csv', 'millennium-html'])
+    ('Rodzaj,Produkt,Data rozpoczęcia,Data zrealizowania,Opis,Kwota,Opłata,Waluta,State,Saldo\n'.encode('utf-8'),
+     ('revolut', 'csv')),
+], ids=['ing-csv', 'mbank-csv', 'mbank-html', 'pekao-csv', 'millennium-csv', 'millennium-html', 'revolut-csv'])
 def test_detekcja_kazdy_bank_rozpoznany_jako_swoj(raw, oczekiwane):
     """Każda próbka musi trafić do swojego banku. Nowy bank = nowy wiersz tutaj;
     kolizja znaczników (jak 'Data transakcji' u ING i Millennium) wyjdzie w teście."""
@@ -447,6 +449,12 @@ def test_detekcja_kazdy_bank_rozpoznany_jako_swoj(raw, oczekiwane):
 def test_detect_millennium_pdf_nie_jako_ing():
     """PDF Millennium ma w nagłówku 'Lista transakcji' — znacznik ING."""
     assert detect_bank_and_format(_pdf_z_linii(MILLENNIUM_PDF_LINES), 'x.pdf') == ('millennium', 'pdf')
+
+
+def test_detect_revolut_pdf_rozpoznany_jako_nieobslugiwany():
+    """PDF Revoluta ma być rozpoznany (żeby zwrócić „format nieobsługiwany”), a nie
+    trafić do parsera innego banku."""
+    assert detect_bank_and_format(_pdf_z_linii(["Wyciąg PLN", "Revolut Bank UAB"]), 'x.pdf') == ('revolut', 'pdf')
 
 
 def test_parse_millennium_csv(app, mf_user):

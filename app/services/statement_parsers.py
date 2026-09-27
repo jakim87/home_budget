@@ -21,6 +21,8 @@ from typing import Optional
 
 from bs4 import BeautifulSoup
 
+from app import db
+from app.models import Account
 from app.services.budget_service import (
     _MBANK_ACCOUNT_RE,
     _normalize_acc_num,
@@ -78,6 +80,9 @@ def detect_bank_and_format(raw: bytes, filename: str = '') -> tuple[Optional[str
             return 'ing', 'pdf'
         if 'Lista operacji' in text or 'Listaoperacji' in text or 'mBank S.A. Bankowo' in text:
             return 'mbank', 'pdf'
+        # Na końcu: nazwa Revoluta bywa kontrahentem na wyciągach innych banków.
+        if 'Revolut Bank UAB' in text:
+            return 'revolut', 'pdf'
         return None, 'pdf'
 
     try:
@@ -95,6 +100,8 @@ def detect_bank_and_format(raw: bytes, filename: str = '') -> tuple[Optional[str
 
     # CSV — po charakterystycznych nagłówkach kolumn. Pekao i Millennium przed ING:
     # Pekao ma 'Data księgowania', Millennium 'Data transakcji' — tak jak ING.
+    if text.startswith(_REVOLUT_HEADER_MARKER):
+        return 'revolut', 'csv'
     if _PEKAO_HEADER_MARKER in text[:500]:
         return 'pekao', 'csv'
     if _MILLENNIUM_HEADER_MARKER in text[:500]:
@@ -676,4 +683,108 @@ def parse_millennium_csv(content: str, user_token: str, main_account_id: Optiona
         'period_start': min(dates, default=None),
         'period_end': max(dates, default=None),
         'statement_ibans': list(ibans_set),
+    }
+
+
+_REVOLUT_HEADER_MARKER = 'Rodzaj,Produkt,Data rozpoczęcia,Data zrealizowania'
+_REVOLUT_ZAKONCZONA = 'ZAKOŃCZONO'
+_REVOLUT_WYMIANA_RE = re.compile(r'^Wymiana na ([A-Z]{3})$')
+
+
+def _revolut_subkonto_wymiany(opis: str, konto: Account) -> Optional[int]:
+    """Konto po drugiej stronie wymiany walut albo None, gdy nie da się go wskazać.
+
+    Subkonta walutowe Revoluta to w aplikacji osobne konta tego samego banku
+    (bank_name). Opis mówi tylko, NA jaką walutę wymieniono: w pliku PLN
+    „Wymiana na EUR" wskazuje subkonto EUR, ale w pliku EUR ten sam opis nie mówi,
+    skąd przyszły pieniądze — wtedy subkonto musi być jedyne w innej walucie.
+    """
+    m = _REVOLUT_WYMIANA_RE.match(opis)
+    if not m or not konto.bank_name:
+        return None
+    kandydaci = [
+        a for a in db.session.query(Account).filter(
+            Account.user_token == konto.user_token, Account.is_active.is_(True), Account.id != konto.id
+        )
+        if (a.bank_name or '').lower() == konto.bank_name.lower() and (a.currency or 'PLN') != konto.currency
+    ]
+    if m.group(1) != konto.currency:
+        kandydaci = [a for a in kandydaci if a.currency == m.group(1)]
+    return kandydaci[0].id if len(kandydaci) == 1 else None
+
+
+def parse_revolut_csv(content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
+    """Parsuje wyciąg Revolut w CSV (jedno subkonto walutowe, UTF-8, przecinek).
+
+    - Plik nie ma numeru rachunku — konto wybiera użytkownik, a kolumna 'Waluta'
+      musi zgadzać się z walutą konta.
+    - Data = data realizacji; w tej kolejności narasta saldo w pliku.
+    - Pomija operacje niezakończone (oczekujące, cofnięte) — nie ruszyły salda.
+    - Opłata to osobna transakcja (widoczna w Raportach), nie pomniejszenie kwoty.
+    - Tytuł niesie znacznik czasu rozpoczęcia co do sekundy: dwie identyczne
+      płatności tego samego dnia nie zleją się przy deduplikacji importu, a obie
+      nogi wymiany walut mają ten sam tytuł, po którym są parowane.
+    """
+    if main_account_id is None:
+        raise ValueError("Wyciąg Revolut dotyczy jednego subkonta walutowego — proszę wybrać konto docelowe przed importem.")
+    konto = db.session.query(Account).filter_by(id=main_account_id, user_token=user_token).first()
+    if konto is None:
+        raise ValueError("Wybrane konto nie istnieje lub brak uprawnień.")
+
+    transactions: list[dict] = []
+    skipped_count = 0
+
+    for row in csv.DictReader(io.StringIO(content)):
+        if row.get('State') != _REVOLUT_ZAKONCZONA or not row.get('Data zrealizowania'):
+            skipped_count += 1
+            continue
+        if row['Waluta'] != (konto.currency or 'PLN'):
+            raise ValueError(
+                f"Wyciąg jest w {row['Waluta']}, a konto '{konto.name}' prowadzone jest w "
+                f"{konto.currency or 'PLN'}. Wybierz subkonto w walucie wyciągu."
+            )
+        try:
+            amount = Decimal(row['Kwota'])
+            fee = Decimal(row['Opłata'] or '0')
+            tx_date = datetime.strptime(row['Data zrealizowania'][:10], '%Y-%m-%d').date()
+        except (InvalidOperation, ValueError):
+            logger.warning("Odrzucono wiersz Revolut CSV — nieprawidłowa kwota lub data (user_token=%s)", user_token)
+            skipped_count += 1
+            continue
+
+        opis = row['Opis'].strip()
+        title = f"{row['Rodzaj'].strip()} {row['Data rozpoczęcia'].strip()}"
+        transactions.append({
+            'date': tx_date,
+            'contractor': opis or None,
+            'title': title,
+            'amount': amount,
+            'counterparty_account': None,
+            'account_id': main_account_id,
+            'bank_category': None,
+            'transfer_account_id': _revolut_subkonto_wymiany(opis, konto),
+        })
+        if fee:
+            transactions.append({
+                'date': tx_date,
+                'contractor': 'Revolut',
+                'title': f"Opłata: {title}",
+                'amount': -fee,
+                'counterparty_account': None,
+                'account_id': main_account_id,
+                'bank_category': None,
+            })
+
+    dates = [t['date'] for t in transactions]
+    logger.info(
+        "Import CSV Revolut zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
+        user_token, len(transactions), skipped_count
+    )
+    return {
+        'transactions': transactions,
+        'csv_accounts': [],
+        'skipped_count': skipped_count,
+        'period_start': min(dates, default=None),
+        'period_end': max(dates, default=None),
+        'statement_ibans': [],
     }

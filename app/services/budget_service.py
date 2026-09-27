@@ -230,6 +230,20 @@ def _resolve_destination_account(
 _TRANSFER_MATCH_WINDOW_DAYS = 4
 
 
+def _transfer_legs_match(rozne_waluty: bool, kwota_a, data_a, tytul_a, kwota_b, data_b, tytul_b) -> bool:
+    """Czy dwie nogi (na kontach, które już wskazują na siebie nawzajem) to ten sam przelew.
+
+    Ta sama waluta: przeciwna kwota, daty w oknie ±_TRANSFER_MATCH_WINDOW_DAYS — banki
+    księgują obie strony w różnych dniach. Różne waluty: kwoty dzieli kurs i spread,
+    więc wymagamy przeciwnego znaku, TEGO SAMEGO dnia i identycznego tytułu. W praktyce
+    łapie to wymianę w Revolucie (tytuł ze znacznikiem czasu co do sekundy), a przelew
+    międzybankowy w obcej walucie zostaje niesparowany — zamiast fałszywej pary.
+    """
+    if rozne_waluty:
+        return (kwota_a < 0) != (kwota_b < 0) and data_a == data_b and tytul_a == tytul_b
+    return kwota_b == -kwota_a and abs(data_b - data_a) <= timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
+
+
 def handle_internal_transfer(
     user_token: str, account: Account, new_transaction: Transaction,
     contractor_obj: Contractor, amount: Decimal, title: str,
@@ -261,14 +275,9 @@ def handle_internal_transfer(
     if not dest_account or dest_account.id == account.id:
         return
     # Konta w różnych walutach: kwoty obu nóg różnią się o kurs i spread banku, więc
-    # ani lustro (4300 PLN zapisane jako 4300 EUR), ani parowanie po kwocie nie mają
-    # sensu. Druga noga przychodzi z wyciągu albo z uzgodnienia salda.
-    if (dest_account.currency or 'PLN') != (account.currency or 'PLN'):
-        logger.info(
-            "Przelew wewnętrzny między walutami %s -> %s: bez lustra i parowania (transaction_id=%s)",
-            account.currency, dest_account.currency, new_transaction.id
-        )
-        return
+    # lustro (4300 PLN zapisane jako 4300 EUR) nie wchodzi w grę, a parowanie idzie
+    # po tytule zamiast kwoty — patrz _transfer_legs_match.
+    rozne_waluty = (dest_account.currency or 'PLN') != (account.currency or 'PLN')
 
     db.session.flush()  # nadaj ID nowej transakcji, by móc powiązać drugą nogę
 
@@ -298,12 +307,11 @@ def handle_internal_transfer(
     counter_amount = -new_transaction.amount
     window_start = transaction_date - timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
     window_end = transaction_date + timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
-    counterpart = (
+    kandydaci = (
         db.session.query(Transaction)
         .filter(
             Transaction.user_token == user_token,
             Transaction.account_id == dest_account.id,
-            Transaction.amount == counter_amount,
             Transaction.contractor_id == source_contractor.id,
             Transaction.linked_transaction_id.is_(None),
             Transaction.id != new_transaction.id,
@@ -311,11 +319,22 @@ def handle_internal_transfer(
             Transaction.date <= window_end,
         )
         .order_by(Transaction.date, Transaction.id)
-        .first()
     )
+    counterpart = next((
+        t for t in kandydaci
+        if _transfer_legs_match(rozne_waluty, new_transaction.amount, transaction_date, new_transaction.title,
+                                t.amount, t.date, t.title)
+    ), None)
     if counterpart:
         counterpart.linked_transaction_id = new_transaction.id
         new_transaction.linked_transaction_id = counterpart.id
+        return
+
+    if rozne_waluty:
+        logger.info(
+            "Przelew wewnętrzny między walutami %s -> %s: brak drugiej nogi, lustra nie tworzymy "
+            "(transaction_id=%s)", account.currency, dest_account.currency, new_transaction.id
+        )
         return
 
     # 2. Konto docelowe ma własne wyciągi → jego noga przyjdzie realnie. Nie generujemy
@@ -834,6 +853,26 @@ def parse_mbank_csv(file_content: str, user_token: str, main_account_id: Optiona
         'skipped_count': skipped_count,
     }
 
+def _internal_transfer_proposal(user_token: str, acc: Account) -> tuple[int, int]:
+    """(kategoria, kontrahent) przelewu wewnętrznego na konto `acc`; tworzy brakujące."""
+    transfer_cat = find_category_by_name(user_token, "Przelew wewnętrzny")
+    if not transfer_cat:
+        transfer_cat = Category(name="Przelew wewnętrzny", type="transfer", user_token=user_token)
+        db.session.add(transfer_cat)
+        db.session.flush()
+    transfer_cont = db.session.query(Contractor).filter_by(
+        user_token=user_token, linked_account_id=acc.id
+    ).first()
+    if not transfer_cont:
+        transfer_cont = Contractor(
+            name=f"Moje konto: {acc.name}", user_token=user_token,
+            default_category_id=transfer_cat.id, linked_account_id=acc.id
+        )
+        db.session.add(transfer_cont)
+        db.session.flush()
+    return transfer_cat.id, transfer_cont.id
+
+
 def analyze_transaction_data(
     title: str,
     raw_contractor: Optional[str],
@@ -858,23 +897,7 @@ def analyze_transaction_data(
                 accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
             for acc in accounts:
                 if acc.account_number and _normalize_acc_num(acc.account_number) == norm_csv_acc:
-                    transfer_cat = find_category_by_name(user_token, "Przelew wewnętrzny")
-                    if not transfer_cat:
-                        transfer_cat = Category(name="Przelew wewnętrzny", type="transfer", user_token=user_token)
-                        db.session.add(transfer_cat)
-                        db.session.flush()
-                    transfer_cont = db.session.query(Contractor).filter_by(
-                        user_token=user_token, linked_account_id=acc.id
-                    ).first()
-                    if not transfer_cont:
-                        cont_name = f"Moje konto: {acc.name}"
-                        transfer_cont = Contractor(
-                            name=cont_name, user_token=user_token,
-                            default_category_id=transfer_cat.id, linked_account_id=acc.id
-                        )
-                        db.session.add(transfer_cont)
-                        db.session.flush()
-                    return transfer_cat.id, transfer_cont.id, None
+                    return (*_internal_transfer_proposal(user_token, acc), None)
 
     # 2. Dopasowanie po nazwie i regułach mapowania
     if contractors is None:
@@ -964,7 +987,12 @@ def save_transactions_to_staging(
             seen_keys.add(key)
 
             prop_cat_id, prop_contractor_id, suggested_name = None, None, None
-            if user_token:
+            # Parser sam wskazał własne konto po drugiej stronie (wymiana walut w
+            # Revolucie — wyciąg nie ma numeru rachunku, po którym działa analiza).
+            dest = next((a for a in accounts or [] if a.id == tx_data.get('transfer_account_id')), None)
+            if dest:
+                prop_cat_id, prop_contractor_id = _internal_transfer_proposal(user_token, dest)
+            elif user_token:
                 prop_cat_id, prop_contractor_id, suggested_name = analyze_transaction_data(
                     title=tx_data['title'],
                     raw_contractor=tx_data.get('contractor'),
@@ -1136,17 +1164,13 @@ def _pair_staging_transfer_legs(
     window = timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
     stany: list[Optional[str]] = [None] * len(legs)
 
-    # Przelew między walutami: handle_internal_transfer nie paruje go ani nie tworzy
-    # lustra, więc druga strona zawsze „brakuje" (patrz tamten komentarz).
     waluta = {a.id: a.currency or 'PLN' for a in accounts}
-    for i, (tx, dest) in enumerate(legs):
-        if waluta.get(tx.account_id, 'PLN') != (dest.currency or 'PLN'):
-            stany[i] = 'missing'
 
-    def pasuje(tx, dest, konto_id, dest_id, kwota, kiedy) -> bool:
-        """Czy (konto_id, dest_id, kwota, kiedy) to druga noga wiersza tx — krzyżowo."""
+    def pasuje(tx, dest, konto_id, dest_id, kwota, kiedy, tytul) -> bool:
+        """Czy (konto_id, dest_id, kwota, kiedy, tytul) to druga noga wiersza tx — krzyżowo."""
+        rozne_waluty = waluta.get(tx.account_id, 'PLN') != (dest.currency or 'PLN')
         return (konto_id == dest.id and dest_id == tx.account_id
-                and kwota == -tx.amount and abs(kiedy - tx.date) <= window)
+                and _transfer_legs_match(rozne_waluty, tx.amount, tx.date, tx.title, kwota, kiedy, tytul))
 
     # 1. Druga noga czeka w tej samej poczekalni.
     for i, (tx, dest) in enumerate(legs):
@@ -1154,7 +1178,7 @@ def _pair_staging_transfer_legs(
             continue
         for j in range(i + 1, len(legs)):
             tx_j, dest_j = legs[j]
-            if stany[j] is None and pasuje(tx, dest, tx_j.account_id, dest_j.id, tx_j.amount, tx_j.date):
+            if stany[j] is None and pasuje(tx, dest, tx_j.account_id, dest_j.id, tx_j.amount, tx_j.date, tx_j.title):
                 stany[i] = stany[j] = 'staging'
                 break
 
@@ -1184,16 +1208,20 @@ def _pair_staging_transfer_legs(
                     continue
                 booked_dest = _resolve_destination_account(user_token, cont, accounts=accounts)
                 if booked_dest and pasuje(tx, dest, booked.account_id, booked_dest.id,
-                                          booked.amount, booked.date):
+                                          booked.amount, booked.date, booked.title):
                     stany[i] = 'booked'
                     zuzyte.add(booked.id)
                     break
 
     # 3. Nogi nie ma. Lustro dopełni parę tylko wtedy, gdy konto docelowe nie dostaje
-    #    własnych wyciągów; jeśli dostaje — nogi faktycznie brakuje.
+    #    własnych wyciągów; jeśli dostaje — nogi faktycznie brakuje. Między walutami
+    #    lustra nie ma nigdy (patrz handle_internal_transfer).
     pokrycie: dict[int, bool] = {}
     for i, (tx, dest) in enumerate(legs):
         if stany[i]:
+            continue
+        if waluta.get(tx.account_id, 'PLN') != (dest.currency or 'PLN'):
+            stany[i] = 'missing'
             continue
         if dest.id not in pokrycie:
             pokrycie[dest.id] = account_has_statement_imports(user_token, dest.id)
@@ -1280,12 +1308,17 @@ def reanalyze_all_staging(user_token: str) -> int:
         contractors = db.session.query(Contractor).filter_by(user_token=user_token, is_active=True).all()
         category_map = _bank_category_map(user_token)
         rows = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending').all()
+        wlasne_konta = {c.id for c in contractors if c.linked_account_id}
         for row in rows:
             cat_id, cont_id, suggested = analyze_transaction_data(
                 row.title, row.contractor, user_token,
                 counterparty_account=row.counterparty_account,
                 accounts=accounts, contractors=contractors
             )
+            # Przelew wskazany przy imporcie przez parser (wymiana walut w Revolucie)
+            # nie ma numeru rachunku, po którym analiza by go odtworzyła — zostaje.
+            if not cont_id and row.proposed_contractor_id in wlasne_konta:
+                continue
             row.proposed_category_id = cat_id or _bank_category_id(row.bank_category, row.amount, category_map)
             row.proposed_contractor_id = cont_id
             row.suggested_contractor_name = suggested

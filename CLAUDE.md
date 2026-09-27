@@ -199,7 +199,7 @@ Dwie zasady wynikające z przelewów wewnętrznych: usunięcie zabiera **obie no
 
 **Frontend = globalny stan z `/api/init`**: `home_bp.py` jednym zapytaniem ładuje `transactions`, `categories`, `contractors`, `accounts` do zmiennych globalnych zadeklarowanych w `01_state.js`; cały rendering i przeliczenia dzieją się po stronie klienta (brak osobnych endpointów read). Po mutacji (POST/PUT/DELETE) front woła `fetchInitialData()`, by odświeżyć globalny stan.
 
-Logowanie i rejestracja to modal w `base.html` (`#login-modal`, widoki `#auth-view-login` / `#auth-view-register`) obsługiwany przez `15_init.js` — nie ma osobnych szablonów ani tras GET; cała aplikacja to jedno `base.html`.
+Logowanie i rejestracja to modal w `base.html` (`#login-modal`, widoki `#auth-view-login` / `#auth-view-register`) obsługiwany przez `15_init.js`; cała aplikacja to jedno `base.html`. `/` pokazuje gościowi wizytówkę (`landing.html`, zasoby w `static/landing/`), zalogowanemu aplikację; `/login` to ta sama aplikacja z modalem logowania (zalogowanego odsyła na `/`). Wizytówka linkuje do `/login?demo=1` i `/login?rejestracja=1` — parametry obsługuje `99_bootstrap.js`.
 
 Frontend to **21 modułów w `app/static/js/`**, ładowanych w kolejności prefiksów liczbowych (`01_state.js` … `20_budget.js`, `99_bootstrap.js`) — nie ma pliku `main.js`. Kolejność ma znaczenie: `01_state.js` deklaruje stan globalny, `99_bootstrap.js` startuje aplikację. Funkcje pomocnicze ogólnego przeznaczenia (np. `escapeHtml`) należą do `04_helpers.js`, żeby były dostępne dla modułów ładowanych później. Szukaj funkcji `render*()` / `update*()` w module odpowiadającym zakładce.
 

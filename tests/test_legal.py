@@ -57,7 +57,7 @@ def test_dane_kontaktowe_pochodza_z_konfiguracji(client, app):
 
 def test_aplikacja_linkuje_do_dokumentow(client, app):
     """Stopka SPA i modal logowania prowadzą do wszystkich trzech dokumentów."""
-    html = client.get('/').get_data(as_text=True)
+    html = client.get('/login').get_data(as_text=True)
 
     for path in LEGAL_PATHS:
         assert path in html, f"brak linku do {path} w base.html"

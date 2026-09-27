@@ -14,6 +14,7 @@
                 <select id="reconcile-account-select" onchange="onReconcileAccountChange(this.value)" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white cursor-pointer">
                     <option value="">Wybierz konto...</option>
                 </select>
+                <p id="reconcile-account-error" class="hidden mt-1 text-xs text-red-600">Wybierz konto, którego saldo uzgadniasz.</p>
             </div>
             <!-- Tryb: konto z góry wybrane (otwierany z karty konta) -->
             <div id="reconcile-account-display">

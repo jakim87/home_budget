@@ -104,3 +104,52 @@ describe('computeNetWorthSeries', () => {
         expect(netWorthSeriesFull.find(p => p.month === '2026-01').value).toBe(-1500);
     });
 });
+
+// Konta walutowe: saldo w walucie konta razy kurs NBP. Kurs bierzemy z konca
+// kazdego miesiaca osobno — inaczej historia pokazywalaby dzisiejsza wycene
+// dawnych sald i wykres rysowalby zmiany, ktorych nie bylo.
+describe('konta walutowe', () => {
+    beforeEach(() => {
+        inactiveAccounts = [];
+        accounts = [
+            { id: 1, name: 'PLN', balance: 1000, currency: 'PLN' },
+            { id: 2, name: 'Euro', balance: 100, currency: 'EUR' },
+        ];
+        currencies = { EUR: { name: 'euro', rate: 4.4, date: '2026-03-27' } };
+        monthlyRates = { EUR: { '2026-01': 4.2, '2026-02': 4.3, '2026-03': 4.4 } };
+    });
+
+    it('Net Worth przelicza saldo EUR po najnowszym kursie', () => {
+        const { suma, brak } = sumaSaldPLN(accounts);
+        expect(suma).toBeCloseTo(1440);  // 1000 + 100 * 4.4
+        expect(brak).toEqual([]);
+    });
+
+    it('konto bez kursu wypada z sumy jawnie, nie jako zero po cichu', () => {
+        accounts.push({ id: 3, name: 'Lira', balance: 500, currency: 'TRY' });
+        const { suma, brak } = sumaSaldPLN(accounts);
+        expect(suma).toBeCloseTo(1440);
+        expect(brak).toEqual(['TRY']);
+    });
+
+    it('wykres wycenia saldo EUR po kursie z konca kazdego miesiaca', () => {
+        transactions = [
+            tx({ id: 1, date: '2026-01-10', amount: 1000, account_id: 1 }),
+            tx({ id: 2, date: '2026-01-10', amount: 100, account_id: 2 }),
+        ];
+        computeNetWorthSeries();
+
+        const wartosc = m => netWorthSeriesFull.find(p => p.month === m).value;
+        // Saldo EUR sie nie zmienia, a jego wartosc w PLN tak — za kursem.
+        expect(wartosc('2026-01')).toBeCloseTo(1420);
+        expect(wartosc('2026-02')).toBeCloseTo(1430);
+        expect(wartosc('2026-03')).toBeCloseTo(1440);
+    });
+
+    it('konto zamkniete tez jest wyceniane w swojej walucie', () => {
+        inactiveAccounts = [{ id: 9, name: 'Stare EUR', balance: 0, currency: 'EUR' }];
+        transactions = [tx({ id: 1, date: '2026-02-10', amount: 10, account_id: 9 })];
+        computeNetWorthSeries();
+        expect(netWorthSeriesFull.find(p => p.month === '2026-02').value).toBeCloseTo(43);
+    });
+});

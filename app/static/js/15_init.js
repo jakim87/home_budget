@@ -19,12 +19,15 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
         contractors = data.contractors || [];
         accounts = data.accounts || [];
         inactiveAccounts = data.inactive_accounts || [];
+        currencies = data.currencies || {};
+        monthlyRates = data.monthly_rates || {};
 
         updateCategorySelects();
         updateContractorSelects();
         updateAccountSelects();
         renderCategories();
         renderContractors();
+        updateCurrencySelect();
         renderAccounts();
         renderInactiveAccounts();
         renderTransactions();

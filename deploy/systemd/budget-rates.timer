@@ -1,0 +1,12 @@
+[Unit]
+Description=Codzienne pobranie kursow NBP
+
+[Timer]
+# Serwer chodzi na UTC. NBP publikuje tabele A w dni robocze ok. 12:00 czasu
+# polskiego (10:00/11:00 UTC) — 12:00 UTC daje zapas. Tabela z pominietego dnia
+# dociagnie sie przy kolejnym uruchomieniu (komenda zaczyna od ostatniego kursu).
+OnCalendar=*-*-* 12:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

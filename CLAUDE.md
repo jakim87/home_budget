@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Ile mam kasy** (dawniej „Budżet domowy”) — Flask + PostgreSQL web app for personal finance management. Features: bank account tracking, import wyciągów z ING, mBanku, Pekao i Millennium (CSV/PDF/HTML, z automatyczną detekcją banku i formatu), transaction categorization, recurring/planned transactions, internal transfers, dashboard z Net Worth i zakładka Raporty (oba na Chart.js), publiczna rejestracja użytkowników. Codebase and UI are in **Polish**.
+**Ile mam kasy** (dawniej „Budżet domowy”) — Flask + PostgreSQL web app for personal finance management. Features: bank account tracking, import wyciągów z ING, mBanku, Pekao, Millennium i Revoluta (CSV/PDF/HTML, z automatyczną detekcją banku i formatu), transaction categorization, recurring/planned transactions, internal transfers, dashboard z Net Worth i zakładka Raporty (oba na Chart.js), publiczna rejestracja użytkowników. Codebase and UI are in **Polish**.
 
 ## Zasady pracy nad tym repo
 
@@ -51,6 +51,8 @@ flask seed                       # Populate DB with default_user + test data
 
 # CLI tasks
 flask process-scheduled          # Execute due recurring & planned transactions
+flask fetch-rates                # Kursy NBP (tabela A) od ostatniego zapisanego dnia; pierwsze
+                                 #   uruchomienie dociąga historię od 2002 (~200 tys. wierszy, ~40 s)
 flask cleanup-archive            # Remove archived transactions older than 60 days
 flask reset-password             # Ustawia nowe hasło użytkownika (jedyna droga odzyskania
                                  #   konta — aplikacja nie wysyła maili)
@@ -145,10 +147,13 @@ Bank i format rozpoznaje `detect_bank_and_format()` (`statement_parsers.py`) **p
 | mBank | ✅ | ✅ | ✅ |
 | Pekao SA | ✅ | — | — |
 | Bank Millennium | ✅ | — | — |
+| Revolut | ✅ | — | — |
 
 Pekao CSV nie ma numeru rachunku w nagłówku — `extract_statement_ibans` bierze go z pierwszego wiersza (rachunek źródłowy przy wydatku, docelowy przy wpływie). TXT z Pekao niesie te same dane minus adres kontrahenta, więc świadomie nie jest obsługiwany.
 
 Millennium: obsługiwany tylko CSV — HTML i „XLS” (to ten sam HTML) oraz PDF niosą te same dane w gorszej postaci; detekcja rozpoznaje je, żeby zwrócić „format nieobsługiwany” zamiast wpuścić plik do parsera ING. Nagłówek CSV i PDF Millennium zawiera znaczniki ING (`Data transakcji`, `Lista transakcji`), dlatego Millennium sprawdzany jest przed ING; kolizje pilnuje `test_detekcja_kazdy_bank_rozpoznany_jako_swoj` — nowy bank = nowy wiersz w tym teście. Pola wielowierszowe Millennium sklejone są ` ` (w kontrahencie po nim jest adres).
+
+Revolut: jeden plik = jedno subkonto walutowe (subkonta dzielą litewski IBAN, a CSV nie ma numeru rachunku), więc konto wybiera użytkownik, a kolumna `Waluta` musi zgadzać się z walutą konta. PDF rozpoznawany tylko po to, żeby zwrócić „format nieobsługiwany". Data = data realizacji; wiersze niezakończone pomijane; `Opłata` to osobna transakcja. **Tytuł niesie znacznik czasu rozpoczęcia** (`Płatność kartą 2026-05-26 15:19:27`) z dwóch powodów: deduplikacja importu porównuje (data, kwota, tytuł, konto), więc dwie identyczne płatności tego samego dnia zlałyby się w jedną; a obie nogi wymiany walut mają ten sam znacznik, po którym są parowane. Wymianę parser sam oznacza jako przelew (`transfer_account_id` w wyniku parsera → `_internal_transfer_proposal`), wskazując subkonto tego samego `bank_name` w drugiej walucie — tylko gdy jest jednoznaczne.
 
 Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie.
 
@@ -157,6 +162,10 @@ Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie.
 **Internal Transfers**: Category type `"transfer"` + contractor name matching `"Moje konto: {account_name}"` wskazuje konto docelowe. Druga noga bierze się z jednego z dwóch źródeł, nigdy z obu naraz (`_handle_internal_transfer`): jeśli konto docelowe dostaje własne wyciągi — przyjdzie z importu i zostanie sparowana (okno dat ±4 dni); jeśli nie dostaje (np. cel oszczędnościowy) — powstaje lustro. Wynika stąd reguła dla parserów wyciągów: **żaden parser nie może wyrzucać strony wpływu** przelewu między kontami z tego samego pliku — bez niej noga wypływu zostaje sierotą na zawsze (#164).
 
 Podgląd poczekalni pokazuje obie nogi tak, jak je zobaczy księgowanie (#169): **kierunek strzałki bierze się ze znaku kwoty**, nie z tego, czyj to wiersz (inaczej noga wpływu czyta się jak przelew powrotny), a `transfer_pair` mówi, skąd weźmie się druga strona — `staging` / `booked` / `mirror` / `missing`. Te cztery wartości to gałęzie decyzyjne `handle_internal_transfer`: `_pair_staging_transfer_legs` musi zostać z nimi zgodne, bo `missing` (jedyny stan z ostrzeżeniem) znaczy „saldo konta po drugiej stronie nie drgnie, dopóki jego noga nie zostanie zaimportowana". Parowanie jest 1:1 — sparowana noga zostaje zużyta.
+
+**Konta walutowe** (`exchange_rate_service.py`, model `ExchangeRate`): `Account.currency` to waluta salda; kursy służą **wyłącznie do wyceny** — nic nie jest przewalutowywane. Kursy średnie NBP (cała tabela A, wspólne dla wszystkich użytkowników) pobiera tylko `flask fetch-rates` z timera (`deploy/systemd/budget-rates.*`); żądania HTTP czytają je z bazy, więc awaria NBP nie blokuje aplikacji. `/api/init` wysyła `currencies` (najnowsza tabela — zasila też listę walut w formularzu konta) i `monthly_rates` (kurs na koniec miesiąca, tylko dla walut kont użytkownika). Front: `kursPLN()` / `sumaSaldPLN()` w `04_helpers.js`; wykres Majątku narasta osobno w każdej walucie i wycenia saldo po kursie z końca danego miesiąca. Brak kursu = konto wypada z sumy **jawnie** (notka pod Net Worth), nigdy jako zero. Waluta konta musi być w najnowszej tabeli (wycofane, np. ATS, odpadają). Raporty, Budżet i Podsumowanie miesiąca nadal sumują kwoty bez przeliczania — świadomie poza zakresem.
+
+Przelew wewnętrzny między kontami w **różnych walutach** nigdy nie dostaje lustra — kwoty nóg różnią się o kurs i spread. Paruje się (`_transfer_legs_match`) tylko przy tym samym dniu, przeciwnym znaku i **identycznym tytule** — to łapie wymianę w Revolucie, a przelew międzybankowy w obcej walucie zostawia niesparowany zamiast tworzyć fałszywą parę. Bez pary druga noga przychodzi z wyciągu albo z uzgodnienia salda, a poczekalnia pokazuje `missing`.
 
 **Soft Deletes**: Categories and contractors use `is_active=False`. Always filter `is_active=True` in queries.
 

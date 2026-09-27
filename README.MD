@@ -10,13 +10,13 @@ Projekt jest budowany jako aplikacja edukacyjna, rozwijana krok po kroku z wykor
 
 Zrealizowane:
 
-- Import transakcji z wyciągów bankowych (ING, mBank, Pekao, Millennium — CSV, PDF, HTML) z automatyczną detekcją banku i formatu
+- Import transakcji z wyciągów bankowych (ING, mBank, Pekao, Millennium, Revolut — CSV, PDF, HTML) z automatyczną detekcją banku i formatu
 - Historia importów z ostrzeżeniem o nakładających się zakresach dat
 - Kategoryzacja transakcji z automatycznym dopasowywaniem kontrahentów
 - Wykrywanie transferów wewnętrznych i parowanie obu nóg przelewu
 - Transakcje cykliczne i zaplanowane (harmonogramy)
 - Budżet miesięczny: plan per kategoria zestawiony z wykonaniem i rezerwacjami z harmonogramu
-- Dashboard z wykresami i śledzeniem wartości netto (Net Worth)
+- Dashboard z wykresami i śledzeniem wartości netto (Net Worth), z kontami walutowymi wycenianymi po kursie średnim NBP
 - Moduł raportów: KPI, wykresy, filtry kont/kategorii/kontrahentów, presety zakresów dat
 - Obsługa typów kont, w tym kredytów (zobowiązania / wartość ujemna)
 - Ręczne wprowadzanie transakcji, również gotówkowych
@@ -40,6 +40,7 @@ Aktualnie obsługiwane formaty wyciągów:
 | **mBank**             | ✅ | ✅ |  ✅  |
 | **Pekao SA**          | ✅ |  —  |  —  |
 | **Bank Millennium**   | ✅ |  —  |  —  |
+| **Revolut**           | ✅ |  —  |  —  |
 
 Pliki CSV i HTML są dekodowane z UTF-8-sig lub Windows-1250 (oba warianty eksportu z banku).
 
@@ -113,6 +114,7 @@ flask db downgrade                  # Cofnij ostatnią migrację (tylko developm
 
 # Zadania cykliczne
 flask process-scheduled             # Wykonaj zaplanowane i cykliczne transakcje
+flask fetch-rates                   # Dociągnij kursy NBP (tabela A); pierwsze uruchomienie pobiera historię od 2002
 flask cleanup-archive               # Usuń zarchiwizowane transakcje starsze niż 60 dni
 
 # Dane początkowe
@@ -155,7 +157,7 @@ app/
 ├── cli.py              # Komendy Flask CLI
 ├── services/           # Logika biznesowa — oddzielona od warstwy HTTP
 │   ├── budget_service.py             # Główne CRUD, staging, uzgadnianie salda
-│   ├── statement_parsers.py          # Parsery wyciągów (ING/mBank/Pekao/Millennium, CSV/PDF/HTML) + detekcja
+│   ├── statement_parsers.py          # Parsery wyciągów (ING/mBank/Pekao/Millennium/Revolut, CSV/PDF/HTML) + detekcja
 │   ├── import_history_service.py     # Ewidencja importów, wykrywanie nakładających się zakresów
 │   ├── init_service.py               # Payload dla GET /api/init (cały stan frontu)
 │   ├── transaction_service.py        # Archiwizacja i czyszczenie transakcji

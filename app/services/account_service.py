@@ -4,6 +4,7 @@ from app.models import (
     Account, ACCOUNT_TYPES, Transaction, TransactionStaging, RecurringTransaction,
     PlannedTransaction, StatementImport, Contractor,
 )
+from app.services.exchange_rate_service import is_known_currency
 from decimal import Decimal
 from sqlalchemy import func
 
@@ -16,6 +17,15 @@ def _validate_account_type(value):
     if value not in ACCOUNT_TYPES:
         raise ValueError(f"Nieznany typ konta: '{value}'. Dozwolone: {', '.join(ACCOUNT_TYPES)}.")
     return value
+
+
+def _validate_currency(value):
+    """Zwraca kod waluty wielkimi literami. PLN albo waluta z tabeli A NBP —
+    tylko dla takich mamy kurs do wyceny salda."""
+    code = (value or 'PLN').strip().upper()
+    if code != 'PLN' and not is_known_currency(code):
+        raise ValueError(f"Nieobsługiwana waluta: '{code}'. Dostępne są waluty z tabeli A NBP.")
+    return code
 
 
 def _validate_account_number(value):
@@ -98,6 +108,7 @@ def create_account(user_token, data):
             account_number=account_number,
             balance=Decimal('0'),
             account_type=account_type,
+            currency=_validate_currency(data.get('currency')),
             user_token=user_token,
             owner=data.get('owner') or None,
             co_owner=data.get('co_owner') or None,
@@ -132,6 +143,8 @@ def update_account(user_token, a_id, data):
             acc.co_owner = data['co_owner'] or None
         if 'account_type' in data:
             acc.account_type = _validate_account_type(data['account_type'])
+        if 'currency' in data:
+            acc.currency = _validate_currency(data['currency'])
         if data.get('is_default'):
             db.session.query(Account).filter(
                 Account.user_token == user_token,

@@ -361,6 +361,23 @@ class StatementImport(db.Model):
     account = relationship("Account")
 
 
+class ExchangeRate(db.Model):
+    """Kurs średni NBP (tabela A) — ile PLN za 1 jednostkę waluty w danym dniu.
+
+    Wspólny dla wszystkich użytkowników (bez user_token). Wiersze istnieją tylko
+    dla dni, w których NBP opublikował tabelę; kurs na dzień wolny to ostatni
+    wcześniejszy. Służy wyłącznie do wyceny sald kont walutowych.
+    """
+    __tablename__ = 'exchange_rates'
+    __table_args__ = (db.UniqueConstraint('currency', 'date', name='uq_exchange_rates_currency_date'),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    currency_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    rate: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+
+
 @event.listens_for(Session, 'before_flush')
 def _enforce_account_type_invariants(session, flush_context, instances):
     """Twardy niezmiennik typu konta: Kredyt (zobowiązanie) nie może mieć salda > 0.

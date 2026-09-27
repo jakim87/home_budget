@@ -400,7 +400,7 @@ function renderTransactions() {
                 } else {
                     amountClass = isPositive ? 'text-emerald-600' : 'text-rose-600';
                 }
-                const amountText = `${isPositive ? '+' : ''}${formatKwota(t.amount)} PLN`;
+                const amountText = `${isPositive ? '+' : ''}${formatKwota(t.amount)} ${walutaKonta(t.account_id)}`;
                 
                 const isVirtual = t.isVirtual;
                 const iconHtml = isVirtual 

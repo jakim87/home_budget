@@ -10,6 +10,8 @@ let stagingSort = { field: 'date', dir: 'desc' };
 let contractors = [];
 let accounts = [];
 let inactiveAccounts = []; // konta zamknięte/archiwalne — poza aktywnym słownikiem, z zachowaną historią transakcji
+let currencies = {};   // najnowsza tabela A NBP: { EUR: { name, rate, date } }
+let monthlyRates = {}; // kurs na koniec miesiąca dla walut kont użytkownika: { EUR: { 'RRRR-MM': kurs } }
 
 let inlineEditingTxId = null;
 

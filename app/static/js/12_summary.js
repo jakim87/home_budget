@@ -48,10 +48,10 @@ function renderSummary() {
             if (acc) {
                 const label = accounts.some(a => a.id == globalAccountFilter) ? acc.name : `${acc.name}, nieaktywne`;
                 balanceTitle.innerText = `Bieżące saldo (${label})`;
-                balanceValue.innerText = `${formatKwota(acc.balance)} PLN`;
+                balanceValue.innerText = `${formatKwota(acc.balance)} ${acc.currency || 'PLN'}`;
             }
         } else {
-            const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0);
+            const { suma: totalBalance } = sumaSaldPLN(accounts);
             balanceTitle.innerText = `Bieżące saldo (wszystkie konta)`;
             balanceValue.innerText = `${formatKwota(totalBalance)} PLN`;
         }

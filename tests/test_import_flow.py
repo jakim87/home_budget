@@ -180,6 +180,32 @@ def test_reimport_same_csv_via_api_adds_nothing(logged_in_client, app, import_ac
     assert db.session.query(TransactionStaging).count() == 2
 
 
+# Dwie legalne, identyczne płatności kartą tego samego dnia — ING nie ma w tytule nic,
+# co by je odróżniało (ten sam dzień, kwota, tytuł).
+CSV_DWIE_KAWY = """Data transakcji;Data księgowania;Dane kontrahenta;Tytuł;Nr rachunku;Konto;Bank;Szczegóły;NrTx;Kwota transakcji;Waluta
+2024-03-05;2024-03-05;KAWIARNIA;Płatność kartą 05.03.2024 Nr karty 4246xx1234;;;Bank;;;-12,00;PLN
+2024-03-05;2024-03-05;KAWIARNIA;Płatność kartą 05.03.2024 Nr karty 4246xx1234;;;Bank;;;-12,00;PLN
+"""
+
+
+def test_import_identyczne_operacje_w_jednym_pliku_obie_trafiaja(logged_in_client, app, import_account):
+    """Dwa identyczne wiersze w jednym wyciągu to dwie operacje, nie duplikat."""
+    resp = _upload(logged_in_client, import_account.id, CSV_DWIE_KAWY.encode('utf-8'))
+    assert resp.status_code == 201
+    assert resp.get_json()['count'] == 2
+    rows = db.session.query(TransactionStaging).all()
+    assert [r.amount for r in rows] == [Decimal("-12.00"), Decimal("-12.00")]
+
+
+def test_reimport_pliku_z_identycznymi_operacjami_nic_nie_dodaje(logged_in_client, app, import_account):
+    """Ochrona przed podwójnym importem nadal działa przy powtarzających się wierszach."""
+    assert _upload(logged_in_client, import_account.id, CSV_DWIE_KAWY.encode('utf-8')).get_json()['count'] == 2
+    resp2 = _upload(logged_in_client, import_account.id, CSV_DWIE_KAWY.encode('utf-8'))
+    assert resp2.status_code == 201
+    assert resp2.get_json()['count'] == 0
+    assert db.session.query(TransactionStaging).count() == 2
+
+
 def test_import_windows_1250_encoding(logged_in_client, app, import_account):
     """Plik w windows-1250 (realny eksport ING) — polskie znaki dekodowane poprawnie."""
     resp = _upload(logged_in_client, import_account.id, CSV_PL.encode('windows-1250'))

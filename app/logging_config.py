@@ -20,7 +20,7 @@ wiersze, każdy oznaczony poziomem ważności):
 import copy
 import logging
 import os
-from logging.handlers import RotatingFileHandler
+from logging.handlers import WatchedFileHandler
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # katalog główny projektu
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
@@ -56,13 +56,12 @@ def configure_logging(app):
         datefmt='%Y-%m-%d %H:%M:%S',
     )
 
-    # RotatingFileHandler = plik, który sam się "obraca": gdy app.log urośnie
-    # do 2 MB, zostaje przemianowany na app.log.1 (a stary .1 na .2, itd.),
-    # zapis zaczyna się od nowa w pustym app.log. Trzymamy max. 5 starych
-    # plików, więc logi nie rosną w nieskończoność i nie zajmą całego dysku.
-    file_handler = RotatingFileHandler(
-        LOG_FILE, maxBytes=2 * 1024 * 1024, backupCount=5, encoding='utf-8'
-    )
+    # Rotację robi logrotate (deploy/logrotate/budget), nie Python: gunicorn ma
+    # kilka workerów, a RotatingFileHandler w każdym procesie rotuje osobno —
+    # przy przekroczeniu limitu kilka workerów przemianowuje plik niemal naraz
+    # i historia ginie. WatchedFileHandler tylko zauważa, że plik podmieniono,
+    # i otwiera nowy. Lokalnie (bez logrotate) app.log po prostu rośnie.
+    file_handler = WatchedFileHandler(LOG_FILE, encoding='utf-8')
     file_handler.setFormatter(formatter)
     file_handler.setLevel(log_level)
 

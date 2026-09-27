@@ -407,7 +407,16 @@ function odswiezOpisSkutku() {
 }
 window.onReconcileDateChange = odswiezSaldoOdniesienia;
 
+// Kolor ramki inline z !important: classical.css ustawia border-color pól z !important.
+function oznaczBrakKonta(brak) {
+    const sel = document.getElementById('reconcile-account-select');
+    if (brak) sel.style.setProperty('border-color', '#dc2626', 'important');
+    else sel.style.removeProperty('border-color');
+    document.getElementById('reconcile-account-error').classList.toggle('hidden', !brak);
+}
+
 window.openReconcileModal = function(accountId, accountName) {
+    oznaczBrakKonta(false);
     document.getElementById('reconcile-comment').value = '';
     const dzis = toLocalISODate(new Date());
     reconcileDateInput.value = dzis;
@@ -434,6 +443,7 @@ window.openReconcileModal = function(accountId, accountName) {
 
 window.onReconcileAccountChange = function(val) {
     currentReconcileAccountId = val ? parseInt(val) : null;
+    if (val) oznaczBrakKonta(false);
     odswiezSaldoOdniesienia();
 };
 
@@ -453,7 +463,11 @@ reconcileNewBalanceInput.addEventListener('input', odswiezOpisSkutku);
 
 reconcileForm.addEventListener('submit', async function(e) {
     e.preventDefault();
-    if (!currentReconcileAccountId) return;
+    if (!currentReconcileAccountId) {
+        oznaczBrakKonta(true);
+        document.getElementById('reconcile-account-select').focus();
+        return;
+    }
 
     const newBalance = parseFloat(reconcileNewBalanceInput.value);
     if (isNaN(newBalance)) {

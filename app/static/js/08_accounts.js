@@ -26,6 +26,18 @@ function accountTypeBadge(type) {
     return `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${cls}">${type}</span>`;
 }
 
+// Lista walut z najnowszej tabeli NBP (PLN na górze, reszta po nazwie). Zachowuje
+// bieżący wybór — wołana przy każdym odświeżeniu stanu, także w trakcie edycji konta.
+function updateCurrencySelect() {
+    const sel = document.getElementById('acc-currency');
+    if (!sel) return;
+    const wybrana = sel.value || 'PLN';
+    const waluty = Object.entries(currencies).sort((a, b) => a[1].name.localeCompare(b[1].name, 'pl'));
+    sel.innerHTML = '<option value="PLN">PLN — złoty</option>' +
+        waluty.map(([kod, c]) => `<option value="${escapeHtml(kod)}">${escapeHtml(kod)} — ${escapeHtml(c.name)}</option>`).join('');
+    sel.value = wybrana;
+}
+
 function renderAccounts() {
     const list = document.getElementById('account-list');
     list.innerHTML = '';
@@ -91,7 +103,7 @@ function renderInactiveAccounts() {
                 ${a.account_number ? `<span class="text-xs text-slate-400 block break-all font-mono mt-0.5">${formatAccountNumber(a.account_number)}</span>` : ''}
             </div>
             <div class="flex items-center gap-3 shrink-0">
-                <span class="text-sm font-semibold ${Number(a.balance) < 0 ? 'text-rose-600' : 'text-slate-500'}">${formatKwota(a.balance)} PLN</span>
+                <span class="text-sm font-semibold ${Number(a.balance) < 0 ? 'text-rose-600' : 'text-slate-500'}">${formatKwota(a.balance)} ${escapeHtml(a.currency || 'PLN')}</span>
                 <button onclick="viewAccountSummary(${a.id})" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline whitespace-nowrap" title="Cała historia konta w Podsumowaniu (zakres dat)">Podsumowanie →</button>
                 <button onclick="viewAccountTransactions(${a.id})" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline whitespace-nowrap" title="Transakcje tego konta (miesięcznie)">Transakcje →</button>
             </div>
@@ -171,6 +183,7 @@ window.editAccount = function(id) {
     document.getElementById('acc-bank').value = a.bank_name || '';
     document.getElementById('acc-number').value = formatAccountNumber(a.account_number);
     document.getElementById('acc-type').value = a.account_type || '';
+    document.getElementById('acc-currency').value = a.currency || 'PLN';
     document.getElementById('acc-owner').value = a.owner || '';
     document.getElementById('acc-co-owner').value = a.co_owner || '';
     document.getElementById('acc-default').checked = a.is_default || false;
@@ -203,6 +216,7 @@ document.getElementById('account-form').addEventListener('submit', async functio
     const bank_name = document.getElementById('acc-bank').value.trim();
     const account_number = document.getElementById('acc-number').value.trim();
     const account_type = document.getElementById('acc-type').value || null;
+    const currency = document.getElementById('acc-currency').value || 'PLN';
     const owner = document.getElementById('acc-owner').value.trim() || null;
     const co_owner = document.getElementById('acc-co-owner').value.trim() || null;
     const is_default = document.getElementById('acc-default').checked;
@@ -214,7 +228,7 @@ document.getElementById('account-form').addEventListener('submit', async functio
         const response = await fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, bank_name, account_number, account_type, owner, co_owner, is_default })
+            body: JSON.stringify({ name, bank_name, account_number, account_type, currency, owner, co_owner, is_default })
         });
         if (response.ok) {
             const saved = await response.json();
@@ -347,7 +361,7 @@ function odswiezSaldoOdniesienia() {
     label.innerText = isoDate === dzis
         ? 'Bieżące saldo w systemie:'
         : `Saldo w systemie na koniec dnia ${isoDate}:`;
-    reconcileCurrentBalance.innerText = `${formatKwota(saldo)} PLN`;
+    reconcileCurrentBalance.innerText = `${formatKwota(saldo)} ${walutaKonta(currentReconcileAccountId)}`;
     saldoOdniesienia = saldo;
     reconcileNewBalanceInput.value = saldo.toFixed(2);
     odswiezOpisSkutku();
@@ -411,7 +425,7 @@ window.openReconcileModal = function(accountId, accountName) {
         document.getElementById('reconcile-account-display').classList.add('hidden');
         const sel = document.getElementById('reconcile-account-select');
         sel.innerHTML = '<option value="">Wybierz konto...</option>' +
-            accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${formatKwota(a.balance)} PLN)</option>`).join('');
+            accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${formatKwota(a.balance)} ${escapeHtml(a.currency || 'PLN')})</option>`).join('');
     }
     odswiezSaldoOdniesienia();
     reconcileModal.classList.remove('hidden');

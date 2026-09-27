@@ -97,6 +97,7 @@
                 <div class="bg-gradient-to-br from-blue-600 to-blue-700 p-6 rounded-2xl shadow-md text-white">
                     <p class="text-sm font-medium text-blue-100 mb-1">Majątek netto (Net Worth)</p>
                     <p id="dashboard-net-worth" class="text-4xl font-bold">0.00 PLN</p>
+                    <p id="dashboard-net-worth-note" class="hidden text-xs text-blue-100 mt-1"></p>
                 </div>
 
                 <!-- Majątek w czasie -->
@@ -526,6 +527,9 @@
                                                 <option value="Kredyt">Kredyt (saldo ujemne)</option>
                                                 <option value="Rach. Maklerski">Rach. Maklerski</option>
                                                 <option value="IKZE">IKZE</option>
+                                            </select>
+                                            <select id="acc-currency" title="Waluta konta" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                                <option value="PLN">PLN — złoty</option>
                                             </select>
                                             <input type="text" id="acc-owner" placeholder="Właściciel (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                                             <input type="text" id="acc-co-owner" placeholder="Współwłaściciel (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">

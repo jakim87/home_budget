@@ -16,7 +16,7 @@ Zrealizowane:
 - Wykrywanie transferów wewnętrznych i parowanie obu nóg przelewu
 - Transakcje cykliczne i zaplanowane (harmonogramy)
 - Budżet miesięczny: plan per kategoria zestawiony z wykonaniem i rezerwacjami z harmonogramu
-- Dashboard z wykresami i śledzeniem wartości netto (Net Worth)
+- Dashboard z wykresami i śledzeniem wartości netto (Net Worth), z kontami walutowymi wycenianymi po kursie średnim NBP
 - Moduł raportów: KPI, wykresy, filtry kont/kategorii/kontrahentów, presety zakresów dat
 - Obsługa typów kont, w tym kredytów (zobowiązania / wartość ujemna)
 - Ręczne wprowadzanie transakcji, również gotówkowych
@@ -113,6 +113,7 @@ flask db downgrade                  # Cofnij ostatnią migrację (tylko developm
 
 # Zadania cykliczne
 flask process-scheduled             # Wykonaj zaplanowane i cykliczne transakcje
+flask fetch-rates                   # Dociągnij kursy NBP (tabela A); pierwsze uruchomienie pobiera historię od 2002
 flask cleanup-archive               # Usuń zarchiwizowane transakcje starsze niż 60 dni
 
 # Dane początkowe

@@ -213,6 +213,18 @@ def register_commands(app):
         db.session.commit()
         click.echo(f"Pomyślnie usunięto {deleted} przestarzałych wpisów z archiwum.")
 
+    @app.cli.command('fetch-rates')
+    @with_appcontext
+    def fetch_rates_command():
+        """Dociąga kursy średnie NBP (tabela A) od ostatniego zapisanego dnia do dziś."""
+        from app.services.exchange_rate_service import fetch_rates
+        try:
+            dodane = fetch_rates()
+        except Exception as e:
+            click.echo(f"Błąd pobierania kursów NBP: {e}", err=True)
+            sys.exit(1)
+        click.echo(f"Zapisano {dodane} kursów.")
+
     @app.cli.command('process-scheduled')
     @with_appcontext
     def process_scheduled_command():

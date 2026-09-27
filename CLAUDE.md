@@ -51,6 +51,8 @@ flask seed                       # Populate DB with default_user + test data
 
 # CLI tasks
 flask process-scheduled          # Execute due recurring & planned transactions
+flask fetch-rates                # Kursy NBP (tabela A) od ostatniego zapisanego dnia; pierwsze
+                                 #   uruchomienie dociąga historię od 2002 (~200 tys. wierszy, ~40 s)
 flask cleanup-archive            # Remove archived transactions older than 60 days
 flask reset-password             # Ustawia nowe hasło użytkownika (jedyna droga odzyskania
                                  #   konta — aplikacja nie wysyła maili)
@@ -157,6 +159,10 @@ Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie.
 **Internal Transfers**: Category type `"transfer"` + contractor name matching `"Moje konto: {account_name}"` wskazuje konto docelowe. Druga noga bierze się z jednego z dwóch źródeł, nigdy z obu naraz (`_handle_internal_transfer`): jeśli konto docelowe dostaje własne wyciągi — przyjdzie z importu i zostanie sparowana (okno dat ±4 dni); jeśli nie dostaje (np. cel oszczędnościowy) — powstaje lustro. Wynika stąd reguła dla parserów wyciągów: **żaden parser nie może wyrzucać strony wpływu** przelewu między kontami z tego samego pliku — bez niej noga wypływu zostaje sierotą na zawsze (#164).
 
 Podgląd poczekalni pokazuje obie nogi tak, jak je zobaczy księgowanie (#169): **kierunek strzałki bierze się ze znaku kwoty**, nie z tego, czyj to wiersz (inaczej noga wpływu czyta się jak przelew powrotny), a `transfer_pair` mówi, skąd weźmie się druga strona — `staging` / `booked` / `mirror` / `missing`. Te cztery wartości to gałęzie decyzyjne `handle_internal_transfer`: `_pair_staging_transfer_legs` musi zostać z nimi zgodne, bo `missing` (jedyny stan z ostrzeżeniem) znaczy „saldo konta po drugiej stronie nie drgnie, dopóki jego noga nie zostanie zaimportowana". Parowanie jest 1:1 — sparowana noga zostaje zużyta.
+
+**Konta walutowe** (`exchange_rate_service.py`, model `ExchangeRate`): `Account.currency` to waluta salda; kursy służą **wyłącznie do wyceny** — nic nie jest przewalutowywane. Kursy średnie NBP (cała tabela A, wspólne dla wszystkich użytkowników) pobiera tylko `flask fetch-rates` z timera (`deploy/systemd/budget-rates.*`); żądania HTTP czytają je z bazy, więc awaria NBP nie blokuje aplikacji. `/api/init` wysyła `currencies` (najnowsza tabela — zasila też listę walut w formularzu konta) i `monthly_rates` (kurs na koniec miesiąca, tylko dla walut kont użytkownika). Front: `kursPLN()` / `sumaSaldPLN()` w `04_helpers.js`; wykres Majątku narasta osobno w każdej walucie i wycenia saldo po kursie z końca danego miesiąca. Brak kursu = konto wypada z sumy **jawnie** (notka pod Net Worth), nigdy jako zero. Waluta konta musi być w najnowszej tabeli (wycofane, np. ATS, odpadają). Raporty, Budżet i Podsumowanie miesiąca nadal sumują kwoty bez przeliczania — świadomie poza zakresem.
+
+Przelew wewnętrzny między kontami w **różnych walutach** nie dostaje lustra ani parowania (`handle_internal_transfer`) — kwoty nóg różnią się o kurs i spread; druga noga przychodzi z wyciągu albo z uzgodnienia salda. W poczekalni taki przelew ma zawsze `transfer_pair = 'missing'`.
 
 **Soft Deletes**: Categories and contractors use `is_active=False`. Always filter `is_active=True` in queries.
 

@@ -3,6 +3,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from app import db
 from app.models import Account, Contractor, Transaction, TransactionSplit
 from app.services.category_service import list_active as list_active_categories
+from app.services.exchange_rate_service import latest_rates, monthly_rates
 
 
 def build_init_payload(user_token: str) -> dict:
@@ -57,7 +58,14 @@ def build_init_payload(user_token: str) -> dict:
         .all()
     )
 
+    # Kursy tylko dla walut kont użytkownika i od jego najstarszej transakcji —
+    # tyle potrzebuje wykres Majątku (wycena salda na koniec każdego miesiąca).
+    waluty = {a.currency for a in accounts + inactive_accounts if a.currency and a.currency != 'PLN'}
+    najstarsza = transactions[-1].date if transactions else None
+
     return {
+        'currencies': latest_rates(),
+        'monthly_rates': monthly_rates(waluty, najstarsza) if najstarsza else {},
         'transactions': [_transaction_dict(tx) for tx in transactions],
         'categories': [
             {'id': c.id, 'name': c.name, 'type': c.type, 'is_system_category': c.is_system_category}
@@ -82,7 +90,7 @@ def _account_dict(a: Account, full: bool = True) -> dict:
     data = {
         'id': a.id, 'name': a.name, 'bank_name': a.bank_name,
         'account_number': a.account_number, 'balance': float(a.balance),
-        'account_type': a.account_type,
+        'account_type': a.account_type, 'currency': a.currency or 'PLN',
     }
     if full:
         data.update({

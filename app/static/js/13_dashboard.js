@@ -40,10 +40,19 @@ window.setDashboardView = function(view) {
 
 function renderDashboard() {
     // Net Worth
-    const netWorth = dashboardAccounts().reduce((sum, a) => sum + a.balance, 0);
+    const { suma: netWorth, brak } = sumaSaldPLN(dashboardAccounts());
     const netWorthEl = document.getElementById('dashboard-net-worth');
     if (netWorthEl) {
         netWorthEl.textContent = `${formatKwota(netWorth)} PLN`;
+    }
+    const noteEl = document.getElementById('dashboard-net-worth-note');
+    if (noteEl) {
+        const walutowe = dashboardAccounts().some(a => a.currency && a.currency !== 'PLN');
+        const dataKursu = Object.values(currencies)[0]?.date;
+        noteEl.textContent = brak.length
+            ? `Bez kont w: ${brak.join(', ')} — brak kursu NBP`
+            : (walutowe && dataKursu ? `Konta walutowe przeliczone po kursie NBP z ${dataKursu}` : '');
+        noteEl.classList.toggle('hidden', !noteEl.textContent);
     }
 
     // Karty kont
@@ -59,7 +68,10 @@ function renderDashboard() {
                     class="text-left bg-white p-4 rounded-xl border shadow-sm transition-colors hover:border-blue-400 ${selected ? 'border-blue-600 ring-2 ring-blue-200' : 'border-slate-200'}">
                     <p class="text-xs font-medium text-slate-500 truncate">${escapeHtml(a.name)}${a.bank_name ? ` · ${escapeHtml(a.bank_name)}` : ''}</p>
                     ${(a.owner || a.co_owner) ? `<p class="text-xs text-slate-400 truncate">${escapeHtml([a.owner, a.co_owner].filter(Boolean).join(' / '))}</p>` : ''}
-                    <p class="text-lg font-bold ${a.balance >= 0 ? 'text-slate-800' : 'text-rose-600'} mt-1">${formatKwota(a.balance)} PLN</p>
+                    <p class="text-lg font-bold ${a.balance >= 0 ? 'text-slate-800' : 'text-rose-600'} mt-1">${formatKwota(a.balance)} ${escapeHtml(a.currency || 'PLN')}</p>
+                    ${a.currency && a.currency !== 'PLN' ? `<p class="text-xs text-slate-400">${
+                        kursPLN(a.currency) === null ? 'brak kursu NBP' : `≈ ${formatKwota(a.balance * kursPLN(a.currency))} PLN · kurs z ${currencies[a.currency].date}`
+                    }</p>` : ''}
                 </button>
                 `;
             }).join('');
@@ -104,18 +116,28 @@ function computeNetWorthSeries() {
         if (m > 12) { m = 1; y++; }
     }
 
+    // Saldo narasta osobno w każdej walucie i dopiero na koniec miesiąca jest
+    // wyceniane po ówczesnym kursie — konto EUR bez ruchu i tak zmienia wartość w PLN.
+    const walutaKontaId = {};
+    [...accounts, ...inactiveAccounts].forEach(a => { walutaKontaId[a.id] = a.currency || 'PLN'; });
+
     let idx = 0;
-    let totalRunning = 0;
+    const narastajaco = {};
     const series = [];
     for (const ym of months) {
         const [yy, mm] = ym.split('-').map(Number);
         const daysInMonth = new Date(yy, mm, 0).getDate();
         const monthEndStr = `${yy}-${String(mm).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
         while (idx < sorted.length && sorted[idx].date <= monthEndStr) {
-            totalRunning += sorted[idx].amount;
+            const w = walutaKontaId[sorted[idx].account_id] || 'PLN';
+            narastajaco[w] = (narastajaco[w] || 0) + sorted[idx].amount;
             idx++;
         }
-        series.push({ month: ym, value: totalRunning });
+        const value = Object.entries(narastajaco).reduce((s, [w, v]) => {
+            const kurs = kursPLN(w, ym);
+            return kurs === null ? s : s + v * kurs;
+        }, 0);
+        series.push({ month: ym, value });
     }
     netWorthSeriesFull = series;
 }

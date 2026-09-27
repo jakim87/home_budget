@@ -260,6 +260,15 @@ def handle_internal_transfer(
     dest_account = _resolve_destination_account(user_token, contractor_obj)
     if not dest_account or dest_account.id == account.id:
         return
+    # Konta w różnych walutach: kwoty obu nóg różnią się o kurs i spread banku, więc
+    # ani lustro (4300 PLN zapisane jako 4300 EUR), ani parowanie po kwocie nie mają
+    # sensu. Druga noga przychodzi z wyciągu albo z uzgodnienia salda.
+    if (dest_account.currency or 'PLN') != (account.currency or 'PLN'):
+        logger.info(
+            "Przelew wewnętrzny między walutami %s -> %s: bez lustra i parowania (transaction_id=%s)",
+            account.currency, dest_account.currency, new_transaction.id
+        )
+        return
 
     db.session.flush()  # nadaj ID nowej transakcji, by móc powiązać drugą nogę
 
@@ -1106,7 +1115,8 @@ def dismiss_staging_as_duplicate(user_token: str, stg_id: int, transaction_id: i
 #   'booked'  — druga noga jest już zatwierdzoną, niepowiązaną transakcją,
 #   'mirror'  — konto docelowe nie dostaje wyciągów, więc lustro dopełni parę samo,
 #   'missing' — konto docelowe dostaje wyciągi, a nogi nie ma: saldo tamtego konta
-#               nie drgnie, dopóki druga noga nie zostanie zaimportowana.
+#               nie drgnie, dopóki druga noga nie zostanie zaimportowana. Tak samo
+#               przy kontach w różnych walutach — tam lustra nie ma nigdy.
 def _pair_staging_transfer_legs(
     user_token: str,
     legs: list[tuple[TransactionStaging, Account]],
@@ -1125,6 +1135,13 @@ def _pair_staging_transfer_legs(
     """
     window = timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
     stany: list[Optional[str]] = [None] * len(legs)
+
+    # Przelew między walutami: handle_internal_transfer nie paruje go ani nie tworzy
+    # lustra, więc druga strona zawsze „brakuje" (patrz tamten komentarz).
+    waluta = {a.id: a.currency or 'PLN' for a in accounts}
+    for i, (tx, dest) in enumerate(legs):
+        if waluta.get(tx.account_id, 'PLN') != (dest.currency or 'PLN'):
+            stany[i] = 'missing'
 
     def pasuje(tx, dest, konto_id, dest_id, kwota, kiedy) -> bool:
         """Czy (konto_id, dest_id, kwota, kiedy) to druga noga wiersza tx — krzyżowo."""

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ile mam kasy — drugi mózg od pieniędzy</title>
+<meta name="description" content="Salda wszystkich kont, wartość netto i plan budżetu w jednym miejscu. Zobacz demo bez zakładania konta.">
+<link rel="stylesheet" href="{{ url_for('static', filename='landing/classical.css') }}">
+<style>
+  body{margin:0;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)}
+  a{color:var(--color-accent-700);text-decoration:none}
+  a:hover{color:var(--color-accent-800);text-decoration:underline}
+  a.btn:hover{text-decoration:none}
+  #landing button:focus-visible{outline:2px solid var(--color-accent);outline-offset:3px}
+  [data-shot-layer]{transition:opacity .6s ease, transform .9s cubic-bezier(.2,.7,.2,1)}
+</style>
+</head>
+<body>
+<div id="landing" style="overflow-x:clip">
+
+{% include '_landing_header.html' %}
+
+<section style="position:relative">
+  <div style="max-width:1120px;margin:0 auto;padding:clamp(56px,11vh,120px) 24px 0">
+    <p data-in="0" style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--color-neutral-600);margin:0 0 clamp(28px,5vh,48px)">Mój drugi mózg. Ten od pieniędzy.</p>
+    <div style="display:grid">
+      <div data-qa style="grid-area:1/1">
+        <h1 data-q style="font-family:var(--font-heading);font-style:italic;font-weight:400;font-size:clamp(28px,4.6vw,54px);line-height:1.15;color:var(--color-neutral-700);margin:0 0 6px">„Ile mam kasy?”<span data-caret aria-hidden="true" style="display:inline-block;width:2px;height:.8em;margin-left:.12em;background:var(--color-accent);vertical-align:-.04em"></span></h1>
+        <div data-a style="font-family:var(--font-heading);font-weight:400;font-size:clamp(52px,11.5vw,144px);line-height:1.02;letter-spacing:-.015em;font-variant-numeric:tabular-nums;white-space:nowrap">34 932,55 zł</div>
+        <p data-c style="font-size:15.5px;line-height:1.6;color:var(--color-neutral-600);margin:14px 0 0;max-width:460px">Suma wszystkich moich kont. Stan na dziś.</p>
+      </div>
+      <div data-qa style="grid-area:1/1;visibility:hidden">
+        <p data-q style="font-family:var(--font-heading);font-style:italic;font-weight:400;font-size:clamp(28px,4.6vw,54px);line-height:1.15;color:var(--color-neutral-700);margin:0 0 6px">„Ile jestem wart?”<span data-caret aria-hidden="true" style="display:inline-block;width:2px;height:.8em;margin-left:.12em;background:var(--color-accent);vertical-align:-.04em"></span></p>
+        <div data-a style="font-family:var(--font-heading);font-weight:400;font-size:clamp(52px,11.5vw,144px);line-height:1.02;letter-spacing:-.015em;font-variant-numeric:tabular-nums;white-space:nowrap">184 260 zł</div>
+        <p data-c style="font-size:15.5px;line-height:1.6;color:var(--color-neutral-600);margin:14px 0 0;max-width:460px">Wartość netto — o 12% więcej niż w styczniu.</p>
+      </div>
+      <div data-qa style="grid-area:1/1;visibility:hidden">
+        <p data-q style="font-family:var(--font-heading);font-style:italic;font-weight:400;font-size:clamp(28px,4.6vw,54px);line-height:1.15;color:var(--color-neutral-700);margin:0 0 6px">„Stać mnie na wakacje?”<span data-caret aria-hidden="true" style="display:inline-block;width:2px;height:.8em;margin-left:.12em;background:var(--color-accent);vertical-align:-.04em"></span></p>
+        <div data-a style="font-family:var(--font-heading);font-weight:400;font-size:clamp(52px,11.5vw,144px);line-height:1.02;letter-spacing:-.015em;white-space:nowrap">Tak.</div>
+        <p data-c style="font-size:15.5px;line-height:1.6;color:var(--color-neutral-600);margin:14px 0 0;max-width:460px">Za cztery miesiące będę mieć odłożone całe 8 000 zł.</p>
+      </div>
+    </div>
+    <div data-in="600" style="display:flex;gap:6px;margin:30px 0 0">
+      <button data-qa-bar type="button" aria-label="Pytanie 1" style="all:unset;cursor:pointer;padding:12px 0;width:44px"><span style="display:block;position:relative;height:2px;background:var(--color-neutral-300);overflow:hidden"><span data-fill style="position:absolute;inset:0;background:var(--color-accent-700);transform-origin:0 50%;transform:scaleX(1)"></span></span></button>
+      <button data-qa-bar type="button" aria-label="Pytanie 2" style="all:unset;cursor:pointer;padding:12px 0;width:44px"><span style="display:block;position:relative;height:2px;background:var(--color-neutral-300);overflow:hidden"><span data-fill style="position:absolute;inset:0;background:var(--color-accent-700);transform-origin:0 50%;transform:scaleX(0)"></span></span></button>
+      <button data-qa-bar type="button" aria-label="Pytanie 3" style="all:unset;cursor:pointer;padding:12px 0;width:44px"><span style="display:block;position:relative;height:2px;background:var(--color-neutral-300);overflow:hidden"><span data-fill style="position:absolute;inset:0;background:var(--color-accent-700);transform-origin:0 50%;transform:scaleX(0)"></span></span></button>
+    </div>
+    <div data-in="750" style="display:flex;flex-wrap:wrap;gap:12px;margin:26px 0 0">
+      <a href="/login?demo=1" class="btn btn-primary">Zobacz demo bez zakładania konta</a>
+      <a href="/login" class="btn btn-secondary">Mam konto — zaloguj się</a>
+    </div>
+  </div>
+  <div style="max-width:1120px;margin:0 auto;padding:0 24px">
+    <div aria-hidden="true" style="position:relative;margin-top:clamp(40px,7vh,72px)">
+      <svg data-horizon viewBox="0 0 1200 140" preserveAspectRatio="none" style="display:block;width:100%;height:clamp(56px,9vw,120px);overflow:visible">
+        <path d="M0,130 C90,126 150,114 230,118 S380,108 470,100 S610,92 700,80 S860,68 950,52 S1110,32 1194,22" fill="none" stroke="var(--color-accent-400)" stroke-width="1.2" vector-effect="non-scaling-stroke"></path>
+      </svg>
+      <span data-pulse style="position:absolute;right:calc(0.5% - 5px);top:calc(15.7% - 5px);width:10px;height:10px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%;opacity:0"></span>
+      <span data-horizon-dot style="position:absolute;right:calc(0.5% - 5px);top:calc(15.7% - 5px);width:10px;height:10px;box-sizing:border-box;border:1.2px solid var(--color-accent-700);border-radius:50%;background:var(--color-bg)"></span>
+    </div>
+  </div>
+</section>
+
+
+  <div aria-label="Pytania, które zadaję sobie co miesiąc" style="border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);overflow:hidden;padding:20px 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)">
+    <div data-marquee style="display:flex;width:max-content">
+      <div style="display:flex;align-items:center;gap:40px;padding-right:40px">
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Ile poszło na jedzenie w marcu?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Czy starczy do pierwszego?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Gdzie uciekło te 400 zł?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Mieszczę się w budżecie?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Ile odkładam co miesiąc?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Ile zostało do wypłaty?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+      </div>
+      <div aria-hidden="true" style="display:flex;align-items:center;gap:40px;padding-right:40px">
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Ile poszło na jedzenie w marcu?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Czy starczy do pierwszego?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Gdzie uciekło te 400 zł?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Mieszczę się w budżecie?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Ile odkładam co miesiąc?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+        <span style="font-family:var(--font-heading);font-style:italic;font-size:clamp(20px,2.3vw,28px);color:var(--color-neutral-700);white-space:nowrap">„Ile zostało do wypłaty?”</span><span style="flex:none;width:6px;height:6px;box-sizing:border-box;border:1px solid var(--color-accent);border-radius:50%"></span>
+      </div>
+    </div>
+  </div>
+
+
+<section style="max-width:1120px;margin:0 auto;padding:clamp(88px,16vh,168px) 24px">
+  <p data-words style="font-family:var(--font-heading);font-weight:400;font-size:clamp(30px,4.4vw,56px);line-height:1.18;max-width:980px;margin:0;text-wrap:pretty"><span data-w>Zadaję </span><span data-w>sobie </span><span data-w>te </span><span data-w>pytania </span><span data-w>co </span><span data-w>kilka </span><span data-w>dni. </span><span data-w>Wcześniej </span><span data-w>odpowiedź </span><span data-w>brzmiała </span><span data-w style="font-style:italic">„chyba </span><span data-w style="font-style:italic">wystarczy”. </span><span data-w>Teraz </span><span data-w>mam </span><span data-w>jedno </span><span data-w>miejsce, </span><span data-w>które </span><span data-w>pamięta </span><span data-w>za </span><span data-w>mnie </span><span data-w>wszystko </span><span data-w>— </span><span data-w>i </span><span data-w>odpowiada </span><span data-w>liczbą.</span></p>
+</section>
+
+<section style="max-width:1120px;margin:0 auto;padding:0 24px">
+
+  <div style="display:flex;flex-wrap:wrap;gap:40px 72px;align-items:center;padding:clamp(72px,12vh,128px) 0;border-top:1px solid var(--color-divider)">
+    <div data-io style="flex:1 1 340px;min-width:0">
+      <div data-num aria-hidden="true" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(84px,11vw,150px);line-height:.85;color:transparent;-webkit-text-stroke:1px var(--color-accent);font-variant-numeric:tabular-nums;margin:0 0 20px">01</div>
+      <h2 data-reveal="0" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(32px,4vw,48px);line-height:1.1;margin:0 0 16px;text-wrap:balance">„Ile naprawdę jestem wart?”</h2>
+      <p data-reveal="120" style="font-size:16.5px;line-height:1.7;color:var(--color-neutral-700);margin:0;max-width:440px;text-wrap:pretty">Wszystko, co mam, minus wszystko, co mam do oddania. Jedna liczba — i widzę, w którą stronę idzie od miesięcy.</p>
+    </div>
+    <div data-io style="flex:1 1 340px;min-width:0">
+      <div data-reveal="0" style="border:1px solid var(--color-divider);border-radius:var(--radius-md);background:var(--color-bg);box-shadow:var(--shadow-md);padding:24px 24px 18px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0 0 18px">
+          <span style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-600)">Wartość netto</span>
+          <span data-count style="font-family:var(--font-heading);font-size:32px;font-variant-numeric:tabular-nums;white-space:nowrap">184 260 zł</span>
+        </div>
+        <svg viewBox="0 0 320 112" data-chart style="display:block;width:100%;height:auto;overflow:visible;cursor:crosshair">
+          <line x1="0" y1="20" x2="320" y2="20" stroke="var(--color-divider)" stroke-width="1"></line>
+          <line x1="0" y1="62" x2="320" y2="62" stroke="var(--color-divider)" stroke-width="1"></line>
+          <line x1="0" y1="104" x2="320" y2="104" stroke="var(--color-neutral-400)" stroke-width="1"></line>
+          <path data-draw="200" pathLength="1" stroke-dasharray="1" d="M12,90.8 L49,84.9 L86,87.2 L123,76.9 L160,71.4 L197,65.9 L234,54.6 L271,39.7 L308,25.6" fill="none" stroke="var(--color-accent)" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"></path>
+          <circle data-pop="1700" cx="308" cy="25.6" r="3.6" fill="var(--color-bg)" stroke="var(--color-accent-700)" stroke-width="1.6" style="transform-box:fill-box;transform-origin:center"></circle>
+          <g data-hi style="opacity:0;transition:opacity .2s">
+            <line x1="308" y1="14" x2="308" y2="104" stroke="var(--color-neutral-500)" stroke-width="1" stroke-dasharray="2 3"></line>
+            <circle cx="308" cy="25.6" r="3.6" fill="var(--color-accent-700)"></circle>
+            <text x="308" y="8" text-anchor="end" style="font-family:var(--font-body);font-size:9.5px;fill:var(--color-text);font-variant-numeric:tabular-nums"></text>
+          </g>
+        </svg>
+        <div style="display:flex;justify-content:space-between;padding:0 1.5%;margin-top:10px;font-size:11px;color:var(--color-neutral-600)">
+          <span>sty</span><span>mar</span><span>maj</span><span>lip</span><span>wrz</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;flex-direction:row-reverse;gap:40px 72px;align-items:center;padding:clamp(72px,12vh,128px) 0;border-top:1px solid var(--color-divider)">
+    <div data-io style="flex:1 1 340px;min-width:0">
+      <div data-num aria-hidden="true" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(84px,11vw,150px);line-height:.85;color:transparent;-webkit-text-stroke:1px var(--color-accent);font-variant-numeric:tabular-nums;margin:0 0 20px">02</div>
+      <h2 data-reveal="0" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(32px,4vw,48px);line-height:1.1;margin:0 0 16px;text-wrap:balance">„Stać mnie na te wakacje?”</h2>
+      <p data-reveal="120" style="font-size:16.5px;line-height:1.7;color:var(--color-neutral-700);margin:0;max-width:440px;text-wrap:pretty">Rozpisuję wakacje z góry, obok reszty miesiąca. Widzę, ile już mam odłożone i czego brakuje — decyduję na liczbach, nie na przeczuciu.</p>
+    </div>
+    <div data-io style="flex:1 1 340px;min-width:0">
+      <div data-reveal="0" style="border:1px solid var(--color-divider);border-radius:var(--radius-md);background:var(--color-bg);box-shadow:var(--shadow-md);padding:24px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0 0 20px">
+          <span style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-600)">Plan · Wakacje 2027</span>
+          <span style="font-size:13px;color:var(--color-neutral-600);font-variant-numeric:tabular-nums;white-space:nowrap">8 000 zł</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div>
+            <div style="display:flex;justify-content:space-between;gap:12px;font-size:14.5px;margin:0 0 8px"><span>Odłożone</span><span style="font-variant-numeric:tabular-nums;white-space:nowrap"><span data-count>5 200</span> / 8 000 zł</span></div>
+            <div style="height:3px;border-radius:2px;background:var(--color-neutral-200);overflow:hidden"><div data-bar="300" style="width:65%;height:100%;background:var(--color-accent);transform-origin:0 50%"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--color-neutral-700);margin:0 0 8px"><span>Noclegi</span><span style="font-variant-numeric:tabular-nums;white-space:nowrap">3 100 zł</span></div>
+            <div style="height:3px;border-radius:2px;background:var(--color-neutral-200);overflow:hidden"><div data-bar="480" style="width:38.75%;height:100%;background:var(--color-neutral-500);transform-origin:0 50%"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--color-neutral-700);margin:0 0 8px"><span>Przejazd</span><span style="font-variant-numeric:tabular-nums;white-space:nowrap">1 450 zł</span></div>
+            <div style="height:3px;border-radius:2px;background:var(--color-neutral-200);overflow:hidden"><div data-bar="580" style="width:18.1%;height:100%;background:var(--color-neutral-500);transform-origin:0 50%"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--color-neutral-700);margin:0 0 8px"><span>Na miejscu</span><span style="font-variant-numeric:tabular-nums;white-space:nowrap">3 450 zł</span></div>
+            <div style="height:3px;border-radius:2px;background:var(--color-neutral-200);overflow:hidden"><div data-bar="680" style="width:43.1%;height:100%;background:var(--color-neutral-500);transform-origin:0 50%"></div></div>
+          </div>
+        </div>
+        <div style="border-top:1px solid var(--color-divider);margin-top:22px;padding-top:16px">
+          <div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--color-neutral-700);margin:0 0 6px"><span>Odkładam co miesiąc</span><span style="font-variant-numeric:tabular-nums;color:var(--color-text);white-space:nowrap"><span data-save-text>700</span> zł</span></div>
+          <input type="range" min="200" max="1500" step="100" value="700" data-save data-missing="2800" aria-label="Kwota odkładana co miesiąc" style="display:block;width:100%;margin:0;accent-color:var(--color-accent-700);cursor:pointer">
+          <p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:var(--color-neutral-700)">Brakuje 2 800 zł — mam to <span style="font-family:var(--font-heading);font-style:italic;font-size:21px;color:var(--color-text);white-space:nowrap">za <span data-months>4&nbsp;miesiące</span></span>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:40px 72px;align-items:center;padding:clamp(72px,12vh,128px) 0;border-top:1px solid var(--color-divider)">
+    <div data-io style="flex:1 1 340px;min-width:0">
+      <div data-num aria-hidden="true" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(84px,11vw,150px);line-height:.85;color:transparent;-webkit-text-stroke:1px var(--color-accent);font-variant-numeric:tabular-nums;margin:0 0 20px">03</div>
+      <h2 data-reveal="0" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(32px,4vw,48px);line-height:1.1;margin:0 0 16px;text-wrap:balance">„Ile mam na wszystkich kontach?”</h2>
+      <p data-reveal="120" style="font-size:16.5px;line-height:1.7;color:var(--color-neutral-700);margin:0;max-width:440px;text-wrap:pretty">Salda wszystkich moich kont, gotówki i oszczędności w jednym widoku. Nie loguję się do trzech banków, żeby to zsumować.</p>
+    </div>
+    <div data-io style="flex:1 1 340px;min-width:0">
+      <div data-reveal="0" style="border:1px solid var(--color-divider);border-radius:var(--radius-md);background:var(--color-bg);box-shadow:var(--shadow-md);padding:24px">
+        <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-600);margin:0 0 6px">Moje konta</div>
+        <div data-row style="display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:15px"><span>Konto codzienne</span><span data-amt style="font-variant-numeric:tabular-nums;white-space:nowrap">4 812,40 zł</span></div>
+        <div data-row style="display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:15px"><span>Oszczędności</span><span data-amt style="font-variant-numeric:tabular-nums;white-space:nowrap">28 500,00 zł</span></div>
+        <div data-row style="display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:15px"><span>Wspólne</span><span data-amt style="font-variant-numeric:tabular-nums;white-space:nowrap">1 240,15 zł</span></div>
+        <div data-row style="display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:15px"><span>Gotówka</span><span data-amt style="font-variant-numeric:tabular-nums;white-space:nowrap">380,00 zł</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--color-text)">
+          <span style="font-size:14px">Razem na kontach</span>
+          <span data-total style="font-family:var(--font-heading);font-size:28px;font-variant-numeric:tabular-nums;white-space:nowrap">34 932,55 zł</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;flex-direction:row-reverse;gap:40px 72px;align-items:center;padding:clamp(72px,12vh,128px) 0;border-top:1px solid var(--color-divider)">
+    <div data-io style="flex:1 1 340px;min-width:0">
+      <div data-num aria-hidden="true" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(84px,11vw,150px);line-height:.85;color:transparent;-webkit-text-stroke:1px var(--color-accent);font-variant-numeric:tabular-nums;margin:0 0 20px">04</div>
+      <h2 data-reveal="0" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(32px,4vw,48px);line-height:1.1;margin:0 0 16px;text-wrap:balance">„Ile naprawdę kosztuje mnie ten kredyt?”</h2>
+      <p data-reveal="120" style="font-size:16.5px;line-height:1.7;color:var(--color-neutral-700);margin:0 0 20px;max-width:440px;text-wrap:pretty">Zanim podpiszę, widzę ratę, wszystkie odsetki i to, co się stanie, gdy stopy pójdą w górę. Liczy się w przeglądarce — nic nie wysyłam.</p>
+      <a data-reveal="220" href="{{ url_for('legal.kalkulator_kredytu') }}" style="display:inline-flex;align-items:center;gap:8px;font-size:15px">Pełny kalkulator — prowizja, RRSO, nadpłaty<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a>
+    </div>
+    <div data-io style="flex:1 1 340px;min-width:0">
+      <div data-reveal="0" data-kk style="border:1px solid var(--color-divider);border-radius:var(--radius-md);background:var(--color-bg);box-shadow:var(--shadow-md);padding:24px">
+        <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-600);margin:0 0 16px">Kalkulator kredytu · raty równe</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px">
+          <div class="field"><label>Kwota (zł)</label><input class="input" type="text" inputmode="numeric" value="300 000" data-kk-kwota aria-label="Kwota kredytu w złotych" style="font-size:19px;font-variant-numeric:tabular-nums"></div>
+          <div class="field"><label>Okres (lata)</label><input class="input" type="number" min="1" max="50" step="1" value="25" data-kk-lata style="font-size:19px;font-variant-numeric:tabular-nums"></div>
+          <div class="field"><label>Oprocentowanie (%)</label><input class="input" type="number" min="0" step="0.1" inputmode="decimal" value="7" data-kk-opr style="font-size:19px;font-variant-numeric:tabular-nums"></div>
+        </div>
+        <div style="margin:22px 0 0;padding-top:16px;border-top:1px solid var(--color-divider)">
+          <div style="font-size:13px;color:var(--color-neutral-700)">Rata miesięczna</div>
+          <div style="font-size:clamp(36px,4.4vw,48px);line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap" data-kk-rata>—</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:14.5px;margin-top:8px"><span>Suma odsetek</span><span style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap" data-kk-odsetki>—</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:14.5px"><span>Do oddania bankowi</span><span style="font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap" data-kk-do-oddania>—</span></div>
+        <p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:var(--color-neutral-700)">Gdyby stopy wzrosły o 2 pp: <span style="font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--color-text)" data-kk-stres>—</span> miesięcznie.</p>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<section style="background:color-mix(in oklab, var(--color-neutral-900) 80%, black);color:var(--color-bg);margin-top:clamp(48px,8vh,96px)">
+  <div data-io style="max-width:1120px;margin:0 auto;padding:clamp(88px,14vh,140px) 24px 0">
+    <h2 data-reveal="0" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(38px,5.6vw,72px);line-height:1.05;margin:0 0 14px;color:var(--color-bg)">Tak to wygląda w środku</h2>
+    <p data-reveal="120" style="font-size:16px;line-height:1.6;color:var(--color-neutral-400);margin:0;max-width:520px">Zrzuty z konta demo — możesz je otworzyć bez zakładania konta.</p>
+  </div>
+  <div data-runway style="position:relative;height:300vh">
+    <div style="position:sticky;top:0;height:100vh;display:flex;align-items:center">
+      <div style="width:100%;max-width:1120px;margin:0 auto;padding:72px 24px 24px;box-sizing:border-box;display:flex;flex-wrap:wrap;gap:28px 64px;align-items:center">
+        <div style="flex:1 1 240px;min-width:0;position:relative;padding-left:24px">
+          <div aria-hidden="true" style="position:absolute;left:0;top:12px;bottom:12px;width:1px;background:var(--color-neutral-700)"><div data-rail style="position:absolute;inset:0;background:var(--color-accent);transform-origin:50% 0;transform:scaleY(0)"></div></div>
+          <button type="button" data-shot="0" style="all:unset;box-sizing:border-box;display:block;width:100%;cursor:pointer;padding:12px 0;opacity:1;transition:opacity .4s">
+            <span style="display:flex;gap:14px;align-items:baseline"><span style="font-size:12px;letter-spacing:.08em;color:var(--color-accent-400);font-variant-numeric:tabular-nums">01</span><span style="font-family:var(--font-heading);font-size:clamp(22px,2.4vw,28px);line-height:1.2;color:var(--color-bg)">Wartość netto i wykresy</span></span>
+            <span style="display:block;margin:4px 0 0 30px;font-size:14px;line-height:1.5;color:var(--color-neutral-400)">Widzę, w którą stronę idą moje pieniądze.</span>
+          </button>
+          <button type="button" data-shot="1" style="all:unset;box-sizing:border-box;display:block;width:100%;cursor:pointer;padding:12px 0;opacity:0.45;transition:opacity .4s">
+            <span style="display:flex;gap:14px;align-items:baseline"><span style="font-size:12px;letter-spacing:.08em;color:var(--color-accent-400);font-variant-numeric:tabular-nums">02</span><span style="font-family:var(--font-heading);font-size:clamp(22px,2.4vw,28px);line-height:1.2;color:var(--color-bg)">Historia transakcji</span></span>
+            <span style="display:block;margin:4px 0 0 30px;font-size:14px;line-height:1.5;color:var(--color-neutral-400)">Każdy wydatek na swoim miejscu, bez przepisywania.</span>
+          </button>
+          <button type="button" data-shot="2" style="all:unset;box-sizing:border-box;display:block;width:100%;cursor:pointer;padding:12px 0;opacity:0.45;transition:opacity .4s">
+            <span style="display:flex;gap:14px;align-items:baseline"><span style="font-size:12px;letter-spacing:.08em;color:var(--color-accent-400);font-variant-numeric:tabular-nums">03</span><span style="font-family:var(--font-heading);font-size:clamp(22px,2.4vw,28px);line-height:1.2;color:var(--color-bg)">Budżet miesięczny</span></span>
+            <span style="display:block;margin:4px 0 0 30px;font-size:14px;line-height:1.5;color:var(--color-neutral-400)">Plan i wykonanie obok siebie.</span>
+          </button>
+        </div>
+        <div style="flex:2.4 1 420px;min-width:0;perspective:1600px">
+          <div data-frame style="border:1px solid var(--color-neutral-700);border-radius:var(--radius-md);background:var(--color-neutral-800);overflow:hidden;transform-origin:50% 100%">
+            <div style="display:flex;align-items:center;justify-content:center;height:30px;border-bottom:1px solid var(--color-neutral-700);font-size:11px;letter-spacing:.06em;color:var(--color-neutral-500)">ilemamkasy.pl</div>
+            <div style="position:relative;aspect-ratio:16/10">
+              <div data-shot-layer style="position:absolute;inset:0;opacity:1;pointer-events:auto;transform:none;transition:opacity .6s ease, transform .9s cubic-bezier(.2,.7,.2,1)"><img src="{{ url_for('static', filename='landing/img/wykres.png') }}" alt="Wykres wartości netto w aplikacji" loading="lazy" style="display:block;width:100%;height:100%;object-fit:cover;object-position:top left"></div>
+              <div data-shot-layer style="position:absolute;inset:0;opacity:0;pointer-events:none;transform:translate3d(0,4%,0) scale(.97);transition:opacity .6s ease, transform .9s cubic-bezier(.2,.7,.2,1)"><img src="{{ url_for('static', filename='landing/img/transakcje.png') }}" alt="Lista transakcji w aplikacji" loading="lazy" style="display:block;width:100%;height:100%;object-fit:cover;object-position:top left"></div>
+              <div data-shot-layer style="position:absolute;inset:0;opacity:0;pointer-events:none;transform:translate3d(0,4%,0) scale(.97);transition:opacity .6s ease, transform .9s cubic-bezier(.2,.7,.2,1)"><img src="{{ url_for('static', filename='landing/img/budzet.png') }}" alt="Planowanie budżetu miesięcznego w aplikacji" loading="lazy" style="display:block;width:100%;height:100%;object-fit:cover;object-position:top left"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-io style="max-width:1120px;margin:0 auto;padding:clamp(96px,16vh,168px) 24px;text-align:center">
+  <h2 data-reveal="0" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(40px,6.4vw,84px);line-height:1.05;margin:0 0 18px">„To sprawdzę <span style="position:relative;white-space:nowrap">u siebie<span data-line="700" aria-hidden="true" style="position:absolute;left:0;right:0;bottom:.04em;height:1px;background:var(--color-accent);transform-origin:0 50%"></span></span>.”</h2>
+  <p data-reveal="120" style="font-size:16.5px;line-height:1.6;color:var(--color-neutral-700);margin:0 0 32px">Demo jest gotowe, z przykładowymi danymi. Bez maila, bez hasła.</p>
+  <div data-reveal="240" style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center">
+    <a href="/login?demo=1" class="btn btn-primary">Zobacz demo</a>
+    <a href="/login?rejestracja=1" class="btn btn-secondary">Załóż konto</a>
+  </div>
+</section>
+
+{% include '_landing_footer.html' %}
+
+</div>
+<script src="{{ url_for('static', filename='js/kalkulator_kredytu.js') }}" defer></script>
+<script src="{{ url_for('static', filename='landing/landing.js') }}" defer></script>
+</body>
+</html>

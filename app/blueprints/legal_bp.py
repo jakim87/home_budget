@@ -1,4 +1,5 @@
-"""Strony informacyjne: regulamin, polityka prywatności (RODO), informacja o autorze.
+"""Strony publiczne: regulamin, polityka prywatności (RODO), informacja o autorze
+oraz kalkulator kredytu (liczy w przeglądarce, nic nie wysyła na serwer).
 
 Treść jest statyczna — nie ma tu logiki biznesowej ani dostępu do bazy, więc
 blueprint celowo nie ma odpowiednika w warstwie serwisów.
@@ -31,3 +32,8 @@ def polityka_prywatnosci():
 @legal_bp.route('/o-aplikacji')
 def o_aplikacji():
     return render_template('o_aplikacji.html', last_updated=DOCS_LAST_UPDATED)
+
+
+@legal_bp.route('/kalkulator-kredytu')
+def kalkulator_kredytu():
+    return render_template('kalkulator_kredytu.html')

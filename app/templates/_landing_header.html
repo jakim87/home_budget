@@ -1,0 +1,14 @@
+{# Nagłówek wizytówki i kalkulatora kredytu. Pasek [data-progress] animuje tylko landing.js. #}
+<header style="position:sticky;top:0;z-index:50;background:color-mix(in oklab, var(--color-bg) 84%, transparent);-webkit-backdrop-filter:saturate(1.3) blur(14px);backdrop-filter:saturate(1.3) blur(14px);border-bottom:1px solid var(--color-divider)">
+  <div style="max-width:1120px;margin:0 auto;padding:12px 24px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between">
+    <a href="/" style="display:flex;align-items:center;gap:10px;color:var(--color-text);text-decoration:none">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      <span style="font-family:var(--font-heading);font-size:19px;font-weight:500">Ile mam kasy</span>
+    </a>
+    <nav style="display:flex;align-items:center;gap:8px">
+      <a href="/login" class="btn btn-ghost" style="font-size:13px">Zaloguj się</a>
+      <a href="/login?demo=1" class="btn btn-primary" style="font-size:13px">Zobacz demo</a>
+    </nav>
+  </div>
+  <div data-progress aria-hidden="true" style="position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--color-accent);transform-origin:0 50%;transform:scaleX(0)"></div>
+</header>

@@ -14,7 +14,7 @@ class ProdLikeConfig(TestConfig):
 
 
 def test_przycisk_resetu_widoczny_w_trybie_testowym(client, app):
-    html = client.get('/').get_data(as_text=True)
+    html = client.get('/login').get_data(as_text=True)
     assert 'resetDevData()' in html
     assert app.config['DEV_RESET_ENABLED'] is True
 
@@ -27,7 +27,7 @@ def test_przycisk_resetu_ukryty_bez_trybu_dev(monkeypatch):
         db.create_all()
         assert app.config['DEV_RESET_ENABLED'] is False
 
-        html = app.test_client().get('/').get_data(as_text=True)
+        html = app.test_client().get('/login').get_data(as_text=True)
         assert 'resetDevData()' not in html
 
         # Przycisk zniknął, bo endpoint faktycznie nie istnieje — nie odwrotnie.
@@ -42,5 +42,5 @@ def test_przycisk_resetu_wraca_przy_enable_dev_reset(monkeypatch):
     with app.app_context():
         db.create_all()
         assert app.config['DEV_RESET_ENABLED'] is True
-        assert 'resetDevData()' in app.test_client().get('/').get_data(as_text=True)
+        assert 'resetDevData()' in app.test_client().get('/login').get_data(as_text=True)
         db.drop_all()

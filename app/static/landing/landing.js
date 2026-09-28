@@ -308,6 +308,28 @@
   addEventListener('scroll', onScroll, { passive: true });
   addEventListener('resize', onScroll);
 
+  /* ---------- 04: kalkulator kredytu ---------- */
+  // Liczy harmonogram() z kalkulator_kredytu.js — ten sam model co /kalkulator-kredytu.
+  var kk = one('[data-kk]');
+  if (kk && typeof harmonogram === 'function') {
+    var pole = function (k) { return kk.querySelector('[data-kk-' + k + ']'); };
+    var liczKredyt = function () {
+      var K = parseFloat(pole('kwota').value.replace(/\s/g, '')) || 0;
+      var M = Math.round((parseFloat(pole('lata').value.replace(',', '.')) || 0) * 12);
+      var R = parseFloat(pole('opr').value.replace(',', '.'));
+      var ok = K > 0 && M > 0 && M <= 600 && R >= 0;
+      var w = ok && harmonogram({ kwota: K, miesiace: M, oprocentowanie: R });
+      var w2 = ok && harmonogram({ kwota: K, miesiace: M, oprocentowanie: zaokr(R + 2) });
+      pole('rata').textContent = ok ? zl(w.raty[0].rata) : '—';
+      pole('odsetki').textContent = ok ? zl(w.sumaOdsetek) : '—';
+      pole('do-oddania').textContent = ok ? zl(zaokr(K + w.sumaOdsetek)) : '—';
+      pole('stres').textContent = ok ? zl(w2.raty[0].rata) + ' (+' + zl(zaokr(w2.raty[0].rata - w.raty[0].rata)) + ')' : '—';
+    };
+    pole('kwota').addEventListener('input', function () { formatujPoleKwoty(pole('kwota')); });
+    kk.addEventListener('input', liczKredyt);
+    liczKredyt();
+  }
+
   if (!reduce) {
     el.words.forEach(function (w) { w.style.transition = 'color .4s ease'; });
     setupReveals();

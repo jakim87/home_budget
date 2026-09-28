@@ -4,7 +4,7 @@ Kluczowy wymóg: dokumenty muszą być dostępne BEZ logowania — linkujemy je
 z modalu rejestracji, więc użytkownik czyta je zanim założy konto.
 """
 
-LEGAL_PATHS = ['/regulamin', '/polityka-prywatnosci', '/o-aplikacji']
+LEGAL_PATHS = ['/regulamin', '/polityka-prywatnosci', '/o-aplikacji', '/kalkulator-kredytu']
 
 
 def test_strony_informacyjne_dostepne_bez_logowania(client):

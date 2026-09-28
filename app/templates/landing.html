@@ -18,19 +18,7 @@
 <body>
 <div id="landing" style="overflow-x:clip">
 
-<header style="position:sticky;top:0;z-index:50;background:color-mix(in oklab, var(--color-bg) 84%, transparent);-webkit-backdrop-filter:saturate(1.3) blur(14px);backdrop-filter:saturate(1.3) blur(14px);border-bottom:1px solid var(--color-divider)">
-  <div style="max-width:1120px;margin:0 auto;padding:12px 24px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between">
-    <a href="/" style="display:flex;align-items:center;gap:10px;color:var(--color-text);text-decoration:none">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-      <span style="font-family:var(--font-heading);font-size:19px;font-weight:500">Ile mam kasy</span>
-    </a>
-    <nav style="display:flex;align-items:center;gap:8px">
-      <a href="/login" class="btn btn-ghost" style="font-size:13px">Zaloguj się</a>
-      <a href="/login?demo=1" class="btn btn-primary" style="font-size:13px">Zobacz demo</a>
-    </nav>
-  </div>
-  <div data-progress aria-hidden="true" style="position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--color-accent);transform-origin:0 50%;transform:scaleX(0)"></div>
-</header>
+{% include '_landing_header.html' %}
 
 <section style="position:relative">
   <div style="max-width:1120px;margin:0 auto;padding:clamp(56px,11vh,120px) 24px 0">
@@ -193,6 +181,32 @@
     </div>
   </div>
 
+  <div style="display:flex;flex-wrap:wrap;flex-direction:row-reverse;gap:40px 72px;align-items:center;padding:clamp(72px,12vh,128px) 0;border-top:1px solid var(--color-divider)">
+    <div data-io style="flex:1 1 340px;min-width:0">
+      <div data-num aria-hidden="true" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(84px,11vw,150px);line-height:.85;color:transparent;-webkit-text-stroke:1px var(--color-accent);font-variant-numeric:tabular-nums;margin:0 0 20px">04</div>
+      <h2 data-reveal="0" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(32px,4vw,48px);line-height:1.1;margin:0 0 16px;text-wrap:balance">„Ile naprawdę kosztuje mnie ten kredyt?”</h2>
+      <p data-reveal="120" style="font-size:16.5px;line-height:1.7;color:var(--color-neutral-700);margin:0 0 20px;max-width:440px;text-wrap:pretty">Zanim podpiszę, widzę ratę, wszystkie odsetki i to, co się stanie, gdy stopy pójdą w górę. Liczy się w przeglądarce — nic nie wysyłam.</p>
+      <a data-reveal="220" href="{{ url_for('legal.kalkulator_kredytu') }}" style="display:inline-flex;align-items:center;gap:8px;font-size:15px">Pełny kalkulator — prowizja, RRSO, nadpłaty<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></a>
+    </div>
+    <div data-io style="flex:1 1 340px;min-width:0">
+      <div data-reveal="0" data-kk style="border:1px solid var(--color-divider);border-radius:var(--radius-md);background:var(--color-bg);box-shadow:var(--shadow-md);padding:24px">
+        <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-600);margin:0 0 16px">Kalkulator kredytu · raty równe</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px">
+          <div class="field"><label>Kwota (zł)</label><input class="input" type="text" inputmode="numeric" value="300 000" data-kk-kwota aria-label="Kwota kredytu w złotych" style="font-size:19px;font-variant-numeric:tabular-nums"></div>
+          <div class="field"><label>Okres (lata)</label><input class="input" type="number" min="1" max="50" step="1" value="25" data-kk-lata style="font-size:19px;font-variant-numeric:tabular-nums"></div>
+          <div class="field"><label>Oprocentowanie (%)</label><input class="input" type="number" min="0" step="0.1" inputmode="decimal" value="7" data-kk-opr style="font-size:19px;font-variant-numeric:tabular-nums"></div>
+        </div>
+        <div style="margin:22px 0 0;padding-top:16px;border-top:1px solid var(--color-divider)">
+          <div style="font-size:13px;color:var(--color-neutral-700)">Rata miesięczna</div>
+          <div style="font-size:clamp(36px,4.4vw,48px);line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap" data-kk-rata>—</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:14.5px;margin-top:8px"><span>Suma odsetek</span><span style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap" data-kk-odsetki>—</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:14.5px"><span>Do oddania bankowi</span><span style="font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap" data-kk-do-oddania>—</span></div>
+        <p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:var(--color-neutral-700)">Gdyby stopy wzrosły o 2 pp: <span style="font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--color-text)" data-kk-stres>—</span> miesięcznie.</p>
+      </div>
+    </div>
+  </div>
+
 </section>
 
 <section style="background:color-mix(in oklab, var(--color-neutral-900) 80%, black);color:var(--color-bg);margin-top:clamp(48px,8vh,96px)">
@@ -242,14 +256,10 @@
   </div>
 </section>
 
-<footer style="border-top:1px solid var(--color-divider)">
-  <div style="max-width:1120px;margin:0 auto;padding:24px 24px 32px;display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-between;align-items:center;font-size:12px;color:var(--color-neutral-600)">
-    <span>Ile mam kasy — wersja beta, rozwijana po godzinach.</span>
-    <span style="display:flex;flex-wrap:wrap;gap:16px"><a href="/regulamin">Regulamin</a><a href="/polityka-prywatnosci">Polityka prywatności (RODO)</a><a href="/o-aplikacji">O aplikacji</a></span>
-  </div>
-</footer>
+{% include '_landing_footer.html' %}
 
 </div>
+<script src="{{ url_for('static', filename='js/kalkulator_kredytu.js') }}" defer></script>
 <script src="{{ url_for('static', filename='landing/landing.js') }}" defer></script>
 </body>
 </html>

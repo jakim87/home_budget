@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kalkulator kredytu — Ile mam kasy</title>
+<meta name="description" content="Rata, pełny koszt, RRSO i plan spłaty rata po racie — z prowizją, opłatami i nadpłatami. Liczy się w przeglądarce.">
+<link rel="stylesheet" href="{{ url_for('static', filename='landing/classical.css') }}">
+<style>
+  body{margin:0;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)}
+  a{color:var(--color-accent-700);text-decoration:none}
+  a:hover{color:var(--color-accent-800);text-decoration:underline}
+  a.btn:hover{text-decoration:none}
+  [hidden]{display:none !important}
+  .kk-legenda{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-600)}
+  .kk-sekcja{border:0;border-top:1px solid var(--color-divider);margin:0;padding:20px 0 0;display:flex;flex-direction:column;gap:14px}
+  .kk-sekcja > legend{float:left;width:100%;padding:0;margin:0 0 12px}
+  .kk-siatka{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+  .kk-liczba{font-size:19px;font-variant-numeric:tabular-nums}
+  .kk-pozycja{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-top:1px solid var(--color-divider);font-size:14.5px}
+  .kk-pozycja > span:last-child{font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .kk-objasnienie > div{display:flex;justify-content:space-between;gap:12px;font-variant-numeric:tabular-nums}
+  .kk-tabela td,.kk-tabela th{text-align:right}
+  .kk-tabela td:first-child,.kk-tabela th:first-child{text-align:left}
+  .kk-harmonogram td:nth-child(2),.kk-harmonogram th:nth-child(2){text-align:left}
+  .kk-tabela tbody tr{font-size:17px;font-variant-numeric:tabular-nums}
+  .kk-tabela tr.kk-pominiete td{text-align:center;color:var(--color-neutral-600);font-size:14px;padding:10px 0}
+  .kk-h2{font-family:var(--font-heading);font-weight:400;font-size:clamp(28px,3.2vw,38px);margin:0}
+  #kk-rrso-przelacz:hover{background:var(--color-accent-100)}
+  #kk-rrso-przelacz:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<div style="min-height:100vh">
+
+{% include '_landing_header.html' %}
+
+<main style="max-width:1120px;margin:0 auto;padding:clamp(40px,7vh,72px) 24px 96px">
+  <a href="/" style="display:inline-flex;align-items:center;gap:6px;font-size:14px;margin:0 0 28px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>Wróć na stronę główną</a>
+  <h1 style="font-family:var(--font-heading);font-weight:400;font-size:clamp(40px,5.4vw,64px);line-height:1.05;margin:0 0 14px;text-wrap:balance">Kalkulator kredytu</h1>
+  <p style="font-size:16.5px;line-height:1.7;color:var(--color-neutral-700);margin:0 0 40px;max-width:620px;text-wrap:pretty">Rata, pełny koszt, RRSO i plan spłaty rata po racie — z prowizją, opłatami i nadpłatami. Liczy się w przeglądarce, nic nie trafia na serwer.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:32px 56px;align-items:start">
+
+    <form id="kk-form" onsubmit="return false" style="display:flex;flex-direction:column;gap:28px">
+      <fieldset style="border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:14px">
+        <legend class="kk-legenda" style="padding:0 0 12px">Kredyt</legend>
+        <div class="kk-siatka">
+          <div class="field"><label for="kk-kwota">Kwota (zł)</label><input id="kk-kwota" class="input kk-liczba" type="text" inputmode="numeric" value="300000"></div>
+          <div class="field"><label for="kk-lata">Okres (lata)</label><input id="kk-lata" class="input kk-liczba" type="number" min="1" max="50" step="1" value="25"></div>
+          <div class="field"><label for="kk-oprocentowanie">Oprocentowanie (%)</label><input id="kk-oprocentowanie" class="input kk-liczba" type="number" min="0" step="0.01" inputmode="decimal" value="7"></div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end">
+          <div class="field" style="margin:0"><label id="kk-rodzaj-etykieta">Raty</label>
+            <div class="seg" role="radiogroup" aria-labelledby="kk-rodzaj-etykieta">
+              <label class="seg-opt"><input type="radio" name="kk-rodzaj" value="rowne" checked>Równe</label>
+              <label class="seg-opt"><input type="radio" name="kk-rodzaj" value="malejace">Malejące</label>
+            </div>
+          </div>
+          <div class="field" style="margin:0"><label for="kk-start">Pierwsza rata</label><input id="kk-start" class="input kk-liczba" type="month"></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="kk-sekcja">
+        <legend class="kk-legenda">Prowizja i opłaty</legend>
+        <div class="kk-siatka">
+          <div class="field"><label for="kk-prowizja-procent">Prowizja (%)</label><input id="kk-prowizja-procent" class="input kk-liczba" type="number" min="0" step="0.1" inputmode="decimal" value="0"></div>
+          <div class="field"><label for="kk-prowizja-kwota">Prowizja (zł)</label><input id="kk-prowizja-kwota" class="input kk-liczba" type="number" min="0" step="100" inputmode="decimal" value="0"></div>
+          <div class="field"><label for="kk-oplata">Opłaty co miesiąc (zł)</label><input id="kk-oplata" class="input kk-liczba" type="number" min="0" step="1" inputmode="decimal" value="0"></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:10px;font-size:14.5px;cursor:pointer"><input id="kk-prowizja-kredytowana" type="checkbox" style="width:18px;height:18px;margin:0;accent-color:var(--color-accent-700)">Prowizja doliczona do kredytu</label>
+      </fieldset>
+
+      <fieldset class="kk-sekcja">
+        <legend class="kk-legenda">Nadpłaty</legend>
+        <div style="display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end">
+          <div class="field" style="margin:0;flex:1 1 160px"><label for="kk-nadplata-miesieczna">Co miesiąc (zł)</label><input id="kk-nadplata-miesieczna" class="input kk-liczba" type="number" min="0" step="100" inputmode="decimal" value="0"></div>
+          <div class="field" style="margin:0"><label id="kk-tryb-etykieta">Po nadpłacie</label>
+            <div class="seg" role="radiogroup" aria-labelledby="kk-tryb-etykieta">
+              <label class="seg-opt"><input type="radio" name="kk-tryb" value="okres" checked>Krótszy okres</label>
+              <label class="seg-opt"><input type="radio" name="kk-tryb" value="rata">Niższa rata</label>
+            </div>
+          </div>
+        </div>
+        <div id="kk-nadplaty" style="display:flex;flex-direction:column;gap:14px"></div>
+        <div><button id="kk-dodaj-nadplate" type="button" class="btn btn-secondary" style="font-size:13px">+ Nadpłata jednorazowa</button></div>
+      </fieldset>
+    </form>
+
+    <template id="kk-nadplata-wzor">
+      <div class="kk-nadplata" style="display:flex;gap:12px;align-items:end">
+        <div class="field" style="margin:0;flex:0 1 130px"><label>Rata nr<input name="miesiac" class="input kk-liczba" type="number" min="1" step="1" value="12"></label></div>
+        <div class="field" style="margin:0;flex:1 1 160px"><label>Jednorazowo (zł)<input name="kwota" class="input kk-liczba" type="number" min="0" step="1000" value="10000"></label></div>
+        <button type="button" class="btn btn-ghost btn-icon" aria-label="Usuń nadpłatę"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+      </div>
+    </template>
+
+    <div style="position:sticky;top:88px;border:1px solid var(--color-divider);border-radius:var(--radius-md);background:var(--color-bg);box-shadow:var(--shadow-md);padding:28px" aria-live="polite">
+      <div id="kk-wynik">
+        <div id="kk-rata-etykieta" style="font-size:13px;color:var(--color-neutral-700)">Rata miesięczna</div>
+        <div id="kk-rata" style="font-size:clamp(36px,4.4vw,52px);line-height:1.1;font-variant-numeric:tabular-nums;margin:2px 0 2px;white-space:nowrap">—</div>
+        <div id="kk-rata-opis" style="font-size:14px;color:var(--color-neutral-700);margin:0 0 4px">&nbsp;</div>
+        <div id="kk-liczba-rat" style="font-size:14px;color:var(--color-neutral-700);margin:0 0 18px">&nbsp;</div>
+        <div class="kk-pozycja"><span>Suma odsetek</span><span id="kk-odsetki"></span></div>
+        <div class="kk-pozycja"><span>Prowizja</span><span id="kk-prowizja"></span></div>
+        <div class="kk-pozycja"><span>Opłaty łącznie</span><span id="kk-oplaty"></span></div>
+        <div class="kk-pozycja"><span>Do oddania bankowi</span><span id="kk-do-oddania"></span></div>
+        <div class="kk-pozycja" style="padding:14px 0 0;border-top-color:var(--color-text)">
+          <span style="display:inline-flex;align-items:center;gap:6px">Całkowity koszt · RRSO <span class="kk-rrso"></span>
+            <button id="kk-rrso-przelacz" type="button" aria-label="Czym jest RRSO?" aria-expanded="false" aria-controls="kk-rrso-objasnienie" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border:1px solid var(--color-accent-300);border-radius:50%;background:transparent;color:var(--color-accent-700);cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg></button>
+          </span>
+          <span id="kk-koszt" style="font-size:24px"></span>
+        </div>
+        <div id="kk-rrso-objasnienie" class="kk-objasnienie" hidden style="margin:14px 0 0;padding:14px 16px;border:1px solid var(--color-divider);border-radius:var(--radius-sm);font-size:14px;line-height:1.6;color:var(--color-neutral-800);flex-direction:column;gap:8px;display:flex">
+          <p style="margin:0;text-wrap:pretty"><strong style="font-weight:600">RRSO</strong> — rzeczywista roczna stopa oprocentowania. Pokazuje pełny roczny koszt kredytu w procentach, żeby dało się porównać oferty.</p>
+          <p style="margin:0;text-wrap:pretty">Dlaczego <span class="kk-rrso"></span>, a nie <span class="kk-nominalne"></span>?</p>
+          <div><span>Oprocentowanie nominalne</span><span class="kk-nominalne"></span></div>
+          <div><span>+ odsetki płacone co miesiąc (kapitalizacja)</span><span id="kk-rrso-kapitalizacja"></span></div>
+          <div><span>+ prowizja i opłaty</span><span id="kk-rrso-oplaty"></span></div>
+          <div style="padding-top:8px;border-top:1px solid var(--color-divider)"><span>RRSO</span><span class="kk-rrso"></span></div>
+          <p style="margin:0;font-size:13px;color:var(--color-neutral-600);text-wrap:pretty">Liczone jak w ofertach banków: stopa, przy której wszystkie raty i opłaty, sprowadzone do dnia wypłaty, równają się kwocie, którą faktycznie dostajesz. Bez nadpłat.</p>
+        </div>
+        <p id="kk-efekt-nadplat" hidden style="margin:18px 0 0;padding:14px 16px;border:1px solid var(--color-accent-300);border-radius:var(--radius-sm);font-size:14.5px;line-height:1.55;text-wrap:pretty"></p>
+      </div>
+      <p id="kk-brak-danych" hidden style="margin:0;font-size:15px;color:var(--color-neutral-700)">Wpisz kwotę, okres i oprocentowanie.</p>
+    </div>
+  </div>
+
+  <div id="kk-szczegoly">
+    <section style="margin-top:72px;padding-top:40px;border-top:1px solid var(--color-divider)">
+      <h2 class="kk-h2" style="margin:0 0 8px">Co, jeśli stopy wzrosną?</h2>
+      <p style="font-size:15px;color:var(--color-neutral-700);margin:0 0 20px">Plan bez nadpłat, od pierwszej raty.</p>
+      <div style="overflow-x:auto">
+        <table class="table kk-tabela" style="width:100%;min-width:520px">
+          <thead><tr><th>Oprocentowanie</th><th>Rata</th><th>Więcej co miesiąc</th><th>Suma odsetek</th></tr></thead>
+          <tbody id="kk-test-stop" style="font-size:18px"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section style="margin-top:72px;padding-top:40px;border-top:1px solid var(--color-divider)">
+      <div style="display:flex;flex-wrap:wrap;gap:12px 24px;align-items:baseline;justify-content:space-between;margin:0 0 20px">
+        <h2 class="kk-h2">Harmonogram spłaty</h2>
+        <span id="kk-harmonogram-info" style="font-size:14px;color:var(--color-neutral-700)"></span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="table kk-tabela kk-harmonogram" style="width:100%;min-width:760px">
+          <thead><tr><th>Nr</th><th>Miesiąc</th><th>Rata</th><th>Kapitał</th><th>Odsetki</th><th>Nadpłata</th><th>Saldo</th></tr></thead>
+          <tbody id="kk-harmonogram"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:center;margin-top:20px"><button id="kk-harmonogram-przelacz" type="button" class="btn btn-secondary"></button></div>
+    </section>
+  </div>
+
+  <p style="margin:72px 0 0;font-size:13px;line-height:1.6;color:var(--color-neutral-600);max-width:720px;text-wrap:pretty">Wyliczenia są orientacyjne. Odsetki liczone co miesiąc od salda (stopa roczna / 12, zaokrąglenie do grosza), oprocentowanie stałe przez cały okres — bank może liczyć według rzeczywistej liczby dni, a przy zmiennej stopie rata zmienia się razem z WIBOR-em. RRSO z planu bez nadpłat, jak w ofertach banków. To nie jest oferta ani doradztwo finansowe.</p>
+</main>
+
+{% include '_landing_footer.html' %}
+
+</div>
+<script src="{{ url_for('static', filename='js/kalkulator_kredytu.js') }}"></script>
+</body>
+</html>

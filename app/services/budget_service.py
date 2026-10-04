@@ -1131,7 +1131,7 @@ def dismiss_staging_as_duplicate(user_token: str, stg_id: int, transaction_id: i
     """Odrzuca wiersz stagingu wskazany przez użytkownika jako duplikat istniejącej transakcji.
 
     Istniejąca transakcja i saldo konta pozostają nietknięte — wiersz stagingu nigdy nie
-    wpływał na saldo. Sparowanie trafia do logu jako ślad audytowy.
+    wpływał na saldo. Sparowanie (same identyfikatory) trafia do logu jako ślad audytowy.
     """
     try:
         stg_tx = db.session.query(TransactionStaging).filter_by(
@@ -1146,10 +1146,10 @@ def dismiss_staging_as_duplicate(user_token: str, stg_id: int, transaction_id: i
         if not existing:
             raise ValueError('Nie znaleziono wskazanej transakcji.')
 
+        # Same identyfikatory — tytuł i kwota to dane finansowe, do logu nie trafiają (A10).
         logger.info(
-            "Odrzucono staging #%s (%s, %s, %s) jako duplikat transakcji #%s (%s, %s) — user_token=%s",
-            stg_id, stg_tx.date, stg_tx.amount, stg_tx.title,
-            existing.id, existing.date, existing.title, user_token
+            "Odrzucono staging #%s jako duplikat transakcji #%s — user_token=%s",
+            stg_id, existing.id, user_token
         )
         db.session.delete(stg_tx)
         db.session.commit()

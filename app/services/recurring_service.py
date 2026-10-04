@@ -231,17 +231,6 @@ def update_recurring_transaction(user_token, rec_tx_id, data):
         db.session.rollback()
         raise
 
-def delete_recurring_transaction(user_token, rec_tx_id):
-    try:
-        rec_tx = db.session.query(RecurringTransaction).filter_by(id=rec_tx_id, user_token=user_token).first()
-        if not rec_tx:
-            raise ValueError("Recurring transaction not found.")
-        db.session.delete(rec_tx)
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        raise
-
 # Górny limit zaległych wystąpień domykanych w jednym przebiegu. Chroni przed
 # zapętleniem na uszkodzonej definicji; 500 to ~1,5 roku dla harmonogramu dziennego,
 # czyli więcej niż jakakolwiek realna przerwa w działaniu crona.

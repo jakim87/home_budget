@@ -5,6 +5,7 @@ from app.services.contractor_service import find_owned as find_contractor_owned
 from app.services.budget_service import handle_internal_transfer, sprawdz_podzialy
 from datetime import date, datetime
 from decimal import Decimal
+from sqlalchemy.orm import joinedload
 import json
 import logging
 
@@ -234,7 +235,8 @@ def _wlasne_transakcje(user_token, tx_ids):
     if not ids:
         raise ValueError('Nie wskazano żadnej transakcji.')
 
-    txs = db.session.query(Transaction).filter(
+    # Kategoria od razu: zmiana zbiorcza sprawdza jej typ dla każdego wiersza.
+    txs = db.session.query(Transaction).options(joinedload(Transaction.category)).filter(
         Transaction.id.in_(ids), Transaction.user_token == user_token
     ).all()
     if len(txs) != len(ids):

@@ -264,17 +264,25 @@ document.getElementById('first-account-form').addEventListener('submit', async (
         // ma wynikać z transakcji). Podane saldo startowe księgujemy uzgodnieniem,
         // czyli tą samą drogą, którą użytkownik skorygowałby je później ręcznie.
         const saldo = parseFloat(balanceRaw);
+        let saldoZapisane = true;
         if (!isNaN(saldo) && saldo !== 0) {
-            await fetch(`/api/accounts/${result.id}/reconcile`, {
+            const uzgodnienie = await fetch(`/api/accounts/${result.id}/reconcile`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ new_balance: saldo, comment: 'Saldo początkowe' })
             });
+            saldoZapisane = uzgodnienie.ok;
         }
 
+        // Konto już istnieje, więc modal zamykamy także przy nieudanym saldzie —
+        // ale mówimy o tym wprost, zamiast zostawić 0,00 pod komunikatem o sukcesie.
         hideFirstAccountModal();
         await fetchInitialData();
-        showToast(`Konto „${name}" gotowe. Możesz dodawać transakcje.`, 'success');
+        if (saldoZapisane) {
+            showToast(`Konto „${name}" gotowe. Możesz dodawać transakcje.`, 'success');
+        } else {
+            showToast(`Konto „${name}" dodane, ale salda nie udało się zapisać — ustaw je przez „Uzgodnij saldo".`, 'error');
+        }
     } catch (error) {
         errorEl.textContent = 'Błąd połączenia z serwerem.';
         errorEl.classList.remove('hidden');

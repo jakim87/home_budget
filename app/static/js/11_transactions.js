@@ -243,6 +243,8 @@ function dayHeaderRow(day, rows, colspan) {
     const tr = document.createElement('tr');
     tr.className = 'bg-slate-50/80 cursor-pointer select-none hover:bg-slate-100';
     tr.setAttribute('onclick', `toggleDay('${day}')`);
+    tr.setAttribute('tabindex', '0');
+    tr.setAttribute('onkeydown', 'klawiszJakKlik(event)');
     tr.innerHTML = `
         <td colspan="${colspan}" class="px-4 py-2 border-b border-slate-200">
             <span class="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-2 text-sm">

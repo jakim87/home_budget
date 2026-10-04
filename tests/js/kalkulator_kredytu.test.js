@@ -106,6 +106,11 @@ describe('RRSO i koszt calkowity', () => {
         expect(testStop.map(t => t.oprocentowanie)).toEqual([8, 9, 10]);
         expect(testStop[2].rata).toBeGreaterThan(testStop[0].rata);
     });
+
+    it('nie podaje RRSO, gdy prowizja zjada cala wyplate', () => {
+        expect(policzKredyt({ kwota: 10000, miesiace: 12, oprocentowanie: 7, prowizjaProcent: 100 }).rrso).toBeNull();
+        expect(policzKredyt({ kwota: 10000, miesiace: 12, oprocentowanie: 7, prowizjaProcent: 5 }).rrso).toBeGreaterThan(7);
+    });
 });
 
 describe('okres slownie', () => {

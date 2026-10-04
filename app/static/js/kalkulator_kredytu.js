@@ -86,7 +86,9 @@ function policzKredyt(p) {
         sumaOplat: zaokr(oplataMiesieczna * plan.raty.length),
         kosztCalkowity: zaokr(plan.sumaOdsetek + prowizja + oplataMiesieczna * plan.raty.length),
         // Jak w ofertach banku: RRSO z planu bez nadplat.
-        rrso: rrso(wyplacono, bazowy.raty.map(r => r.rata + oplataMiesieczna)),
+        // Prowizja zjadająca całą wypłatę: nie ma kwoty, do której dałoby się odnieść
+        // koszt — bisekcja dobiłaby do górnej granicy i pokazała 1000%.
+        rrso: wyplacono > 0 ? rrso(wyplacono, bazowy.raty.map(r => r.rata + oplataMiesieczna)) : null,
         testStop: [1, 2, 3].map(d => {
             const h = harmonogram({ ...bezNadplat, oprocentowanie: zaokr(p.oprocentowanie + d) });
             return { oprocentowanie: zaokr(p.oprocentowanie + d), rata: h.raty[0].rata, sumaOdsetek: h.sumaOdsetek };
@@ -189,10 +191,10 @@ function renderKalkulator() {
 
     // Objaśnienie RRSO: nominalne + efekt miesięcznej kapitalizacji + prowizja i opłaty.
     const efektywna = (Math.pow(1 + p.oprocentowanie / 1200, 12) - 1) * 100;
-    document.querySelectorAll('.kk-rrso').forEach(el => { el.textContent = proc(w.rrso); });
+    document.querySelectorAll('.kk-rrso').forEach(el => { el.textContent = w.rrso === null ? '—' : proc(w.rrso); });
     document.querySelectorAll('.kk-nominalne').forEach(el => { el.textContent = proc(p.oprocentowanie); });
     ustawTekst('kk-rrso-kapitalizacja', pp(efektywna - p.oprocentowanie));
-    ustawTekst('kk-rrso-oplaty', pp(w.rrso - efektywna));
+    ustawTekst('kk-rrso-oplaty', w.rrso === null ? '—' : pp(w.rrso - efektywna));
 
     const efekt = document.getElementById('kk-efekt-nadplat');
     efekt.hidden = w.plan.sumaNadplat === 0;

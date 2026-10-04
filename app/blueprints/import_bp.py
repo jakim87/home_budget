@@ -58,6 +58,9 @@ def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None,
         return jsonify({'error': msg}), 400
 
     try:
+        # Jeden commit na oba zapisy (domyka go record_batch): poczekalnia bez wpisu
+        # historii albo wpis bez poczekalni to import, którego nie da się odtworzyć.
+        saved_records = save_transactions_to_staging(transactions, user_token=user_token, commit=False)
         overlap_warning = record_batch(
             user_token=user_token,
             transactions=transactions,
@@ -65,8 +68,8 @@ def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None,
             bank=meta.get('bank') or 'nieznany',
             file_format=meta.get('format') or 'nieznany',
             skipped_count=skipped_count,
+            saved_records=saved_records,
         )
-        saved_records = save_transactions_to_staging(transactions, user_token=user_token)
         resp: dict = {
             'message': f'Udało się zaimportować {len(saved_records)} transakcji do weryfikacji.',
             'count': len(saved_records),
@@ -82,7 +85,7 @@ def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None,
         return jsonify(resp), 201
     except ValueError as e:
         # Rollback należy do serwisów — record_batch i save_transactions_to_staging
-        # same wycofują swoją transakcję, zanim podniosą wyjątek.
+        # same wycofują wspólną transakcję, zanim podniosą wyjątek.
         return jsonify({'error': str(e)}), 400
 
 

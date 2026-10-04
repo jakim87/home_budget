@@ -960,7 +960,8 @@ def _existing_import_keys(user_token: str) -> Counter:
 
 def save_transactions_to_staging(
     parsed_transactions: list[dict],
-    user_token: Optional[str] = None
+    user_token: Optional[str] = None,
+    commit: bool = True
 ) -> list[TransactionStaging]:
     """Zapisuje sparsowaną listę transakcji do tabeli tymczasowej (stagingowej).
 
@@ -968,6 +969,8 @@ def save_transactions_to_staging(
     (ta sama data, kwota, tytuł i konto), aby ponowne wgranie tego samego wyciągu
     nie tworzyło podwójnych zapisów. Porównuje krotności: z N identycznych wierszy
     pliku importowana jest tylko nadwyżka ponad to, co już jest w bazie.
+
+    commit=False zostawia domknięcie wołającemu (import: razem z wpisem historii).
     """
     try:
         # Wczytaj słowniki RAZ — analyze_transaction_data operuje na nich w pamięci
@@ -1026,7 +1029,8 @@ def save_transactions_to_staging(
             db.session.add(staging_tx)
             staging_records.append(staging_tx)
 
-        db.session.commit()
+        if commit:
+            db.session.commit()
         logger.info(
             "Zapisano %d transakcji do stagingu (user_token=%s, pominięto duplikatów: %d)",
             len(staging_records), user_token, skipped_duplicates

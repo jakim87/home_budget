@@ -132,3 +132,31 @@ def test_history_is_per_user(app, test_user, other_user, acc):
     )
     assert db.session.query(StatementImport).filter_by(user_token=other_user.token).count() == 0
     assert account_has_statement_imports(other_user.token, acc.id) is False
+
+
+def test_ponowny_import_liczy_tylko_zapisane_wiersze(logged_in_client, app, acc):
+    """Liczba w historii to wiersze, które FAKTYCZNIE weszły do poczekalni —
+    przy ponownym wgraniu tego samego pliku wszystkie odpadają jako duplikaty."""
+    _upload(logged_in_client, MBANK_HTML.encode('utf-8'))
+    _upload(logged_in_client, MBANK_HTML.encode('utf-8'))
+
+    liczby = [e.transaction_count for e in
+              db.session.query(StatementImport).order_by(StatementImport.id).all()]
+    assert liczby == [2, 0]
+
+
+def test_blad_zapisu_historii_nie_zostawia_poczekalni(logged_in_client, app, acc, monkeypatch):
+    """Poczekalnia i historia to jeden zapis: albo oba, albo nic."""
+    from app.blueprints import import_bp
+    from app.models import TransactionStaging
+
+    def wybuch(**kwargs):
+        db.session.rollback()
+        raise ValueError('awaria zapisu historii')
+    monkeypatch.setattr(import_bp, 'record_batch', wybuch)
+
+    resp = _upload(logged_in_client, MBANK_HTML.encode('utf-8'))
+
+    assert resp.status_code == 400
+    assert db.session.query(TransactionStaging).count() == 0
+    assert db.session.query(StatementImport).count() == 0

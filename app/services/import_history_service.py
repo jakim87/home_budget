@@ -51,6 +51,7 @@ def record_batch(
     bank: str,
     file_format: str,
     skipped_count: int = 0,
+    saved_records: Optional[list] = None,
 ) -> Optional[str]:
     """Ewidencjonuje jeden import: wiersz historii na każde pokryte konto.
 
@@ -60,6 +61,11 @@ def record_batch(
 
     Zakres wyznaczamy z min/max daty faktycznie zaimportowanych transakcji —
     zawsze dostępny, niezależnie od tego, czy dany format deklaruje okres.
+
+    saved_records: wiersze poczekalni zapisane z tego pliku. Podane — liczba
+    transakcji we wpisie to one, a nie wiersze pliku (te obejmują też duplikaty
+    pominięte przy zapisie). Zakres dat i pokrycie konta zostają z pliku: wyciąg
+    wgrany drugi raz nadal jest wyciągiem tego konta za ten okres.
     """
     batch_id = uuid.uuid4().hex
 
@@ -88,7 +94,8 @@ def record_batch(
                 account_id=account_id,
                 period_start=p_start,
                 period_end=p_end,
-                transaction_count=len(rows),
+                transaction_count=len(rows) if saved_records is None else sum(
+                    1 for r in saved_records if r.account_id == account_id),
                 # Pominięte wiersze nie mają przypisanego konta, więc doliczamy je
                 # tylko wtedy, gdy plik pokrywa dokładnie jedno konto.
                 skipped_count=skipped_count if len(per_account) == 1 else 0,

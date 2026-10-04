@@ -184,7 +184,7 @@ def register_commands(app):
 
         for z in znalezione:
             skrot = bezpieczny_tekst(' '.join(z.content.split())[:70])
-            click.echo(f"  #{z.id}  {z.user.username:16} {skrot}...")
+            click.echo(f"  #{z.id}  {bezpieczny_tekst(z.user.username):16} {skrot}...")
 
         brakujace = set(ids) - {z.id for z in znalezione}
         if brakujace:

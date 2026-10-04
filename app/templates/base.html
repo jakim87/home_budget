@@ -257,10 +257,10 @@
                     <table class="tabela-karty w-full text-left border-collapse sm:table-fixed sm:min-w-[860px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-                                    <th class="p-3 font-semibold w-[9%] cursor-pointer select-none whitespace-nowrap" onclick="toggleStagingSort('date')">Data <span id="sort-icon-date" class="ml-0.5 text-slate-300">↕</span></th>
-                                    <th class="p-3 font-semibold cursor-pointer select-none" onclick="toggleStagingSort('title')">Tytuł z banku <span id="sort-icon-title" class="ml-0.5 text-slate-300">↕</span></th>
+                                    <th class="p-3 font-semibold w-[9%] cursor-pointer select-none whitespace-nowrap" tabindex="0" onkeydown="klawiszJakKlik(event)" onclick="toggleStagingSort('date')">Data <span id="sort-icon-date" class="ml-0.5 text-slate-300">↕</span></th>
+                                    <th class="p-3 font-semibold cursor-pointer select-none" tabindex="0" onkeydown="klawiszJakKlik(event)" onclick="toggleStagingSort('title')">Tytuł z banku <span id="sort-icon-title" class="ml-0.5 text-slate-300">↕</span></th>
                                     <th id="th-stg-mapping" class="p-3 font-semibold w-[34%]">Kontrahent i Kategoria</th>
-                                    <th class="p-3 font-semibold w-[12%] text-right cursor-pointer select-none whitespace-nowrap" onclick="toggleStagingSort('amount')">Kwota <span id="sort-icon-amount" class="ml-0.5 text-slate-300">↕</span></th>
+                                    <th class="p-3 font-semibold w-[12%] text-right cursor-pointer select-none whitespace-nowrap" tabindex="0" onkeydown="klawiszJakKlik(event)" onclick="toggleStagingSort('amount')">Kwota <span id="sort-icon-amount" class="ml-0.5 text-slate-300">↕</span></th>
                                     <th class="p-3 font-semibold w-[11%] text-center">Akcja</th>
                                 </tr>
                             </thead>
@@ -715,12 +715,12 @@
                         <table class="tabela-karty w-full text-left border-collapse sm:min-w-[900px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-                                    <th class="p-4 font-semibold w-28 cursor-pointer hover:text-slate-700 select-none" onclick="rptSortTable('date')">Data <span id="rpt-sort-date">↓</span></th>
+                                    <th class="p-4 font-semibold w-28 cursor-pointer hover:text-slate-700 select-none" tabindex="0" onkeydown="klawiszJakKlik(event)" onclick="rptSortTable('date')">Data <span id="rpt-sort-date">↓</span></th>
                                     <th class="p-4 font-semibold">Opis</th>
                                     <th class="p-4 font-semibold w-40">Kontrahent</th>
                                     <th class="p-4 font-semibold w-44">Kategoria</th>
                                     <th class="p-4 font-semibold w-36">Konto</th>
-                                    <th class="p-4 font-semibold w-36 text-right cursor-pointer hover:text-slate-700 select-none" onclick="rptSortTable('amount')">Kwota <span id="rpt-sort-amount">↕</span></th>
+                                    <th class="p-4 font-semibold w-36 text-right cursor-pointer hover:text-slate-700 select-none" tabindex="0" onkeydown="klawiszJakKlik(event)" onclick="rptSortTable('amount')">Kwota <span id="rpt-sort-amount">↕</span></th>
                                 </tr>
                             </thead>
                             <tbody id="rpt-table-body" class="divide-y divide-slate-100"></tbody>

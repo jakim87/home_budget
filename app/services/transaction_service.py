@@ -2,9 +2,10 @@ from app import db
 from app.models import Transaction, TransactionArchive, TransactionSplit, Account
 from app.services.category_service import find_by_name as find_category_by_name
 from app.services.contractor_service import find_owned as find_contractor_owned
-from app.services.budget_service import handle_internal_transfer
+from app.services.budget_service import handle_internal_transfer, sprawdz_podzialy
 from datetime import date, datetime
 from decimal import Decimal
+from sqlalchemy.orm import joinedload
 import json
 import logging
 
@@ -151,11 +152,16 @@ def update_transaction(user_token, tx_id, data):
                     balance = account.balance if isinstance(account.balance, Decimal) else Decimal(str(account.balance))
                     account.balance = balance + (tx_new - old_amount)
                 mirror_account = db.session.get(Account, mirror.account_id)
-                if mirror_account:
+                tx.amount = tx_new
+                # Konta w różnych walutach: kwoty nóg dzieli kurs i spread, więc
+                # druga noga zostaje nietknięta — przepisanie jej dałoby np. 2001 EUR
+                # za 2001 PLN (patrz _transfer_legs_match w budget_service).
+                ta_sama_waluta = bool(account and mirror_account) and (
+                    (account.currency or 'PLN') == (mirror_account.currency or 'PLN'))
+                if ta_sama_waluta:
                     m_bal = mirror_account.balance if isinstance(mirror_account.balance, Decimal) else Decimal(str(mirror_account.balance))
                     mirror_account.balance = m_bal + (mirror_new - mirror_old)
-                tx.amount = tx_new
-                mirror.amount = mirror_new
+                    mirror.amount = mirror_new
             else:
                 if account:
                     balance = account.balance if isinstance(account.balance, Decimal) else Decimal(str(account.balance))
@@ -166,6 +172,14 @@ def update_transaction(user_token, tx_id, data):
             # serwis bywa wołany też wprost z testów/CLI ze stringiem — przyjmujemy oba.
             raw_date = data['date']
             tx.date = raw_date if isinstance(raw_date, date) else datetime.strptime(raw_date, '%Y-%m-%d').date()
+            # Para z wygenerowanym lustrem to JEDNA operacja — data idzie za obiema
+            # nogami. Dwie nogi z wyciągów mają własne daty księgowania, ich nie ruszamy.
+            if tx.linked_transaction_id:
+                druga = db.session.query(Transaction).filter_by(
+                    id=tx.linked_transaction_id, user_token=user_token
+                ).first()
+                if druga and 'mirror' in (tx.origin, druga.origin):
+                    druga.date = tx.date
         if 'category' in data:
             cat = find_category_by_name(user_token, data['category'])
             # Podana, ale nierozpoznana nazwa to błąd — bez tego edycja po cichu
@@ -195,6 +209,10 @@ def update_transaction(user_token, tx_id, data):
                     category_id=cat.id if cat else None
                 ))
 
+        # Po wszystkich zmianach: łapie też zmniejszenie kwoty poniżej istniejących podziałów.
+        if 'splits' in data or 'amount' in data:
+            sprawdz_podzialy(tx.amount, tx.splits)
+
         if (tx.contractor_id, tx.category_id) != powiazanie_przed:
             db.session.flush()
             _przelicz_druga_noge(user_token, tx)
@@ -217,7 +235,8 @@ def _wlasne_transakcje(user_token, tx_ids):
     if not ids:
         raise ValueError('Nie wskazano żadnej transakcji.')
 
-    txs = db.session.query(Transaction).filter(
+    # Kategoria od razu: zmiana zbiorcza sprawdza jej typ dla każdego wiersza.
+    txs = db.session.query(Transaction).options(joinedload(Transaction.category)).filter(
         Transaction.id.in_(ids), Transaction.user_token == user_token
     ).all()
     if len(txs) != len(ids):

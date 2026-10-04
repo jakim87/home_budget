@@ -38,6 +38,15 @@ function walutaKonta(id) {
     return (a && a.currency) || 'PLN';
 }
 
+// Enter/spacja na elemencie z onclick, który nie jest przyciskiem (nagłówek
+// tabeli, wiersz dnia) — razem z tabindex="0" daje obsługę z klawiatury.
+function klawiszJakKlik(event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.currentTarget.click();
+    }
+}
+
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');

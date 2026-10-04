@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ile mam kasy — drugi mózg od pieniędzy</title>
-<meta name="description" content="Salda wszystkich kont, wartość netto i plan budżetu w jednym miejscu. Zobacz demo bez zakładania konta.">
+<meta name="description" content="Salda wszystkich kont, wartość netto i plan budżetu w jednym miejscu.{% if config.DEMO_ENABLED %} Zobacz demo bez zakładania konta.{% endif %}">
 <link rel="stylesheet" href="{{ url_for('static', filename='landing/classical.css') }}">
 <style>
   body{margin:0;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)}
@@ -46,7 +46,8 @@
       <button data-qa-bar type="button" aria-label="Pytanie 3" style="all:unset;cursor:pointer;padding:12px 0;width:44px"><span style="display:block;position:relative;height:2px;background:var(--color-neutral-300);overflow:hidden"><span data-fill style="position:absolute;inset:0;background:var(--color-accent-700);transform-origin:0 50%;transform:scaleX(0)"></span></span></button>
     </div>
     <div data-in="750" style="display:flex;flex-wrap:wrap;gap:12px;margin:26px 0 0">
-      <a href="/login?demo=1" class="btn btn-primary">Zobacz demo bez zakładania konta</a>
+      {% if config.DEMO_ENABLED %}<a href="/login?demo=1" class="btn btn-primary">Zobacz demo bez zakładania konta</a>
+      {% else %}<a href="/login?rejestracja=1" class="btn btn-primary">Załóż konto</a>{% endif %}
       <a href="/login" class="btn btn-secondary">Mam konto — zaloguj się</a>
     </div>
   </div>
@@ -193,8 +194,8 @@
         <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-600);margin:0 0 16px">Kalkulator kredytu · raty równe</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px">
           <div class="field"><label>Kwota (zł)</label><input class="input" type="text" inputmode="numeric" value="300 000" data-kk-kwota aria-label="Kwota kredytu w złotych" style="font-size:19px;font-variant-numeric:tabular-nums"></div>
-          <div class="field"><label>Okres (lata)</label><input class="input" type="number" min="1" max="50" step="1" value="25" data-kk-lata style="font-size:19px;font-variant-numeric:tabular-nums"></div>
-          <div class="field"><label>Oprocentowanie (%)</label><input class="input" type="number" min="0" step="0.1" inputmode="decimal" value="7" data-kk-opr style="font-size:19px;font-variant-numeric:tabular-nums"></div>
+          <div class="field"><label>Okres (lata)</label><input class="input" type="number" min="1" max="50" step="1" value="25" data-kk-lata aria-label="Okres kredytu w latach" style="font-size:19px;font-variant-numeric:tabular-nums"></div>
+          <div class="field"><label>Oprocentowanie (%)</label><input class="input" type="number" min="0" step="0.1" inputmode="decimal" value="7" data-kk-opr aria-label="Oprocentowanie kredytu w procentach" style="font-size:19px;font-variant-numeric:tabular-nums"></div>
         </div>
         <div style="margin:22px 0 0;padding-top:16px;border-top:1px solid var(--color-divider)">
           <div style="font-size:13px;color:var(--color-neutral-700)">Rata miesięczna</div>
@@ -212,7 +213,7 @@
 <section style="background:color-mix(in oklab, var(--color-neutral-900) 80%, black);color:var(--color-bg);margin-top:clamp(48px,8vh,96px)">
   <div data-io style="max-width:1120px;margin:0 auto;padding:clamp(88px,14vh,140px) 24px 0">
     <h2 data-reveal="0" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(38px,5.6vw,72px);line-height:1.05;margin:0 0 14px;color:var(--color-bg)">Tak to wygląda w środku</h2>
-    <p data-reveal="120" style="font-size:16px;line-height:1.6;color:var(--color-neutral-400);margin:0;max-width:520px">Zrzuty z konta demo — możesz je otworzyć bez zakładania konta.</p>
+    <p data-reveal="120" style="font-size:16px;line-height:1.6;color:var(--color-neutral-400);margin:0;max-width:520px">Zrzuty z konta demo{% if config.DEMO_ENABLED %} — możesz je otworzyć bez zakładania konta{% endif %}.</p>
   </div>
   <div data-runway style="position:relative;height:300vh">
     <div style="position:sticky;top:0;height:100vh;display:flex;align-items:center">
@@ -249,10 +250,11 @@
 
 <section data-io style="max-width:1120px;margin:0 auto;padding:clamp(96px,16vh,168px) 24px;text-align:center">
   <h2 data-reveal="0" style="font-family:var(--font-heading);font-weight:400;font-size:clamp(40px,6.4vw,84px);line-height:1.05;margin:0 0 18px">„To sprawdzę <span style="position:relative;white-space:nowrap">u siebie<span data-line="700" aria-hidden="true" style="position:absolute;left:0;right:0;bottom:.04em;height:1px;background:var(--color-accent);transform-origin:0 50%"></span></span>.”</h2>
-  <p data-reveal="120" style="font-size:16.5px;line-height:1.6;color:var(--color-neutral-700);margin:0 0 32px">Demo jest gotowe, z przykładowymi danymi. Bez maila, bez hasła.</p>
+  <p data-reveal="120" style="font-size:16.5px;line-height:1.6;color:var(--color-neutral-700);margin:0 0 32px">{% if config.DEMO_ENABLED %}Demo jest gotowe, z przykładowymi danymi. Bez maila, bez hasła.{% else %}Konto zakłada się w minutę.{% endif %}</p>
   <div data-reveal="240" style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center">
-    <a href="/login?demo=1" class="btn btn-primary">Zobacz demo</a>
+    {% if config.DEMO_ENABLED %}<a href="/login?demo=1" class="btn btn-primary">Zobacz demo</a>
     <a href="/login?rejestracja=1" class="btn btn-secondary">Załóż konto</a>
+    {% else %}<a href="/login?rejestracja=1" class="btn btn-primary">Załóż konto</a>{% endif %}
   </div>
 </section>
 

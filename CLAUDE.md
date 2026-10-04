@@ -61,7 +61,7 @@ flask feedback-list              # Wypisuje uwagi użytkowników (jedyna droga o
 flask feedback-delete --id N     # Kasuje zgłoszenie na stałe
 
 # Tests
-pytest                           # Run all tests (~250 testów w 28 plikach; kilkanaście minut — nie mylić z zawieszeniem)
+pytest                           # Run all tests (~400 testów w 36 plikach; kilkanaście minut — nie mylić z zawieszeniem)
 npm test                         # Testy JS (vitest): liczenie na Dashboardzie i w Raportach
 pytest tests/test_file.py        # Single file
 pytest tests/test_file.py::test_name -vv --tb=long  # Single test, verbose
@@ -165,7 +165,7 @@ Podgląd poczekalni pokazuje obie nogi tak, jak je zobaczy księgowanie (#169): 
 
 **Konta walutowe** (`exchange_rate_service.py`, model `ExchangeRate`): `Account.currency` to waluta salda; kursy służą **wyłącznie do wyceny** — nic nie jest przewalutowywane. Kursy średnie NBP (cała tabela A, wspólne dla wszystkich użytkowników) pobiera tylko `flask fetch-rates` z timera (`deploy/systemd/budget-rates.*`); żądania HTTP czytają je z bazy, więc awaria NBP nie blokuje aplikacji. `/api/init` wysyła `currencies` (najnowsza tabela — zasila też listę walut w formularzu konta) i `monthly_rates` (kurs na koniec miesiąca, tylko dla walut kont użytkownika). Front: `kursPLN()` / `sumaSaldPLN()` w `04_helpers.js`; wykres Majątku narasta osobno w każdej walucie i wycenia saldo po kursie z końca danego miesiąca. Brak kursu = konto wypada z sumy **jawnie** (notka pod Net Worth), nigdy jako zero. Waluta konta musi być w najnowszej tabeli (wycofane, np. ATS, odpadają). Raporty, Budżet i Podsumowanie miesiąca nadal sumują kwoty bez przeliczania — świadomie poza zakresem.
 
-Przelew wewnętrzny między kontami w **różnych walutach** nigdy nie dostaje lustra — kwoty nóg różnią się o kurs i spread. Paruje się (`_transfer_legs_match`) tylko przy tym samym dniu, przeciwnym znaku i **identycznym tytule** — to łapie wymianę w Revolucie, a przelew międzybankowy w obcej walucie zostawia niesparowany zamiast tworzyć fałszywą parę. Bez pary druga noga przychodzi z wyciągu albo z uzgodnienia salda, a poczekalnia pokazuje `missing`.
+Przelew wewnętrzny między kontami w **różnych walutach** nigdy nie dostaje lustra — kwoty nóg różnią się o kurs i spread. Paruje się (`_transfer_legs_match`) tylko przy tym samym dniu, przeciwnym znaku i **identycznym tytule** — to łapie wymianę w Revolucie, a przelew międzybankowy w obcej walucie zostawia niesparowany zamiast tworzyć fałszywą parę. Bez pary druga noga przychodzi z wyciągu albo z uzgodnienia salda, a poczekalnia pokazuje `missing`. Edycja kwoty jednej nogi takiej pary **nie zmienia drugiej** (przy tej samej walucie obie nogi idą razem); data idzie za drugą nogą tylko wtedy, gdy któraś jest lustrem (`origin='mirror'`).
 
 **Soft Deletes**: Categories and contractors use `is_active=False`. Always filter `is_active=True` in queries.
 
@@ -199,7 +199,7 @@ Dwie zasady wynikające z przelewów wewnętrznych: usunięcie zabiera **obie no
 
 **Frontend = globalny stan z `/api/init`**: `home_bp.py` jednym zapytaniem ładuje `transactions`, `categories`, `contractors`, `accounts` do zmiennych globalnych zadeklarowanych w `01_state.js`; cały rendering i przeliczenia dzieją się po stronie klienta (brak osobnych endpointów read). Po mutacji (POST/PUT/DELETE) front woła `fetchInitialData()`, by odświeżyć globalny stan.
 
-Logowanie i rejestracja to modal w `base.html` (`#login-modal`, widoki `#auth-view-login` / `#auth-view-register`) obsługiwany przez `15_init.js`; cała aplikacja to jedno `base.html`. `/` pokazuje gościowi wizytówkę (`landing.html`, zasoby w `static/landing/`), zalogowanemu aplikację; `/login` to ta sama aplikacja z modalem logowania (zalogowanego odsyła na `/`). Wizytówka linkuje do `/login?demo=1` i `/login?rejestracja=1` — parametry obsługuje `99_bootstrap.js`.
+Logowanie i rejestracja to modal w `base.html` (`#login-modal`, widoki `#auth-view-login` / `#auth-view-register`) obsługiwany przez `15_init.js`; cała aplikacja to jedno `base.html`. `/` pokazuje gościowi wizytówkę (`landing.html`, zasoby w `static/landing/`), zalogowanemu aplikację; `/login` to ta sama aplikacja z modalem logowania (zalogowanego odsyła na `/`). Wizytówka linkuje do `/login?demo=1` (tylko przy `DEMO_ENABLED`, inaczej do rejestracji) i `/login?rejestracja=1` — parametry obsługuje `99_bootstrap.js`.
 
 Frontend to **21 modułów w `app/static/js/`**, ładowanych w kolejności prefiksów liczbowych (`01_state.js` … `20_budget.js`, `99_bootstrap.js`) — nie ma pliku `main.js`. Kolejność ma znaczenie: `01_state.js` deklaruje stan globalny, `99_bootstrap.js` startuje aplikację. Funkcje pomocnicze ogólnego przeznaczenia (np. `escapeHtml`) należą do `04_helpers.js`, żeby były dostępne dla modułów ładowanych później. Szukaj funkcji `render*()` / `update*()` w module odpowiadającym zakładce.
 

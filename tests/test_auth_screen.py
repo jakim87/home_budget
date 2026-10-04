@@ -50,3 +50,16 @@ def test_zalogowany_na_login_wraca_do_aplikacji(logged_in_client):
 
     assert response.status_code == 302
     assert response.headers['Location'].endswith('/')
+
+
+def test_wizytowka_pokazuje_demo_tylko_gdy_konto_demo_istnieje(client, app):
+    """Bez DEMO_ENABLED link prowadzilby do logowania na konto, ktorego nie ma."""
+    app.config['DEMO_ENABLED'] = False
+    for sciezka in ('/', '/kalkulator-kredytu'):
+        html = client.get(sciezka).get_data(as_text=True)
+        assert 'demo=1' not in html, sciezka
+        assert '/login?rejestracja=1' in html, sciezka
+
+    app.config['DEMO_ENABLED'] = True
+    for sciezka in ('/', '/kalkulator-kredytu'):
+        assert '/login?demo=1' in client.get(sciezka).get_data(as_text=True), sciezka

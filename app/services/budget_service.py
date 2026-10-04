@@ -79,6 +79,19 @@ def _fuzzy_match_contractor(normalized_name: str, contractors: list) -> Optional
             best_match = c
     return best_match
 
+def sprawdz_podzialy(amount: Decimal, splits) -> None:
+    """Podziały nie mogą być ujemne ani w sumie przekraczać kwoty transakcji.
+
+    Formularz pilnuje tego samego, ale API bywa wołane wprost — a Budżet liczy
+    resztę jako `abs(rodzic) − suma podziałów` i przy nadmiarze gubiłby kwoty.
+    """
+    kwoty = [Decimal(str(s.amount)) for s in splits]
+    if any(k < 0 for k in kwoty):
+        raise ValueError("Kwota podziału nie może być ujemna.")
+    if sum(kwoty, Decimal('0')) > abs(Decimal(str(amount))):
+        raise ValueError("Suma podziałów przekracza kwotę transakcji.")
+
+
 def create_transaction(
     user_token: str,
     account_id: int,
@@ -167,6 +180,7 @@ def create_transaction(
                     category_id=split_cat.id if split_cat else None
                 )
                 new_transaction.splits.append(new_split)
+            sprawdz_podzialy(amount, new_transaction.splits)
 
         # --- LOGIKA PRZELEWÓW WEWNĘTRZNYCH ---
         if (category_id and contractor_obj and contractor_obj.is_active
@@ -960,7 +974,8 @@ def _existing_import_keys(user_token: str) -> Counter:
 
 def save_transactions_to_staging(
     parsed_transactions: list[dict],
-    user_token: Optional[str] = None
+    user_token: Optional[str] = None,
+    commit: bool = True
 ) -> list[TransactionStaging]:
     """Zapisuje sparsowaną listę transakcji do tabeli tymczasowej (stagingowej).
 
@@ -968,6 +983,8 @@ def save_transactions_to_staging(
     (ta sama data, kwota, tytuł i konto), aby ponowne wgranie tego samego wyciągu
     nie tworzyło podwójnych zapisów. Porównuje krotności: z N identycznych wierszy
     pliku importowana jest tylko nadwyżka ponad to, co już jest w bazie.
+
+    commit=False zostawia domknięcie wołającemu (import: razem z wpisem historii).
     """
     try:
         # Wczytaj słowniki RAZ — analyze_transaction_data operuje na nich w pamięci
@@ -1026,7 +1043,8 @@ def save_transactions_to_staging(
             db.session.add(staging_tx)
             staging_records.append(staging_tx)
 
-        db.session.commit()
+        if commit:
+            db.session.commit()
         logger.info(
             "Zapisano %d transakcji do stagingu (user_token=%s, pominięto duplikatów: %d)",
             len(staging_records), user_token, skipped_duplicates
@@ -1113,7 +1131,7 @@ def dismiss_staging_as_duplicate(user_token: str, stg_id: int, transaction_id: i
     """Odrzuca wiersz stagingu wskazany przez użytkownika jako duplikat istniejącej transakcji.
 
     Istniejąca transakcja i saldo konta pozostają nietknięte — wiersz stagingu nigdy nie
-    wpływał na saldo. Sparowanie trafia do logu jako ślad audytowy.
+    wpływał na saldo. Sparowanie (same identyfikatory) trafia do logu jako ślad audytowy.
     """
     try:
         stg_tx = db.session.query(TransactionStaging).filter_by(
@@ -1128,10 +1146,10 @@ def dismiss_staging_as_duplicate(user_token: str, stg_id: int, transaction_id: i
         if not existing:
             raise ValueError('Nie znaleziono wskazanej transakcji.')
 
+        # Same identyfikatory — tytuł i kwota to dane finansowe, do logu nie trafiają (A10).
         logger.info(
-            "Odrzucono staging #%s (%s, %s, %s) jako duplikat transakcji #%s (%s, %s) — user_token=%s",
-            stg_id, stg_tx.date, stg_tx.amount, stg_tx.title,
-            existing.id, existing.date, existing.title, user_token
+            "Odrzucono staging #%s jako duplikat transakcji #%s — user_token=%s",
+            stg_id, existing.id, user_token
         )
         db.session.delete(stg_tx)
         db.session.commit()

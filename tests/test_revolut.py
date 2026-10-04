@@ -165,3 +165,25 @@ def test_wymiana_paruje_obie_nogi_w_roznych_walutach(logged_in_client, revolut):
     # Bez luster: każde konto ma dokładnie swoją nogę z wyciągu.
     assert db.session.get(Account, pln.id).balance == Decimal('-2000.00')
     assert db.session.get(Account, eur.id).balance == Decimal('469.98')
+
+
+def test_edycja_kwoty_wymiany_nie_rusza_nogi_w_drugiej_walucie(logged_in_client, revolut):
+    """Kwoty nóg wymiany dzieli kurs — poprawka jednej nie może przepisać drugiej."""
+    token, pln, eur = revolut
+    save_transactions_to_staging(parse_revolut_csv(PLN_CSV, token, main_account_id=pln.id)['transactions'], token)
+    save_transactions_to_staging(parse_revolut_csv(EUR_CSV, token, main_account_id=eur.id)['transactions'], token)
+    for n in db.session.query(TransactionStaging).filter_by(title='Wymiana 2026-05-07 19:29:20').all():
+        _zatwierdz(logged_in_client, n)
+    wyplyw = db.session.query(Transaction).filter_by(account_id=pln.id, title='Wymiana 2026-05-07 19:29:20').one()
+
+    resp = logged_in_client.put(f'/api/transactions/{wyplyw.id}', json={'amount': '2001.00'})
+    assert resp.status_code == 200
+
+    db.session.expire_all()
+    wplyw = db.session.query(Transaction).filter_by(account_id=eur.id, title='Wymiana 2026-05-07 19:29:20').one()
+    # Edytowana noga zachowuje kierunek (wypływ), druga zostaje co do grosza.
+    assert db.session.get(Transaction, wyplyw.id).amount == Decimal('-2001.00')
+    assert wplyw.amount == Decimal('469.98')
+    assert db.session.get(Account, pln.id).balance == Decimal('-2001.00')
+    assert db.session.get(Account, eur.id).balance == Decimal('469.98')
+    assert wplyw.linked_transaction_id == wyplyw.id

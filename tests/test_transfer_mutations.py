@@ -96,6 +96,41 @@ def test_editing_mirror_leg_amount_syncs_source_and_preserves_net_worth(transfer
     assert _total(acc_a, acc_b) == Decimal("1000.00")
 
 
+# --- Edycja daty -------------------------------------------------------------
+#
+# Lustro nie jest osobną operacją bankową, tylko drugą stroną tej samej — data
+# musi iść za nim, inaczej przelew przesunięty przez granicę miesiąca wychodzi
+# w jednym miesiącu, a wchodzi w innym (wykres Majątku, Raporty).
+
+def test_zmiana_daty_nogi_przenosi_date_lustra(transfer):
+    token, _, _, src, mirror = transfer
+    update_transaction(token, src.id, {'date': date(2024, 6, 3)})
+
+    db.session.refresh(mirror)
+    assert src.date == date(2024, 6, 3)
+    assert mirror.date == date(2024, 6, 3)
+
+
+def test_zmiana_daty_lustra_przenosi_date_zrodla(transfer):
+    token, _, _, src, mirror = transfer
+    update_transaction(token, mirror.id, {'date': date(2024, 6, 3)})
+
+    db.session.refresh(src)
+    assert src.date == date(2024, 6, 3)
+
+
+def test_zmiana_daty_nie_rusza_nogi_z_wyciagu(transfer):
+    """Obie nogi z banku to dwie prawdziwe operacje — każda ma własną datę księgowania."""
+    token, _, _, src, mirror = transfer
+    src.origin = mirror.origin = 'import'
+    db.session.commit()
+
+    update_transaction(token, src.id, {'date': date(2024, 6, 3)})
+
+    db.session.refresh(mirror)
+    assert mirror.date == date(2024, 5, 1)
+
+
 # --- Dane dla ostrzeżenia w UI ----------------------------------------------
 
 def test_init_exposes_linked_transaction_id_for_transfer_legs(logged_in_client, transfer):

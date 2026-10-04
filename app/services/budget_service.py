@@ -1,5 +1,5 @@
 from app import db
-from app.models import Transaction, Account, TransactionStaging, Contractor, Category, TransactionSplit
+from app.models import Transaction, Account, TransactionStaging, Contractor, Category, TransactionSplit, StatementImport
 from app.services.import_history_service import account_has_statement_imports
 from app.services.category_service import find_by_name as find_category_by_name, find_owned as find_category_owned, list_active as list_active_categories
 from app.services.contractor_service import find_owned as find_contractor_owned
@@ -1352,9 +1352,28 @@ def reanalyze_all_staging(user_token: str) -> int:
 
 
 def clear_pending_staging(user_token: str) -> int:
-    """Usuwa wszystkie oczekujące rekordy stagingu dla użytkownika."""
+    """Usuwa wszystkie oczekujące rekordy stagingu dla użytkownika.
+
+    Razem z nimi znika wpis historii importu tych kont, z których nic nigdy nie
+    zostało zaksięgowane z wyciągu. Wpis jest sygnałem „konto dostaje własne
+    wyciągi" i wyłącza lustra przelewów — po wyciągu wgranym omyłkowo na złe konto
+    i odrzuconym w całości wyłączałby je temu kontu na stałe (#181).
+    origin='unknown' (dane sprzed kolumny) mógł być importem, więc też zostawia wpis.
+    """
     try:
-        deleted = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending').delete()
+        pending = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending')
+        konta = {aid for (aid,) in pending.with_entities(TransactionStaging.account_id).distinct() if aid}
+        deleted = pending.delete()
+        if konta:
+            z_importem = {aid for (aid,) in db.session.query(Transaction.account_id).filter(
+                Transaction.user_token == user_token, Transaction.account_id.in_(konta),
+                Transaction.origin.in_(('import', 'unknown')),
+            ).distinct()}
+            bez_importu = konta - z_importem
+            if bez_importu:
+                db.session.query(StatementImport).filter(
+                    StatementImport.user_token == user_token, StatementImport.account_id.in_(bez_importu)
+                ).delete(synchronize_session=False)
         db.session.commit()
         return deleted
     except Exception:

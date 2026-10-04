@@ -181,16 +181,15 @@ def import_manual(bank, fmt='csv'):
     else:
         file_content = raw
 
-    account_id = request.form.get('account_id')
-
-    # Własność konta sprawdzana PRZED parsowaniem — bez tego dało się wskazać cudze
-    # konto w formularzu importu (statement_ibans=[] bo ten endpoint nie wykrywa IBAN-u
-    # z nagłówka, ale resolve_statement_account i tak waliduje chosen_account_id — #127).
-    if account_id:
-        try:
-            account_id, _ = resolve_statement_account(user_token, [], account_id)
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 400
+    # Ta sama kontrola co w trybie automatycznym: własność wybranego konta (#127)
+    # i zgodność numeru rachunku z wyciągu z kontem. Ręczne wskazanie banku nie
+    # może być furtką do wgrania wyciągu na konto o innym numerze (#181).
+    try:
+        account_id, _ = resolve_statement_account(
+            user_token, extract_statement_ibans(raw, bank, fmt), request.form.get('account_id')
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
 
     try:
         result = parser(

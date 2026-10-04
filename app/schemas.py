@@ -2,6 +2,13 @@ from decimal import Decimal
 from marshmallow import EXCLUDE, Schema, fields, validate, post_load
 from app.models import Frequency # Import models for nested schemas or enums
 
+# Kolumny kwot to Numeric(10, 2): |kwota| < 10^8. Bez tej granicy za duża liczba
+# wychodzi dopiero jako DataError z PostgreSQL, czyli 500 zamiast 400 (SQLite jej
+# nie pilnuje, więc testy na nim tego nie łapią).
+_MAX_KWOTA = Decimal('99999999.99')
+_ZAKRES_KWOTY = validate.Range(min=-_MAX_KWOTA, max=_MAX_KWOTA)
+
+
 class RegisterSchema(Schema):
     username = fields.String(required=True, validate=validate.Length(min=3, max=64))
     email = fields.Email(required=True)
@@ -30,22 +37,22 @@ class FeedbackSchema(Schema):
 
 
 class AccountSchema(Schema):
-    name = fields.String(required=True, validate=validate.Length(min=1))
-    bank_name = fields.String(load_default="")
+    name = fields.String(required=True, validate=validate.Length(min=1, max=100))
+    bank_name = fields.String(load_default="", validate=validate.Length(max=50))
     account_number = fields.String(load_default="")
     is_default = fields.Boolean(load_default=False)
-    owner = fields.String(load_default=None, allow_none=True)
-    co_owner = fields.String(load_default=None, allow_none=True)
+    owner = fields.String(load_default=None, allow_none=True, validate=validate.Length(max=100))
+    co_owner = fields.String(load_default=None, allow_none=True, validate=validate.Length(max=100))
     account_type = fields.String(load_default=None, allow_none=True)
     currency = fields.String(load_default=None, allow_none=True)
 
 class CategorySchema(Schema):
-    name = fields.String(required=True, validate=validate.Length(min=1))
+    name = fields.String(required=True, validate=validate.Length(min=1, max=100))
     type = fields.String(required=True, validate=validate.OneOf(['income', 'expense', 'transfer']))
 
 class ContractorSchema(Schema):
-    name = fields.String(required=True, validate=validate.Length(min=1))
-    rules = fields.String(load_default="")
+    name = fields.String(required=True, validate=validate.Length(min=1, max=100))
+    rules = fields.String(load_default="", validate=validate.Length(max=500))
     default_category_id = fields.Integer(load_default=None, allow_none=True)
     category = fields.String(load_default=None, allow_none=True)
 
@@ -57,14 +64,15 @@ class SplitSchema(Schema):
     class Meta:
         unknown = EXCLUDE
 
-    amount = fields.Decimal(required=True, as_string=False)
-    desc = fields.String(load_default="")
+    # W bazie kwoty podziałów są dodatnie — znak dziedziczą po transakcji.
+    amount = fields.Decimal(required=True, as_string=False, validate=validate.Range(min=0, max=_MAX_KWOTA))
+    desc = fields.String(load_default="", validate=validate.Length(max=255))
     category = fields.String(required=True)
 
 class TransactionSchema(Schema):
-    title = fields.String(required=False)
-    desc = fields.String(required=False)
-    amount = fields.Decimal(required=True, as_string=False)
+    title = fields.String(required=False, validate=validate.Length(max=255))
+    desc = fields.String(required=False, validate=validate.Length(max=255))
+    amount = fields.Decimal(required=True, as_string=False, validate=_ZAKRES_KWOTY)
     date = fields.Date(required=True, format='%Y-%m-%d')
     category = fields.String(load_default=None, allow_none=True)
     contractor_id = fields.Integer(load_default=None, allow_none=True)
@@ -99,7 +107,7 @@ class PlannedTransactionSchema(Schema):
     contractor_id = fields.Integer(allow_none=True)
     
     title = fields.String(required=True, validate=validate.Length(min=1, max=120))
-    amount = fields.Decimal(required=True, as_string=True)
+    amount = fields.Decimal(required=True, as_string=True, validate=_ZAKRES_KWOTY)
     
     execution_date = fields.Date(required=True, format='%Y-%m-%d')
     status = fields.String(dump_only=True)
@@ -112,7 +120,7 @@ class RecurringTransactionSchema(Schema):
     contractor_id = fields.Integer(allow_none=True)
     
     title = fields.String(required=True, validate=validate.Length(min=1, max=120))
-    amount = fields.Decimal(required=True, as_string=True) # Allow negative for now, frontend will handle sign
+    amount = fields.Decimal(required=True, as_string=True, validate=_ZAKRES_KWOTY) # Allow negative for now, frontend will handle sign
     
     frequency = fields.Enum(Frequency, required=True, by_value=True)
     interval = fields.Integer(load_default=1, validate=validate.Range(min=1))

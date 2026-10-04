@@ -2,7 +2,7 @@ from app import db
 from app.models import Transaction, TransactionArchive, TransactionSplit, Account
 from app.services.category_service import find_by_name as find_category_by_name
 from app.services.contractor_service import find_owned as find_contractor_owned
-from app.services.budget_service import handle_internal_transfer
+from app.services.budget_service import handle_internal_transfer, sprawdz_podzialy
 from datetime import date, datetime
 from decimal import Decimal
 import json
@@ -207,6 +207,10 @@ def update_transaction(user_token, tx_id, data):
                     desc=split_data.get('desc', ''),
                     category_id=cat.id if cat else None
                 ))
+
+        # Po wszystkich zmianach: łapie też zmniejszenie kwoty poniżej istniejących podziałów.
+        if 'splits' in data or 'amount' in data:
+            sprawdz_podzialy(tx.amount, tx.splits)
 
         if (tx.contractor_id, tx.category_id) != powiazanie_przed:
             db.session.flush()

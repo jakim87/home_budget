@@ -1,6 +1,7 @@
 from flask import Blueprint, Response, current_app, request, jsonify
 from flask_login import login_required, current_user
 from marshmallow import ValidationError
+from app.models import Contractor
 from app.schemas import StagingApproveSchema
 from app.services.account_service import resolve_statement_account
 from app.services.demo_service import build_sample_statement_csv
@@ -255,6 +256,8 @@ def accept_suggested_contractor(stg_id):
 
     if not name:
         return jsonify({'error': 'Nazwa kontrahenta nie może być pusta.'}), 400
+    if len(name) > Contractor.name.type.length:
+        return jsonify({'error': f'Nazwa kontrahenta może mieć najwyżej {Contractor.name.type.length} znaków.'}), 400
 
     try:
         result = accept_staging_contractor(current_user.token, stg_id, name)

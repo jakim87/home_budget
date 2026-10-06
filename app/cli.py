@@ -171,8 +171,7 @@ def register_commands(app):
     def feedback_delete_command(ids, yes):
         """Usuwa zgłoszenia po numerze — do sprzątania śmieci i już załatwionych uwag.
 
-        Kasowanie jest trwałe: zgłoszenia nie mają archiwum, bo nie są danymi
-        finansowymi (w odróżnieniu od transakcji, które trafiają do TransactionArchive).
+        Kasowanie jest trwałe — zgłoszenia, tak jak transakcje, nie mają archiwum.
         """
         from app import db
         from app.models import Feedback
@@ -199,19 +198,6 @@ def register_commands(app):
         db.session.commit()
         logger.info("CLI feedback-delete: usunieto %d zgloszen", len(znalezione))
         click.echo(f'Usunięto {len(znalezione)}.')
-
-    @app.cli.command('cleanup-archive')
-    @with_appcontext
-    def cleanup_archive():
-        """Usuwa przestarzałe wpisy z transaction_archive (> 60 dni)."""
-        from app import db
-        from app.models import TransactionArchive
-        from datetime import datetime, timedelta, timezone
-
-        cutoff = datetime.now(timezone.utc) - timedelta(days=60)
-        deleted = db.session.query(TransactionArchive).filter(TransactionArchive.deleted_at < cutoff).delete()
-        db.session.commit()
-        click.echo(f"Pomyślnie usunięto {deleted} przestarzałych wpisów z archiwum.")
 
     @app.cli.command('fetch-rates')
     @with_appcontext

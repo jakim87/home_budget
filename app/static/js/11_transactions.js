@@ -483,14 +483,14 @@ window.deleteTransaction = async function(id) {
 
     // Przelew wewnętrzny (transakcja lustrzana) = dwie powiązane nogi. Usunięcie
     // jednej usuwa OBIE — ostrzegamy i pokazujemy dokładnie, które transakcje znikną.
-    let confirmMsg = 'Czy na pewno chcesz usunąć tę transakcję?';
+    let confirmMsg = 'Czy na pewno chcesz usunąć tę transakcję? Tej operacji nie można cofnąć.';
     if (tx && tx.linked_transaction_id) {
         const mirror = transactions.find(t => t.id === tx.linked_transaction_id);
         const fmt = t => `• ${t.date}  ${t.desc}  ${formatKwota(t.amount)} PLN  (${accountLabelById(t.account_id)})`;
         const legs = [tx, mirror].filter(Boolean).map(fmt).join('\n');
         confirmMsg = 'UWAGA: to jest przelew wewnętrzny (transakcja lustrzana).\n'
             + 'Usunięcie usunie OBIE powiązane transakcje:\n\n'
-            + legs + '\n\nKontynuować?';
+            + legs + '\n\nTej operacji nie można cofnąć. Kontynuować?';
     }
     if (!confirm(confirmMsg)) return;
 

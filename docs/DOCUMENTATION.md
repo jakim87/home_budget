@@ -43,7 +43,6 @@
 - **Dashboard** — przegląd Net Worth, wykresy miesięczne i roczne wydatków/przychodów, bilans kont
 - **Raporty** — osobna zakładka z filtrowaniem po zakresie dat, kategoriach i kontach; wykresy słupkowe i liniowe, domyślnie z wyłączeniem przelewów wewnętrznych (inaczej podwajałyby obroty)
 - **Budżet miesięczny** — plan kwoty na kategorię w danym miesiącu, zestawiony z wykonaniem i z rezerwacjami z harmonogramu; planowane są obie strony (przychody i wydatki), więc widać, czy plan wydatków mieści się w planie przychodów
-- **Archiwum** — usuwane transakcje trafiają do archiwum (soft delete) z datą usunięcia
 
 ---
 
@@ -366,9 +365,9 @@ Algorytm `normalize_contractor_name` przetwarza surowy tekst z banku (np. `BIEDR
 
 ### 4.9 Usuwanie transakcji
 
-**Cel:** Usunięcie błędnej transakcji przy zachowaniu śladu audytowego.
+**Cel:** Usunięcie błędnej transakcji.
 
-**Mechanizm (soft delete z archiwizacją):**
+**Mechanizm (usunięcie trwałe, bez archiwum):**
 
 ```
 Użytkownik usuwa transakcję
@@ -378,15 +377,10 @@ Użytkownik usuwa transakcję
   Account.balance -= Transaction.amount
          │
          ▼
-  Kopia do tabeli transaction_archive:
-  - original_id, title, amount, date, account_id,
-    category_id, contractor_id, user_id, deleted_at
-         │
-         ▼
   Usunięcie rekordu z tabeli transactions
 ```
 
-Archiwum jest czyszczone automatycznie przez `flask cleanup-archive` — usuwa wpisy starsze niż 60 dni.
+Usuniętej transakcji nie da się przywrócić — pomyłkę poprawia się, wpisując operację ponownie. Przelew wewnętrzny znika w całości (obie nogi).
 
 ---
 

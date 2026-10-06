@@ -8,7 +8,7 @@ from decimal import Decimal
 from app import db
 from app.models import (
     Account, Budget, Category, Contractor, Transaction, TransactionStaging,
-    TransactionArchive, RecurringTransaction, PlannedTransaction, Frequency,
+    RecurringTransaction, PlannedTransaction, Frequency,
     StatementImport,
 )
 from tests.conftest import login_as
@@ -66,7 +66,6 @@ def test_intruder_cannot_delete_transaction(intruder_client, owner_data):
     assert resp.status_code == 400
     db.session.expire_all()
     assert db.session.get(Transaction, tx.id) is not None
-    assert db.session.query(TransactionArchive).filter_by(original_id=tx.id).count() == 0
 
 
 def test_intruder_cannot_update_account(intruder_client, owner_data):
@@ -300,22 +299,18 @@ def test_intruder_sees_only_own_data_in_init(intruder_client, owner_data):
 def test_dev_reset_wipes_only_current_user_data(intruder_client, owner_data, test_user, other_user):
     """POST /api/dev/reset kasuje WYŁĄCZNIE dane wołającego — dane ofiary nietknięte.
 
-    Najbardziej destrukcyjny endpoint w aplikacji (kasuje transakcje, staging, archiwum,
+    Najbardziej destrukcyjny endpoint w aplikacji (kasuje transakcje, staging,
     harmonogramy, budżety, kontrahentów i zeruje salda) — przez długi czas bez żadnego
     testu. Sprawdzamy obie strony: że reset faktycznie zadziałał u wołającego ORAZ że
     nie ruszył cudzych wierszy w żadnej z tych tabel.
 
     Uwaga: reset NIE czyści statement_imports — patrz #136."""
-    # Ofiara dostaje jeszcze archiwum i budżet — obu owner_data nie zakłada,
-    # a reset ich dotyka.
-    victim_archive = TransactionArchive(original_id=999, title="Usunięta", amount=Decimal("-30.00"),
-                                        date=date(2024, 1, 5), account_id=owner_data['account'].id,
-                                        user_token=test_user.token)
+    # Ofiara dostaje jeszcze budżet — owner_data go nie zakłada, a reset go dotyka.
     victim_budget = Budget(amount=Decimal("500.00"), month=1, year=2024,
                            category_id=owner_data['category'].id, user_token=test_user.token)
     # Dane intruza — muszą zniknąć, inaczej test przeszedłby na resecie, który nic nie robi.
     my_acc = Account(name="Konto Intruza", bank_name="Bank", balance=Decimal("300.00"), user_token=other_user.token)
-    db.session.add_all([victim_archive, victim_budget, my_acc])
+    db.session.add_all([victim_budget, my_acc])
     db.session.commit()
     my_tx = Transaction(date=date(2024, 2, 1), title="Moja transakcja", amount=Decimal("-15.00"),
                         account_id=my_acc.id, user_token=other_user.token)
@@ -339,7 +334,6 @@ def test_dev_reset_wipes_only_current_user_data(intruder_client, owner_data, tes
     assert db.session.get(RecurringTransaction, owner_data['rec'].id) is not None
     assert db.session.get(PlannedTransaction, owner_data['planned'].id) is not None
     assert db.session.get(Contractor, owner_data['contractor'].id) is not None
-    assert db.session.get(TransactionArchive, victim_archive.id) is not None
     assert db.session.get(Budget, victim_budget.id) is not None
     assert db.session.get(Account, owner_data['account'].id).balance == Decimal("1000.00")
     # Kategoria ofiary nietknięta wraz z powiązaniem — reset celowo nie rusza słownika.

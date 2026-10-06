@@ -114,7 +114,6 @@ flask db downgrade                  # Cofnij ostatnią migrację (tylko developm
 # Zadania cykliczne
 flask process-scheduled             # Wykonaj zaplanowane i cykliczne transakcje
 flask fetch-rates                   # Dociągnij kursy NBP (tabela A); pierwsze uruchomienie pobiera historię od 2002
-flask cleanup-archive               # Usuń zarchiwizowane transakcje starsze niż 60 dni
 
 # Dane początkowe
 flask seed                          # Załaduj użytkownika domyślnego i dane testowe
@@ -150,7 +149,7 @@ Trójwarstwowy projekt: **Modele → Serwisy → Blueprinty**
 app/
 ├── models.py           # Modele ORM (SQLAlchemy): User, Account, Transaction,
 │                       #   Category, Contractor, TransactionSplit,
-│                       #   TransactionStaging, TransactionArchive,
+│                       #   TransactionStaging,
 │                       #   RecurringTransaction, PlannedTransaction, Budget
 ├── schemas.py          # Serializatory Marshmallow (walidacja żądań i odpowiedzi)
 ├── cli.py              # Komendy Flask CLI
@@ -159,7 +158,7 @@ app/
 │   ├── statement_parsers.py          # Parsery wyciągów (ING/mBank/Pekao/Millennium/Revolut, CSV/PDF/HTML) + detekcja
 │   ├── import_history_service.py     # Ewidencja importów, wykrywanie nakładających się zakresów
 │   ├── init_service.py               # Payload dla GET /api/init (cały stan frontu)
-│   ├── transaction_service.py        # Archiwizacja i czyszczenie transakcji
+│   ├── transaction_service.py        # Edycja i usuwanie transakcji
 │   ├── recurring_service.py          # Wykonywanie transakcji cyklicznych
 │   ├── planned_transaction_service.py
 │   └── *.py                          # Serwisy kategorii, kontrahentów, kont, auth
@@ -192,7 +191,7 @@ Import transakcji z plików bankowych odbywa się w bezpieczny, dwuetapowy spos�
 
 Aplikacja celowo nie przechowuje pełnej historii zmian (Audit Trail) w osobnych tabelach historycznych — dla budżetu domowego byłoby to nadmierną inżynierią. Modyfikacje nadpisują istniejące dane, aktualizując jedynie znacznik czasu (`updated_at`).
 
-Wyjątkiem jest **usuwanie transakcji** — usunięte wpisy trafiają najpierw do tabeli `TransactionArchive` (Shadow Table), co zabezpiecza przed przypadkową utratą danych.
+Tak samo **usuwanie transakcji**: jest trwałe, bez archiwum i bez przywracania. Pomyłkę poprawia się, wpisując operację ponownie; siatką na katastrofę jest kopia zapasowa bazy.
 
 ## Struktura projektu
 

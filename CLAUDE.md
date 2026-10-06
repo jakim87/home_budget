@@ -53,7 +53,6 @@ flask seed                       # Populate DB with default_user + test data
 flask process-scheduled          # Execute due recurring & planned transactions
 flask fetch-rates                # Kursy NBP (tabela A) od ostatniego zapisanego dnia; pierwsze
                                  #   uruchomienie dociąga historię od 2002 (~200 tys. wierszy, ~40 s)
-flask cleanup-archive            # Remove archived transactions older than 60 days
 flask reset-password             # Ustawia nowe hasło użytkownika (jedyna droga odzyskania
                                  #   konta — aplikacja nie wysyła maili)
 flask seed-demo                  # Odtwarza konto demo od zera (idempotentne — pod nocny timer)
@@ -103,7 +102,7 @@ Three-layer design: **Models → Services → Blueprints**
 ```
 app/
 ├── models.py          # SQLAlchemy ORM: User, Account, Transaction, Category, Contractor,
-│                      #   TransactionSplit, TransactionStaging, TransactionArchive,
+│                      #   TransactionSplit, TransactionStaging,
 │                      #   RecurringTransaction, PlannedTransaction, Budget, StatementImport
 ├── schemas.py         # Marshmallow serializers (request/response validation)
 ├── cli.py             # Flask CLI commands
@@ -113,7 +112,7 @@ app/
 │   ├── statement_parsers.py        # detect_bank_and_format + parsery PDF/HTML
 │   ├── import_history_service.py   # Historia importów (model StatementImport)
 │   ├── init_service.py             # Payload dla GET /api/init (cały stan frontu)
-│   ├── transaction_service.py      # Transaction archive & cleanup
+│   ├── transaction_service.py      # Edycja i usuwanie transakcji (pojedyncze i zbiorcze)
 │   ├── recurring_service.py        # Recurring transaction execution
 │   ├── planned_transaction_service.py
 │   └── *.py                        # Category, Contractor, Account, Auth services
@@ -177,7 +176,7 @@ Przelew wewnętrzny między kontami w **różnych walutach** nigdy nie dostaje l
 
 **Kategorie per użytkownik**: `Category.user_token` wskazuje właściciela; `NULL` = kategoria globalna (systemowa, widoczna dla wszystkich, nieusuwalna przez użytkownika). Nie pisz własnych zapytań o kategorię po nazwie — użyj `category_service.find_by_name(user_token, name)` / `list_active(user_token)`, które definiują zakres widoczności (własne + globalne) w jednym miejscu.
 
-**Deleted Transactions**: Moved to `TransactionArchive` (not hard-deleted) for audit trail.
+**Deleted Transactions**: usuwane twardo, bez archiwum i bez przywracania (#161) — pomyłkę się poprawia, a siatką na katastrofę jest backup bazy. Nie dokładaj soft-delete transakcji bez zmiany polityki prywatności i regulaminu (oba mówią „kasowane od razu i trwale").
 
 **Financial Precision**: Always use `Decimal(str(value))` — never float — for monetary amounts.
 

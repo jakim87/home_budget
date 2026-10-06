@@ -13,7 +13,7 @@
 6. Transakcje cykliczne vs zaplanowane *(do uzupełnienia)*
 7. Splity *(do uzupełnienia)*
 8. Dashboard i raporty *(do uzupełnienia)*
-9. Archiwum i usuwanie *(do uzupełnienia)*
+9. Usuwanie *(do uzupełnienia)*
 10. FAQ / typowe pułapki *(do uzupełnienia)*
 
 ---

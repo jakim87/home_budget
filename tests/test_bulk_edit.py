@@ -16,7 +16,7 @@ from datetime import date
 from decimal import Decimal
 
 from app import db
-from app.models import Account, Category, Contractor, Transaction, TransactionArchive
+from app.models import Account, Category, Contractor, Transaction
 from app.services.budget_service import create_transaction
 from app.services.transaction_service import bulk_delete_transactions, bulk_update_category
 
@@ -130,7 +130,7 @@ def test_zmiana_kategorii_cudzej_transakcji_odrzuca_cala_operacje(app, dane, oth
 
 # --- masowe usuwanie ---
 
-def test_usuwanie_zbiorcze_archiwizuje_i_koryguje_saldo(app, dane):
+def test_usuwanie_zbiorcze_kasuje_i_koryguje_saldo(app, dane):
     token, konto, _, _, txs = dane
     saldo_przed = konto.balance
 
@@ -138,7 +138,6 @@ def test_usuwanie_zbiorcze_archiwizuje_i_koryguje_saldo(app, dane):
 
     assert wynik['usuniete'] == 2
     assert db.session.query(Transaction).filter(Transaction.id.in_([txs[0].id, txs[1].id])).count() == 0
-    assert db.session.query(TransactionArchive).count() == 2
 
     db.session.refresh(konto)
     # Dwie transakcje po -100 zł: cofnięcie ich podnosi saldo o 200 zł.
@@ -184,7 +183,6 @@ def test_usuwanie_cudzej_transakcji_odrzuca_cala_operacje(app, dane, other_user)
 
     assert db.session.get(Transaction, txs[0].id) is not None, "własna transakcja musi przetrwać"
     assert db.session.get(Transaction, obca.id) is not None
-    assert db.session.query(TransactionArchive).count() == 0
     db.session.refresh(konto)
     assert konto.balance == saldo_przed, "saldo nie mogło drgnąć"
 

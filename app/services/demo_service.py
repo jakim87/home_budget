@@ -128,7 +128,6 @@ def wipe_user_data(user_token: str, commit: bool = True) -> None:
             "DELETE FROM transaction_splits "
             "WHERE transaction_id IN (SELECT id FROM transactions WHERE user_token = :utok)",
             "DELETE FROM transaction_staging WHERE user_token = :utok",
-            "DELETE FROM transaction_archive WHERE user_token = :utok",
             "DELETE FROM transactions WHERE user_token = :utok",
             "DELETE FROM recurring_transactions WHERE user_token = :utok",
             "DELETE FROM planned_transactions WHERE user_token = :utok",

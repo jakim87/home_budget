@@ -13,7 +13,7 @@ from app import db
 from app.models import Account, Category, Contractor, Transaction
 from app.services.budget_service import create_transaction
 from app.services.import_history_service import record_statement_import
-from app.services.transaction_service import archive_and_delete_transaction, update_transaction
+from app.services.transaction_service import delete_transaction, update_transaction
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def test_transfer_setup_is_balanced(transfer):
 
 def test_deleting_source_leg_also_deletes_mirror_and_preserves_net_worth(transfer):
     token, acc_a, acc_b, src, mirror = transfer
-    archive_and_delete_transaction(token, src.id)
+    delete_transaction(token, src.id)
 
     assert db.session.query(Transaction).count() == 0  # obie nogi usunięte
     assert _total(acc_a, acc_b) == Decimal("1000.00")  # Net Worth zachowany
@@ -64,7 +64,7 @@ def test_deleting_source_leg_also_deletes_mirror_and_preserves_net_worth(transfe
 
 def test_deleting_mirror_leg_also_deletes_source_and_preserves_net_worth(transfer):
     token, acc_a, acc_b, src, mirror = transfer
-    archive_and_delete_transaction(token, mirror.id)
+    delete_transaction(token, mirror.id)
 
     assert db.session.query(Transaction).count() == 0
     assert _total(acc_a, acc_b) == Decimal("1000.00")

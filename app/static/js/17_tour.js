@@ -42,7 +42,7 @@ const TOURS = {
             // tabelę, więc użytkownik i tak musiał sam szukać, o które ikony chodzi.
             el: '#th-tx-actions',
             akcja: 'Skorzystaj z ikon w kolumnie „Akcje"',
-            efekt: 'Edycja działa w miejscu, bez przeładowania. Usunięcie nie kasuje danych na stałe — operacja trafia do archiwum i można ją stamtąd odzyskać przez 60 dni.',
+            efekt: 'Edycja działa w miejscu, bez przeładowania. Usunięcie jest trwałe — aplikacja nie ma kosza ani archiwum, więc pomyłkę poprawia się, wpisując operację ponownie.',
         },
         {
             el: '#openRecurringModalBtn',

@@ -1,47 +1,28 @@
 from app import db
-from app.models import Transaction, TransactionArchive, TransactionSplit, Account
+from app.models import Transaction, TransactionSplit, Account
 from app.services.category_service import find_by_name as find_category_by_name
 from app.services.contractor_service import find_owned as find_contractor_owned
 from app.services.budget_service import handle_internal_transfer, sprawdz_podzialy
 from datetime import date, datetime
 from decimal import Decimal
 from sqlalchemy.orm import joinedload
-import json
 import logging
 
 logger = logging.getLogger(__name__)
 
-def _archive_and_remove_leg(leg: Transaction) -> None:
-    """Cofa wpływ jednej transakcji na saldo konta, zapisuje ślad audytowy i usuwa
-    ją z sesji. NIE commituje — wołający domyka wszystko jednym commitem."""
+def _remove_leg(leg: Transaction) -> None:
+    """Cofa wpływ jednej transakcji na saldo konta i usuwa ją z sesji — trwale,
+    bez archiwum (#161). NIE commituje — wołający domyka wszystko jednym commitem."""
     account = db.session.get(Account, leg.account_id)
     if account:
         balance = account.balance if isinstance(account.balance, Decimal) else Decimal(str(account.balance))
         amount = leg.amount if isinstance(leg.amount, Decimal) else Decimal(str(leg.amount))
         account.balance = balance - amount
 
-    # Pełny ślad audytowy — łącznie z podziałami, które kaskadowo znikają razem z transakcją.
-    splits_payload = [
-        {'amount': str(s.amount), 'desc': s.desc, 'category_id': s.category_id}
-        for s in leg.splits
-    ]
-    db.session.add(TransactionArchive(
-        original_id=leg.id,
-        title=leg.title,
-        amount=leg.amount,
-        date=leg.date,
-        account_id=leg.account_id,
-        category_id=leg.category_id,
-        contractor_id=leg.contractor_id,
-        user_token=leg.user_token,
-        comment=leg.comment,
-        contractor_raw=leg.contractor,
-        splits_json=json.dumps(splits_payload) if splits_payload else None
-    ))
     db.session.delete(leg)
 
 
-def archive_and_delete_transaction(user_token, tx_id):
+def delete_transaction(user_token, tx_id):
     try:
         tx = db.session.query(Transaction).filter_by(id=tx_id, user_token=user_token).first()
         if not tx:
@@ -65,7 +46,7 @@ def archive_and_delete_transaction(user_token, tx_id):
         db.session.flush()
 
         for leg in legs:
-            _archive_and_remove_leg(leg)
+            _remove_leg(leg)
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -93,7 +74,7 @@ def _przelicz_druga_noge(user_token, tx: Transaction) -> None:
             druga.linked_transaction_id = None
             db.session.flush()
             if druga.origin == 'mirror':
-                _archive_and_remove_leg(druga)
+                _remove_leg(druga)
         db.session.flush()
 
     contractor = tx.contractor_details
@@ -290,7 +271,7 @@ def bulk_update_category(user_token, tx_ids, category_name):
 
 
 def bulk_delete_transactions(user_token, tx_ids):
-    """Usuwa wiele transakcji naraz — z archiwizacją i korektą sald.
+    """Usuwa wiele transakcji naraz — trwale, z korektą sald.
 
     Przelew wewnętrzny znika w całości, tak samo jak przy usuwaniu
     pojedynczym: wskazanie jednej nogi dokłada drugą. Inaczej wypływ
@@ -324,7 +305,7 @@ def bulk_delete_transactions(user_token, tx_ids):
         db.session.flush()
 
         for leg in do_usuniecia.values():
-            _archive_and_remove_leg(leg)
+            _remove_leg(leg)
 
         db.session.commit()
         logger.info("Zbiorcze usuniecie: %s transakcji (w tym %s drugich nog przelewow)",

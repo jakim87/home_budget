@@ -2,7 +2,7 @@ import io
 from datetime import date
 from decimal import Decimal
 from app import db
-from app.models import Account, Category, Transaction, TransactionArchive, TransactionStaging, Contractor
+from app.models import Account, Category, Transaction, TransactionStaging, Contractor
 
 def test_api_init_returns_data_from_db(logged_in_client, app, test_user_token):
     # SETUP
@@ -95,7 +95,7 @@ def test_update_transaction_rejects_unknown_category(logged_in_client, app, test
     assert response.status_code == 400
     assert db.session.get(Transaction, tx_id).category_id == cat.id
 
-def test_delete_transaction_archives_and_removes(logged_in_client, app, test_user_token):
+def test_delete_transaction_removes_and_restores_balance(logged_in_client, app, test_user_token):
     # SETUP
     account = Account(name="DelKonto", bank_name="Bank", balance=Decimal("100.00"), user_token=test_user_token)
     db.session.add(account)
@@ -111,9 +111,11 @@ def test_delete_transaction_archives_and_removes(logged_in_client, app, test_use
 
     # ASSERT
     assert db.session.get(Transaction, tx_id) is None
-    archive = db.session.query(TransactionArchive).filter_by(original_id=tx_id).first()
-    assert archive is not None
-    assert archive.title == "Transakcja do usunięcia"
+    # Usunięcie jest twarde (#161): po transakcji nie zostaje żadna tabela-cień.
+    assert 'transaction_archive' not in db.metadata.tables
+    # Saldo konta nie było podbite przy wstawieniu wprost do bazy, więc cofnięcie kwoty daje 0.
+    db.session.expire_all()
+    assert db.session.get(Account, account.id).balance == Decimal("0.00")
 
 def test_delete_category_soft_delete(logged_in_client, app, test_user_token):
     # SETUP — kategoria własna użytkownika (globalnych nie da się usunąć)

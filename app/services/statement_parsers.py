@@ -22,7 +22,7 @@ from typing import Optional
 from bs4 import BeautifulSoup
 
 from app import db
-from app.models import Account
+from app.models import Account, Transaction, TransactionStaging
 from app.services.budget_service import (
     _MBANK_ACCOUNT_RE,
     _normalize_acc_num,
@@ -691,13 +691,30 @@ _REVOLUT_ZAKONCZONA = 'ZAKOŃCZONO'
 _REVOLUT_WYMIANA_RE = re.compile(r'^Wymiana na ([A-Z]{3})$')
 
 
-def _revolut_subkonto_wymiany(opis: str, konto: Account) -> Optional[int]:
+def _revolut_ma_druga_noge(konto: Account, tytul: str, dzien, kwota: Decimal) -> bool:
+    """Czy na koncie jest już (zaksięgowana albo w poczekalni) druga noga tej wymiany:
+    ten sam tytuł ze znacznikiem czasu co do sekundy, ten sam dzień, przeciwny znak."""
+    for model in (Transaction, TransactionStaging):
+        q = db.session.query(model.id).filter(
+            model.user_token == konto.user_token, model.account_id == konto.id,
+            model.title == tytul, model.date == dzien,
+            model.amount > 0 if kwota < 0 else model.amount < 0,
+        )
+        if model is TransactionStaging:
+            q = q.filter(model.status == 'pending')
+        if q.first():
+            return True
+    return False
+
+
+def _revolut_subkonto_wymiany(opis: str, konto: Account, tytul: str, dzien, kwota: Decimal) -> Optional[int]:
     """Konto po drugiej stronie wymiany walut albo None, gdy nie da się go wskazać.
 
     Subkonta walutowe Revoluta to w aplikacji osobne konta tego samego banku
     (bank_name). Opis mówi tylko, NA jaką walutę wymieniono: w pliku PLN
     „Wymiana na EUR" wskazuje subkonto EUR, ale w pliku EUR ten sam opis nie mówi,
-    skąd przyszły pieniądze — wtedy subkonto musi być jedyne w innej walucie.
+    skąd przyszły pieniądze. Przy kilku możliwych subkontach rozstrzyga druga noga,
+    jeśli już ją mamy (#216); bez niej nie zgadujemy.
     """
     m = _REVOLUT_WYMIANA_RE.match(opis)
     if not m or not konto.bank_name:
@@ -710,6 +727,8 @@ def _revolut_subkonto_wymiany(opis: str, konto: Account) -> Optional[int]:
     ]
     if m.group(1) != konto.currency:
         kandydaci = [a for a in kandydaci if a.currency == m.group(1)]
+    if len(kandydaci) > 1:
+        kandydaci = [a for a in kandydaci if _revolut_ma_druga_noge(a, tytul, dzien, kwota)]
     return kandydaci[0].id if len(kandydaci) == 1 else None
 
 
@@ -762,7 +781,7 @@ def parse_revolut_csv(content: str, user_token: str, main_account_id: Optional[i
             'counterparty_account': None,
             'account_id': main_account_id,
             'bank_category': None,
-            'transfer_account_id': _revolut_subkonto_wymiany(opis, konto),
+            'transfer_account_id': _revolut_subkonto_wymiany(opis, konto, title, tx_date, amount),
         })
         if fee:
             transactions.append({

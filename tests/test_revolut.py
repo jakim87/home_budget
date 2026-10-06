@@ -14,7 +14,7 @@ from decimal import Decimal
 import pytest
 
 from app import db
-from app.models import Account, Category, Transaction, TransactionStaging
+from app.models import Account, Category, Contractor, Transaction, TransactionStaging
 from app.services.budget_service import save_transactions_to_staging
 from app.services.statement_parsers import detect_bank_and_format, parse_revolut_csv
 
@@ -123,6 +123,41 @@ def test_wymiana_bez_jednoznacznego_subkonta_zostaje_zwykla_operacja(revolut):
     db.session.commit()
     wplyw = _po_tytule(parse_revolut_csv(EUR_CSV, token, main_account_id=eur.id))['Wymiana 2026-05-07 19:29:20']
     assert wplyw.get('transfer_account_id') is None
+
+
+def _trzecie_subkonto(token):
+    db.session.add(Account(name='Revolut USD', bank_name='Revolut', user_token=token, currency='USD'))
+    db.session.commit()
+
+
+def test_wymiana_przy_kilku_subkontach_wskazuje_to_z_druga_noga(revolut):
+    """#216: opis w pliku EUR nie mówi, skąd przyszły pieniądze, ale druga noga
+    (ten sam tytuł co do sekundy) czeka już na jednym z subkont."""
+    token, pln, eur = revolut
+    _trzecie_subkonto(token)
+    save_transactions_to_staging(parse_revolut_csv(PLN_CSV, token, main_account_id=pln.id)['transactions'], token)
+
+    wplyw = _po_tytule(parse_revolut_csv(EUR_CSV, token, main_account_id=eur.id))['Wymiana 2026-05-07 19:29:20']
+
+    assert wplyw['transfer_account_id'] == pln.id
+
+
+def test_wymiana_przy_kilku_subkontach_kolejnosc_plikow_bez_znaczenia(revolut):
+    """Plik EUR wgrany pierwszy zostaje bez propozycji; plik PLN (jego opis wskazuje
+    subkonto wprost) uzupełnia ją czekającej nodze."""
+    token, pln, eur = revolut
+    _trzecie_subkonto(token)
+    save_transactions_to_staging(parse_revolut_csv(EUR_CSV, token, main_account_id=eur.id)['transactions'], token)
+    wplyw = db.session.query(TransactionStaging).filter_by(
+        account_id=eur.id, title='Wymiana 2026-05-07 19:29:20').one()
+    assert wplyw.proposed_contractor_id is None
+
+    save_transactions_to_staging(parse_revolut_csv(PLN_CSV, token, main_account_id=pln.id)['transactions'], token)
+
+    db.session.refresh(wplyw)
+    kontrahent = db.session.get(Contractor, wplyw.proposed_contractor_id)
+    assert kontrahent.linked_account_id == pln.id
+    assert db.session.get(Category, wplyw.proposed_category_id).type == 'transfer'
 
 
 def test_ponowna_analiza_nie_gubi_wymiany(revolut):

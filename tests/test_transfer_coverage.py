@@ -204,3 +204,70 @@ def test_wyciag_wielokontowy_daje_obie_nogi_przelewu(app, test_user):
     # Każde saldo zmienione dokładnie raz.
     assert db.session.get(Account, ing.id).balance == Decimal("-1200.00")
     assert db.session.get(Account, poduszka.id).balance == Decimal("1200.00")
+
+
+# --- #217: prawdziwa noga z wyciągu zastępuje wcześniejsze lustro ---
+
+def _przelew_z_lustrem(token, acc_a, cat, cont_to_b):
+    """A→B 300 zł w czasie, gdy B nie dostaje wyciągów: noga na A + lustro na B."""
+    return create_transaction(token, acc_a.id, Decimal("-300.00"), "Przelew A→B",
+                              date(2026, 6, 10), category_id=cat.id, contractor_id=cont_to_b.id,
+                              preserve_sign=True, origin='import')
+
+
+def test_prawdziwa_noga_zastepuje_lustro(app, two_accounts):
+    """Konto B dostało lustro, a potem swój pierwszy wyciąg z prawdziwą nogą tego samego
+    przelewu. Noga z wyciągu ma zająć miejsce lustra, a nie stanąć obok niego."""
+    token, acc_a, acc_b, cat, cont_to_b, cont_to_a = two_accounts
+    wyplyw = _przelew_z_lustrem(token, acc_a, cat, cont_to_b)
+    assert db.session.get(Account, acc_b.id).balance == Decimal("800.00")
+    _mark_has_statements(token, acc_b.id)
+
+    wplyw = create_transaction(token, acc_b.id, Decimal("300.00"), "ZASILENIE Z KONTA A",
+                               date(2026, 6, 11), category_id=cat.id, contractor_id=cont_to_a.id,
+                               preserve_sign=True, origin='import')
+
+    na_b = db.session.query(Transaction).filter_by(account_id=acc_b.id).all()
+    assert [t.id for t in na_b] == [wplyw.id], "lustro znika, zostaje noga z wyciągu"
+    assert wplyw.linked_transaction_id == wyplyw.id
+    assert db.session.get(Transaction, wyplyw.id).linked_transaction_id == wplyw.id
+    assert db.session.get(Account, acc_b.id).balance == Decimal("800.00"), "saldo bez podwójnego liczenia"
+    assert db.session.get(Account, acc_a.id).balance == Decimal("700.00")
+
+
+def test_noga_o_nieznanym_pochodzeniu_nie_jest_zastepowana(app, two_accounts):
+    """origin='unknown' (dane sprzed kolumny) mogło być prawdziwą nogą z wyciągu —
+    takiej transakcji nie kasujemy automatycznie."""
+    token, acc_a, acc_b, cat, cont_to_b, cont_to_a = two_accounts
+    _przelew_z_lustrem(token, acc_a, cat, cont_to_b)
+    stara = db.session.query(Transaction).filter_by(account_id=acc_b.id).one()
+    stara.origin = 'unknown'
+    db.session.commit()
+    _mark_has_statements(token, acc_a.id)
+    _mark_has_statements(token, acc_b.id)
+
+    wplyw = create_transaction(token, acc_b.id, Decimal("300.00"), "ZASILENIE Z KONTA A",
+                               date(2026, 6, 11), category_id=cat.id, contractor_id=cont_to_a.id,
+                               preserve_sign=True, origin='import')
+
+    assert db.session.query(Transaction).filter_by(account_id=acc_b.id).count() == 2
+    assert wplyw.linked_transaction_id is None
+
+
+def test_poczekalnia_zapowiada_zastapienie_lustra(app, two_accounts):
+    """Podgląd musi mówić to samo, co zrobi zatwierdzenie: druga strona już jest
+    zaksięgowana (na razie z lustrem), więc 'booked', a nie ostrzeżenie 'missing'."""
+    from app.models import TransactionStaging
+    from app.services.budget_service import list_pending_staging
+    token, acc_a, acc_b, cat, cont_to_b, cont_to_a = two_accounts
+    _przelew_z_lustrem(token, acc_a, cat, cont_to_b)
+    _mark_has_statements(token, acc_a.id)
+    _mark_has_statements(token, acc_b.id)
+    db.session.add(TransactionStaging(
+        date=date(2026, 6, 11), amount=Decimal("300.00"), title="ZASILENIE Z KONTA A",
+        user_token=token, account_id=acc_b.id,
+        proposed_category_id=cat.id, proposed_contractor_id=cont_to_a.id))
+    db.session.commit()
+
+    (wiersz,) = list_pending_staging(token)
+    assert wiersz['transfer_pair'] == 'booked'

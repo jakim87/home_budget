@@ -60,7 +60,7 @@ flask feedback-list              # Wypisuje uwagi użytkowników (jedyna droga o
 flask feedback-delete --id N     # Kasuje zgłoszenie na stałe
 
 # Tests
-pytest                           # Run all tests (~400 testów w 36 plikach; kilkanaście minut — nie mylić z zawieszeniem)
+pytest                           # Run all tests (~430 testów w 39 plikach; ok. 2 minuty lokalnie)
 npm test                         # Testy JS (vitest): liczenie na Dashboardzie i w Raportach
 pytest tests/test_file.py        # Single file
 pytest tests/test_file.py::test_name -vv --tb=long  # Single test, verbose

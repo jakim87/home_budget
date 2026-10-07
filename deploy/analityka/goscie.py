@@ -28,6 +28,7 @@ PRZERWA = timedelta(minutes=30)  # dłuższa cisza = nowa wizyta
 # Co gość ZROBIŁ — tyle, ile widać w logu serwera: (metody, początek ścieżki, nazwa).
 # Pierwsze dopasowanie wygrywa; None = pomiń. Zakładki liczone w przeglądarce
 # (Dashboard, Raporty, Transakcje) nie zostawiają śladu, więc ich tu nie ma.
+# Znaczenie każdej nazwy opisuje README.md obok — zmieniając listę, popraw i tabelę.
 AKCJE = (
     ('POST', r'/api/login$', 'zalogował się'),
     ('POST', r'/api/logout$', None),

@@ -284,6 +284,7 @@ Konfiguracja w `app/logging_config.py` (`configure_logging()`, wołane raz w `cr
 - **Format**: `%(asctime)s %(levelname)s [%(name)s] %(message)s`. Nazwa loggera = ścieżka modułu (np. `app.services.budget_service`).
 - **Poziom**: sterowany `LOG_LEVEL` z `.env` (domyślnie `INFO`; `DEBUG` dla szczegółów). Root logger zostaje na `WARNING`, żeby biblioteki (SQLAlchemy itp.) nie zaśmiecały pliku.
 - **Logi HTTP**: hooki `before_request`/`after_request` w `app/__init__.py` logują każde żądanie jako `METHOD path -> status (czas ms) user=...`. Globalny `@app.errorhandler(Exception)` zapisuje pełny traceback i zwraca 500. `werkzeug` wyciszony do `WARNING` (bez zdublowanych, kolorowanych ANSI wpisów).
+- **Kto zaglądał**: log aplikacji nie ma IP przy zwykłych żądaniach — ruch gości czyta się z logu nginx. `deploy/analityka/goscie.py` (sam stdlib, wejście na stdin) wypisuje prawdopodobne wizyty ludzi; reguła i jej ograniczenia w docstringu. Nginx trzyma 14 dni.
 - **Konwencja w kodzie**: każdy moduł ma `logger = logging.getLogger(__name__)`; serwisy logują `logger.info(...)` na sukces i `logger.error(...)`/`logger.exception(...)` w `except`.
 
 ## Important Files

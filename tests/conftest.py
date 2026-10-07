@@ -28,6 +28,16 @@ class TestConfig(Config):
     # (patrz tests/test_rate_limiting.py).
     RATELIMIT_ENABLED = False
 
+@pytest.fixture(scope='session', autouse=True)
+def _log_poza_repo(tmp_path_factory):
+    """Aplikacja testowa pliku logu nie podpina (logging_config), ale kilka testów
+    celowo buduje aplikację z TESTING=False — ich wpisy nie mogą trafić do
+    prawdziwego logs/app.log."""
+    from app import logging_config
+    katalog = tmp_path_factory.mktemp('logs')
+    logging_config.LOG_DIR = str(katalog)
+    logging_config.LOG_FILE = str(katalog / 'app.log')
+
 @pytest.fixture
 def app():
     app = create_app(TestConfig)

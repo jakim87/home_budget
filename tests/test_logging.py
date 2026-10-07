@@ -68,7 +68,13 @@ def test_plik_logu_nie_rotuje_sie_w_procesie(tmp_path, monkeypatch):
             h.close()
 
 
-def test_aplikacja_testowa_nie_podpina_pliku_logu(app):
+def test_aplikacja_testowa_nie_podpina_pliku_logu():
     """Każdy test woła create_app() — handlery mnożyłyby się, a wpisy z pytest
     zalewałyby logs/app.log, który służy do diagnostyki ręcznej pracy."""
-    assert _handlery_plikowe() == []
+    from app import create_app
+    from tests.conftest import TestConfig
+    przed = _handlery_plikowe()
+
+    create_app(TestConfig)
+
+    assert _handlery_plikowe() == przed

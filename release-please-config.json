@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "7bc0fa2f428eb323ebc63a1a98032038cde020c1",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "ile-mam-kasy",
+      "changelog-path": "CHANGELOG.md",
+      "include-v-in-tag": true,
+      "changelog-sections": [
+        { "type": "feat", "section": "Funkcje" },
+        { "type": "fix", "section": "Poprawki" },
+        { "type": "perf", "section": "Wydajność" },
+        { "type": "refactor", "hidden": true },
+        { "type": "docs", "hidden": true },
+        { "type": "test", "hidden": true },
+        { "type": "chore", "hidden": true }
+      ]
+    }
+  }
+}

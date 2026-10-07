@@ -4,6 +4,7 @@ from app.services.import_history_service import account_has_statement_imports
 from app.services.category_service import find_by_name as find_category_by_name, find_owned as find_category_owned, list_active as list_active_categories
 from app.services.contractor_service import find_owned as find_contractor_owned
 from collections import Counter
+from sqlalchemy.orm import aliased
 from datetime import date, timedelta
 from typing import Optional
 from decimal import Decimal, InvalidOperation
@@ -259,6 +260,37 @@ def _transfer_legs_match(rozne_waluty: bool, kwota_a, data_a, tytul_a, kwota_b, 
     return kwota_b == -kwota_a and abs(data_b - data_a) <= timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
 
 
+def _legs_paired_with_mirror(
+    user_token: str, own_account_id: int, other_account_id: int, leg_amount: Decimal, day: date
+) -> list[tuple[Transaction, Transaction]]:
+    """Pary (noga na drugim koncie, jej lustro na naszym koncie), które zastąpiłaby
+    prawdziwa noga o kwocie `leg_amount` z dnia `day` na naszym koncie (#217).
+
+    Lustro powstaje, gdy konto nie dostaje wyciągów. Kiedy zacznie je dostawać, wyciąg
+    przyniesie prawdziwą nogę tego samego przelewu — ma zająć miejsce lustra, a nie
+    stanąć obok niego. Tylko origin='mirror': transakcja o innym pochodzeniu
+    (także 'unknown' sprzed kolumny) mogła przyjść z wyciągu i takiej nie kasujemy.
+    Tylko ta sama waluta — między walutami luster nie ma.
+    """
+    lustro = aliased(Transaction)
+    window = timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
+    return (
+        db.session.query(Transaction, lustro)
+        .join(lustro, Transaction.linked_transaction_id == lustro.id)
+        .filter(
+            Transaction.user_token == user_token,
+            Transaction.account_id == other_account_id,
+            Transaction.amount == -leg_amount,
+            Transaction.date >= day - window,
+            Transaction.date <= day + window,
+            lustro.account_id == own_account_id,
+            lustro.origin == 'mirror',
+        )
+        .order_by(Transaction.date, Transaction.id)
+        .all()
+    )
+
+
 def handle_internal_transfer(
     user_token: str, account: Account, new_transaction: Transaction,
     contractor_obj: Contractor, amount: Decimal, title: str,
@@ -268,7 +300,8 @@ def handle_internal_transfer(
 
     Kolejność decyzji:
     1. Jeśli druga noga JUŻ istnieje (realna, z wyciągu drugiego konta) — wiążemy obie
-       i nic nie tworzymy.
+       i nic nie tworzymy. Jeśli istnieje, ale związana z lustrem na naszym koncie —
+       nasza noga zastępuje to lustro (patrz _legs_paired_with_mirror).
     2. Jeśli konto docelowe dostaje własne wyciągi — druga noga przyjdzie realnie,
        więc lustra NIE generujemy (inaczej podwójne liczenie). Transakcja zostaje
        niepowiązana (linked_transaction_id IS NULL) = widoczny "wiersz do zmapowania",
@@ -349,6 +382,30 @@ def handle_internal_transfer(
         logger.info(
             "Przelew wewnętrzny między walutami %s -> %s: brak drugiej nogi, lustra nie tworzymy "
             "(transaction_id=%s)", account.currency, dest_account.currency, new_transaction.id
+        )
+        return
+
+    # 1b. Druga noga jest, ale trzyma ją lustro na NASZYM koncie — nasza noga z wyciągu
+    # zajmuje jego miejsce. Saldo: lustro schodzi, a kwotę nowej nogi doliczył już
+    # create_transaction.
+    zastepowane = [
+        para for para in _legs_paired_with_mirror(
+            user_token, account.id, dest_account.id, new_transaction.amount, transaction_date)
+        if para[1].id != new_transaction.id
+    ]
+    if zastepowane:
+        noga, lustro = zastepowane[0]
+        account.balance = Decimal(account.balance) - lustro.amount
+        # Rozwiąż powiązanie przed usunięciem (jak przy usuwaniu przelewu), żeby FK
+        # (ondelete=SET NULL) nie aktualizował wiersza kasowanego w tym samym flushu.
+        noga.linked_transaction_id = lustro.linked_transaction_id = None
+        db.session.flush()
+        db.session.delete(lustro)
+        noga.linked_transaction_id = new_transaction.id
+        new_transaction.linked_transaction_id = noga.id
+        logger.info(
+            "Przelew wewnętrzny: noga z wyciągu zastąpiła lustro #%s na koncie '%s' "
+            "(transaction_id=%s, user_token=%s)", lustro.id, account.name, new_transaction.id, user_token
         )
         return
 
@@ -888,6 +945,29 @@ def _internal_transfer_proposal(user_token: str, acc: Account) -> tuple[int, int
     return transfer_cat.id, transfer_cont.id
 
 
+def _propose_transfer_on_waiting_leg(user_token: str, tx_data: dict, source: Optional[Account], dest: Account) -> None:
+    """Uzupełnia propozycję przelewu nodze, która czeka w poczekalni po drugiej stronie.
+
+    Parser wskazał konto `dest` dla wiersza z konta `source`. Jeśli noga z `dest`
+    została wgrana wcześniej i sama nie umiała wskazać drugiej strony (Revolut:
+    opis wymiany w pliku waluty docelowej nie mówi, skąd przyszły pieniądze, #216),
+    dostaje propozycję teraz — kolejność wgrywania plików nie może decydować o wyniku.
+    Ten sam tytuł i dzień, przeciwny znak, dokładnie jeden taki wiersz.
+    """
+    if not source:
+        return
+    czekajace = db.session.query(TransactionStaging).filter(
+        TransactionStaging.user_token == user_token, TransactionStaging.status == 'pending',
+        TransactionStaging.account_id == dest.id, TransactionStaging.title == tx_data['title'],
+        TransactionStaging.date == tx_data['date'], TransactionStaging.proposed_contractor_id.is_(None),
+        TransactionStaging.amount > 0 if tx_data['amount'] < 0 else TransactionStaging.amount < 0,
+    ).all()
+    if len(czekajace) == 1:
+        noga = czekajace[0]
+        noga.proposed_category_id, noga.proposed_contractor_id = _internal_transfer_proposal(user_token, source)
+        noga.suggested_contractor_name = None
+
+
 def analyze_transaction_data(
     title: str,
     raw_contractor: Optional[str],
@@ -1013,6 +1093,9 @@ def save_transactions_to_staging(
             dest = next((a for a in accounts or [] if a.id == tx_data.get('transfer_account_id')), None)
             if dest:
                 prop_cat_id, prop_contractor_id = _internal_transfer_proposal(user_token, dest)
+                _propose_transfer_on_waiting_leg(
+                    user_token, tx_data,
+                    next((a for a in accounts if a.id == tx_data.get('account_id')), None), dest)
             elif user_token:
                 prop_cat_id, prop_contractor_id, suggested_name = analyze_transaction_data(
                     title=tx_data['title'],
@@ -1234,6 +1317,18 @@ def _pair_staging_transfer_legs(
                     stany[i] = 'booked'
                     zuzyte.add(booked.id)
                     break
+
+    # 2b. Druga noga jest zaksięgowana, ale związana z lustrem na koncie tego wiersza —
+    #     zatwierdzenie zastąpi lustro (handle_internal_transfer, krok 1b).
+    zuzyte_lustra: set[int] = set()
+    for i, (tx, dest) in enumerate(legs):
+        if stany[i] or waluta.get(tx.account_id, 'PLN') != (dest.currency or 'PLN'):
+            continue
+        for _, lustro in _legs_paired_with_mirror(user_token, tx.account_id, dest.id, tx.amount, tx.date):
+            if lustro.id not in zuzyte_lustra:
+                stany[i] = 'booked'
+                zuzyte_lustra.add(lustro.id)
+                break
 
     # 3. Nogi nie ma. Lustro dopełni parę tylko wtedy, gdy konto docelowe nie dostaje
     #    własnych wyciągów; jeśli dostaje — nogi faktycznie brakuje. Między walutami

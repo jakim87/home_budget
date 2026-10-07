@@ -16,7 +16,7 @@ legal_bp = Blueprint('legal', __name__)
 
 # Data ostatniej zmiany TREŚCI dokumentów (nie data dzisiejsza) — aktualizuj
 # razem z edycją szablonów regulamin.html / polityka_prywatnosci.html.
-DOCS_LAST_UPDATED = '14 września 2026'
+DOCS_LAST_UPDATED = '6 października 2026'
 
 
 @legal_bp.route('/regulamin')

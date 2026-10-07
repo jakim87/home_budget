@@ -31,7 +31,8 @@ def test_polityka_prywatnosci_zawiera_elementy_wymagane_przez_rodo(client):
     assert 'Administratorem danych' in html
     assert 'art. 6 ust. 1 lit. b RODO' in html          # podstawa prawna
     assert 'Okres przechowywania' in html                # retencja
-    assert '60 dni' in html                              # archiwum usunietych transakcji
+    assert 'kasowane od razu i trwale' in html           # usuniete transakcje bez archiwum (#161)
+    assert '60 dni' not in html
     assert 'Prezesa Urzędu Ochrony Danych Osobowych' in html   # organ nadzorczy
     assert 'art. 22 RODO' in html                        # brak decyzji automatycznych
 

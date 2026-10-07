@@ -122,6 +122,9 @@ async function importSingleFile(file) {
             }
             closeImportModal();
             fetchPendingStaging();
+            // Import mógł założyć kontrahenta przelewu („Moje konto: X”) — bez odświeżenia
+            // zatwierdzanie szukałoby go w starej liście.
+            fetchInitialData({ skipStagingRefresh: true });
         } else {
             showImportError(result.error || 'Wystąpił błąd serwera podczas importu pliku.');
         }

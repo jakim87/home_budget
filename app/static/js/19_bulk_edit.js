@@ -126,11 +126,11 @@ window.bulkDeleteSelected = async function() {
         }
     });
 
-    let msg = `Czy na pewno usunąć zaznaczone transakcje (${ids.length})?`;
+    let msg = `Czy na pewno usunąć zaznaczone transakcje (${ids.length})? Tej operacji nie można cofnąć.`;
     if (dodatkowe.size > 0) {
         msg = `UWAGA: wśród zaznaczonych są przelewy wewnętrzne.\n`
             + `Razem z nimi zniknie ${dodatkowe.size} powiązanych transakcji na drugim koncie,\n`
-            + `których nie zaznaczyłeś — łącznie ${ids.length + dodatkowe.size}.\n\nKontynuować?`;
+            + `których nie zaznaczyłeś — łącznie ${ids.length + dodatkowe.size}.\n\nTej operacji nie można cofnąć. Kontynuować?`;
     }
     if (!confirm(msg)) return;
 

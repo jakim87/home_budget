@@ -5,7 +5,7 @@ from datetime import date
 from app.schemas import BulkTransactionSchema, TransactionSchema
 from app.services.category_service import find_by_name as find_category_by_name
 from app.services.transaction_service import (
-    archive_and_delete_transaction,
+    delete_transaction,
     bulk_delete_transactions,
     bulk_update_category,
     update_transaction,
@@ -79,8 +79,8 @@ def edit_transaction(tx_id):
 @login_required
 def remove_transaction(tx_id):
     try:
-        archive_and_delete_transaction(current_user.token, tx_id)
-        return jsonify({'message': 'Transakcja zarchiwizowana i usunięta.'}), 200
+        delete_transaction(current_user.token, tx_id)
+        return jsonify({'message': 'Transakcja usunięta.'}), 200
     except ValueError as err:
         return jsonify({'error': str(err)}), 400
 

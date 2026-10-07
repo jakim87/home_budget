@@ -53,7 +53,6 @@ flask seed                       # Populate DB with default_user + test data
 flask process-scheduled          # Execute due recurring & planned transactions
 flask fetch-rates                # Kursy NBP (tabela A) od ostatniego zapisanego dnia; pierwsze
                                  #   uruchomienie dociąga historię od 2002 (~200 tys. wierszy, ~40 s)
-flask cleanup-archive            # Remove archived transactions older than 60 days
 flask reset-password             # Ustawia nowe hasło użytkownika (jedyna droga odzyskania
                                  #   konta — aplikacja nie wysyła maili)
 flask seed-demo                  # Odtwarza konto demo od zera (idempotentne — pod nocny timer)
@@ -103,7 +102,7 @@ Three-layer design: **Models → Services → Blueprints**
 ```
 app/
 ├── models.py          # SQLAlchemy ORM: User, Account, Transaction, Category, Contractor,
-│                      #   TransactionSplit, TransactionStaging, TransactionArchive,
+│                      #   TransactionSplit, TransactionStaging,
 │                      #   RecurringTransaction, PlannedTransaction, Budget, StatementImport
 ├── schemas.py         # Marshmallow serializers (request/response validation)
 ├── cli.py             # Flask CLI commands
@@ -113,7 +112,7 @@ app/
 │   ├── statement_parsers.py        # detect_bank_and_format + parsery PDF/HTML
 │   ├── import_history_service.py   # Historia importów (model StatementImport)
 │   ├── init_service.py             # Payload dla GET /api/init (cały stan frontu)
-│   ├── transaction_service.py      # Transaction archive & cleanup
+│   ├── transaction_service.py      # Edycja i usuwanie transakcji (pojedyncze i zbiorcze)
 │   ├── recurring_service.py        # Recurring transaction execution
 │   ├── planned_transaction_service.py
 │   └── *.py                        # Category, Contractor, Account, Auth services
@@ -153,7 +152,7 @@ Pekao CSV nie ma numeru rachunku w nagłówku — `extract_statement_ibans` bier
 
 Millennium: obsługiwany tylko CSV — HTML i „XLS” (to ten sam HTML) oraz PDF niosą te same dane w gorszej postaci; detekcja rozpoznaje je, żeby zwrócić „format nieobsługiwany” zamiast wpuścić plik do parsera ING. Nagłówek CSV i PDF Millennium zawiera znaczniki ING (`Data transakcji`, `Lista transakcji`), dlatego Millennium sprawdzany jest przed ING; kolizje pilnuje `test_detekcja_kazdy_bank_rozpoznany_jako_swoj` — nowy bank = nowy wiersz w tym teście. Pola wielowierszowe Millennium sklejone są ` ` (w kontrahencie po nim jest adres).
 
-Revolut: jeden plik = jedno subkonto walutowe (subkonta dzielą litewski IBAN, a CSV nie ma numeru rachunku), więc konto wybiera użytkownik, a kolumna `Waluta` musi zgadzać się z walutą konta. PDF rozpoznawany tylko po to, żeby zwrócić „format nieobsługiwany". Data = data realizacji; wiersze niezakończone pomijane; `Opłata` to osobna transakcja. **Tytuł niesie znacznik czasu rozpoczęcia** (`Płatność kartą 2026-05-26 15:19:27`) z dwóch powodów: deduplikacja importu porównuje (data, kwota, tytuł, konto), więc dwie identyczne płatności tego samego dnia zlałyby się w jedną; a obie nogi wymiany walut mają ten sam znacznik, po którym są parowane. Wymianę parser sam oznacza jako przelew (`transfer_account_id` w wyniku parsera → `_internal_transfer_proposal`), wskazując subkonto tego samego `bank_name` w drugiej walucie — tylko gdy jest jednoznaczne.
+Revolut: jeden plik = jedno subkonto walutowe (subkonta dzielą litewski IBAN, a CSV nie ma numeru rachunku), więc konto wybiera użytkownik, a kolumna `Waluta` musi zgadzać się z walutą konta. PDF rozpoznawany tylko po to, żeby zwrócić „format nieobsługiwany". Data = data realizacji; wiersze niezakończone pomijane; `Opłata` to osobna transakcja. **Tytuł niesie znacznik czasu rozpoczęcia** (`Płatność kartą 2026-05-26 15:19:27`) z dwóch powodów: deduplikacja importu porównuje (data, kwota, tytuł, konto), więc dwie identyczne płatności tego samego dnia zlałyby się w jedną; a obie nogi wymiany walut mają ten sam znacznik, po którym są parowane. Wymianę parser sam oznacza jako przelew (`transfer_account_id` w wyniku parsera → `_internal_transfer_proposal`), wskazując subkonto tego samego `bank_name` w drugiej walucie — tylko gdy jest jednoznaczne. Opis w pliku waluty docelowej („Wymiana na EUR" w pliku EUR) nie mówi, skąd przyszły pieniądze, więc przy kilku subkontach rozstrzyga druga noga o tym samym tytule, jeśli jest już w transakcjach albo poczekalni (#216); a noga wgrana wcześniej bez propozycji dostaje ją, gdy przyjdzie plik drugiej strony (`_propose_transfer_on_waiting_leg`) — kolejność plików nie decyduje o wyniku.
 
 Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie.
 
@@ -162,6 +161,10 @@ Nowy format = parser w `statement_parsers.py` + jeden wpis w tej mapie.
 **Kategoria z banku** (Pekao CSV, mBank CSV/HTML; #192): parser oddaje ją jako `bank_category`, a poczekalnia trzyma surową nazwę w `TransactionStaging.bank_category`. Podpowiada kategorię aplikacji **tylko przy dokładnej zgodności nazwy** (bez wielkości liter) i typu ze znakiem kwoty (`expense`/`income` — nigdy `transfer`); brak odpowiednika = brak podpowiedzi, nic nie jest tworzone. Uzupełnia jedynie lukę: przelew wewnętrzny i kategoria domyślna kontrahenta wygrywają. Surowa nazwa jest zapisywana, bo `reanalyze_all_staging` musi ją ponownie dopasować po dodaniu kategorii przez użytkownika. Każdy import zapisuje ślad w `StatementImport` (historia importów).
 
 **Internal Transfers**: Category type `"transfer"` + contractor name matching `"Moje konto: {account_name}"` wskazuje konto docelowe. Druga noga bierze się z jednego z dwóch źródeł, nigdy z obu naraz (`_handle_internal_transfer`): jeśli konto docelowe dostaje własne wyciągi — przyjdzie z importu i zostanie sparowana (okno dat ±4 dni); jeśli nie dostaje (np. cel oszczędnościowy) — powstaje lustro. Wynika stąd reguła dla parserów wyciągów: **żaden parser nie może wyrzucać strony wpływu** przelewu między kontami z tego samego pliku — bez niej noga wypływu zostaje sierotą na zawsze (#164).
+
+Konto, które dostało lustra, a potem zaczyna dostawać wyciągi: prawdziwa noga z wyciągu **zastępuje lustro** zamiast stanąć obok niego (#217, `_legs_paired_with_mirror`) — ta sama kwota, okno ±4 dni, ta sama waluta, i wyłącznie `origin='mirror'`. Transakcja z `origin='unknown'` (dane sprzed kolumny) mogła przyjść z wyciągu, więc nie jest kasowana automatycznie — taki duplikat poprawia się ręcznie. Poczekalnia pokazuje taki wiersz jako `booked`.
+
+Kontrahent `Moje konto: X` jest **jeden na konto** i niesie `linked_account_id` — po nim szuka parowanie. `create_contractor` dla takiej nazwy zwraca istniejącego zamiast zakładać drugiego (#215); przelewy na duplikacie bez powiązania nie sparowałyby się nigdy.
 
 Podgląd poczekalni pokazuje obie nogi tak, jak je zobaczy księgowanie (#169): **kierunek strzałki bierze się ze znaku kwoty**, nie z tego, czyj to wiersz (inaczej noga wpływu czyta się jak przelew powrotny), a `transfer_pair` mówi, skąd weźmie się druga strona — `staging` / `booked` / `mirror` / `missing`. Te cztery wartości to gałęzie decyzyjne `handle_internal_transfer`: `_pair_staging_transfer_legs` musi zostać z nimi zgodne, bo `missing` (jedyny stan z ostrzeżeniem) znaczy „saldo konta po drugiej stronie nie drgnie, dopóki jego noga nie zostanie zaimportowana". Parowanie jest 1:1 — sparowana noga zostaje zużyta.
 
@@ -173,7 +176,7 @@ Przelew wewnętrzny między kontami w **różnych walutach** nigdy nie dostaje l
 
 **Kategorie per użytkownik**: `Category.user_token` wskazuje właściciela; `NULL` = kategoria globalna (systemowa, widoczna dla wszystkich, nieusuwalna przez użytkownika). Nie pisz własnych zapytań o kategorię po nazwie — użyj `category_service.find_by_name(user_token, name)` / `list_active(user_token)`, które definiują zakres widoczności (własne + globalne) w jednym miejscu.
 
-**Deleted Transactions**: Moved to `TransactionArchive` (not hard-deleted) for audit trail.
+**Deleted Transactions**: usuwane twardo, bez archiwum i bez przywracania (#161) — pomyłkę się poprawia, a siatką na katastrofę jest backup bazy. Nie dokładaj soft-delete transakcji bez zmiany polityki prywatności i regulaminu (oba mówią „kasowane od razu i trwale").
 
 **Financial Precision**: Always use `Decimal(str(value))` — never float — for monetary amounts.
 

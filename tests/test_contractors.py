@@ -105,3 +105,41 @@ def test_accept_staging_contractor_creates_new(app, test_user):
     created = db.session.query(Contractor).filter_by(name="Nowy Sklep").one()
     assert result['contractor_id'] == created.id
     assert created.mapping_rules == "nowy sklep"  # reguła mapowania z nazwy (lowercase)
+
+
+# --- #215: „Moje konto: X” nie może mieć duplikatu ---
+
+def _konto(test_user, nazwa="Oszczędności"):
+    from app.models import Account
+    acc = Account(name=nazwa, bank_name="ING", user_token=test_user.token)
+    db.session.add(acc)
+    db.session.commit()
+    return acc
+
+
+def test_post_kontrahenta_przelewu_zwraca_istniejacego(logged_in_client, app, test_user):
+    """Front ze starą listą kontrahentów prosi o „Moje konto: X”, które import właśnie
+    założył. Drugi taki kontrahent nie miałby linked_account_id i przelewy na nim
+    nigdy by się nie sparowały."""
+    acc = _konto(test_user)
+    istniejacy = Contractor(name="Moje konto: Oszczędności", user_token=test_user.token,
+                            linked_account_id=acc.id)
+    db.session.add(istniejacy)
+    db.session.commit()
+
+    resp = logged_in_client.post('/api/contractors', json={
+        'name': 'Moje konto: Oszczędności', 'rules': '', 'category': None})
+
+    assert resp.status_code == 201
+    assert resp.get_json()['id'] == istniejacy.id
+    assert db.session.query(Contractor).filter_by(user_token=test_user.token).count() == 1
+
+
+def test_post_kontrahenta_przelewu_wiaze_go_z_kontem(logged_in_client, app, test_user):
+    acc = _konto(test_user)
+
+    resp = logged_in_client.post('/api/contractors', json={
+        'name': 'Moje konto: Oszczędności', 'rules': '', 'category': None})
+
+    assert resp.status_code == 201
+    assert db.session.get(Contractor, resp.get_json()['id']).linked_account_id == acc.id

@@ -35,7 +35,7 @@ Reguły doboru, wynikające z danych o skuteczności samouczków:
 - **Tylko ścieżka do wartości.** Krok wchodzi do samouczka, jeśli bez niego użytkownik nie osiągnie celu zakładki. Nie opisuj każdego przycisku.
 - **Priorytet dla mechaniki nieoczywistej.** Rzeczy, które użytkownik zrozumie sam (przycisk „Usuń" usuwa), pomiń. Rzeczy, które go zaskoczą, opisz zawsze:
   - saldo konta zmienia się dopiero po **zatwierdzeniu** stagingu, nie po wgraniu pliku,
-  - usunięcie transakcji przenosi ją do archiwum (60 dni), nie kasuje,
+  - usunięcie transakcji jest trwałe — nie ma kosza ani archiwum,
   - dezaktywacja kategorii/kontrahenta to soft-delete, nie usunięcie,
   - kontrahent nazwany `Moje konto: X` tworzy lustrzaną transakcję na koncie X,
   - kategorie bez `user_token` są globalne i użytkownik ich nie usunie,

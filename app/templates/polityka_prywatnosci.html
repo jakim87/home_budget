@@ -64,9 +64,9 @@
 <h2>4. Okres przechowywania</h2>
 <ul>
     <li><strong>Dane konta i dane finansowe</strong> — do czasu usunięcia ich przez Użytkownika albo usunięcia konta na jego żądanie.</li>
-    <li><strong>Usunięte transakcje</strong> — trafiają do archiwum (możliwość odtworzenia i ślad audytowy) i są trwale kasowane po <strong>60 dniach</strong>.</li>
+    <li><strong>Usunięte transakcje</strong> — są kasowane od razu i trwale; Aplikacja nie prowadzi ich archiwum.</li>
     <li><strong>Zgłoszenia o działaniu Aplikacji</strong> — do czasu rozpatrzenia przez administratora i usunięcia przez niego; nie są kasowane automatycznie wraz z danymi konta, bo stanowią korespondencję z administratorem, a nie zawartość budżetu Użytkownika.</li>
-    <li><strong>Logi serwera</strong> — podlegają rotacji; przechowywanych jest sześć kolejnych plików po ok. 2 MB, więc najstarsze wpisy są nadpisywane na bieżąco (w praktyce od kilku dni do kilku tygodni, zależnie od ruchu).</li>
+    <li><strong>Logi serwera</strong> — podlegają rotacji raz w tygodniu; oprócz bieżącego pliku przechowywanych jest osiem poprzednich (skompresowanych), a starsze są kasowane — wpis w logu znika więc najpóźniej po ok. dziewięciu tygodniach.</li>
 </ul>
 
 <h2>5. Odbiorcy danych</h2>

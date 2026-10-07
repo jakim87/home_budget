@@ -74,28 +74,6 @@ class PlannedTransaction(db.Model):
     category: Mapped["Category"] = relationship()
     contractor: Mapped["Contractor"] = relationship()
 
-# NOWA TABELA: Shadow table dla usuwanych transakcji
-class TransactionArchive(db.Model):
-    __tablename__ = 'transaction_archive'
-    
-    id: Mapped[int] = mapped_column(primary_key=True)
-    original_id: Mapped[int] = mapped_column(nullable=False) # ID z oryginalnej tabeli
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    date: Mapped[date] = mapped_column(Date, nullable=False)
-    account_id: Mapped[int] = mapped_column(nullable=False)
-    contractor_id: Mapped[Optional[int]] = mapped_column()
-    category_id: Mapped[Optional[int]] = mapped_column()
-    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
-
-    # Pełny ślad audytowy usuniętej transakcji (wcześniej ginęły przy usuwaniu).
-    comment: Mapped[Optional[str]] = mapped_column(String(255))
-    contractor_raw: Mapped[Optional[str]] = mapped_column(String(255))  # surowy tekst kontrahenta z banku
-    splits_json: Mapped[Optional[str]] = mapped_column(Text)  # zserializowane podziały (JSON jako tekst — zgodne z SQLite)
-
-    # Znacznik czasu operacji usunięcia
-    deleted_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), nullable=False)
-
 class User(db.Model, UserMixin):
     __tablename__ = 'users'
 

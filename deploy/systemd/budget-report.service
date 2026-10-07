@@ -1,0 +1,14 @@
+[Unit]
+Description=Raport dobowy z odwiedzin (log nginx) wysylany mailem
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=budget
+# Log dostepowy nginx nalezy do www-data:adm (640) — grupa tylko dla tej jednostki.
+SupplementaryGroups=adm
+EnvironmentFile=/etc/budget-report.conf
+# Serwer chodzi na UTC, a godziny w raporcie maja byc polskie.
+Environment=TZ=Europe/Warsaw
+ExecStart=/usr/bin/python3 /opt/budget/deploy/analityka/raport_dobowy.py

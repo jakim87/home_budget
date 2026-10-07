@@ -90,6 +90,7 @@ def _opisz(ip, sesja, domena):
         'strony': strony,
         'zalogowany': any(z[1] == 'POST' and z[2] == '/api/login' and z[3] == '200' for z in sesja),
         'skad': skad,
+        'zadan': len(sesja),
     }
 
 
@@ -100,6 +101,16 @@ def nazwa_hosta(ip):
         return '-'
 
 
+def formatuj(w, moje=(), dns=False):
+    kto = 'TY' if w['ip'] in moje else (nazwa_hosta(w['ip']) if dns else '')
+    return (f"{w['start'].astimezone():%Y-%m-%d %H:%M}  {int(w['trwala'].total_seconds() // 60):>3} min"
+            f"  {w['ip']:<15}  {' + '.join(w['urzadzenia'])}"
+            f"{'  [logowanie]' if w['zalogowany'] else ''}"
+            f"{'  z: ' + w['skad'] if w['skad'] else ''}"
+            f"{'  (' + kto + ')' if kto else ''}\n"
+            f"{'':18}{' → '.join(w['strony']) or '(tylko statyki)'}")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--moje', nargs='*', default=[], help='własne adresy IP — oznaczane, nie ukrywane')
@@ -108,13 +119,7 @@ def main():
     a = p.parse_args()
 
     for w in wizyty(sys.stdin, a.domena):
-        kto = 'TY' if w['ip'] in a.moje else (nazwa_hosta(w['ip']) if a.dns else '')
-        print(f"{w['start'].astimezone():%Y-%m-%d %H:%M}  {int(w['trwala'].total_seconds() // 60):>3} min"
-              f"  {w['ip']:<15}  {' + '.join(w['urzadzenia'])}"
-              f"{'  [logowanie]' if w['zalogowany'] else ''}"
-              f"{'  z: ' + w['skad'] if w['skad'] else ''}"
-              f"{'  (' + kto + ')' if kto else ''}")
-        print(f"{'':18}{' → '.join(w['strony']) or '(tylko statyki)'}")
+        print(formatuj(w, a.moje, a.dns))
 
 
 if __name__ == '__main__':

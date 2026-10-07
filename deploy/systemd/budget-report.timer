@@ -1,0 +1,11 @@
+[Unit]
+Description=Codzienny raport z odwiedzin
+
+[Timer]
+# Serwer chodzi na UTC: 05:00 UTC to 07:00 czasu polskiego latem, 06:00 zima.
+OnCalendar=*-*-* 05:00:00
+# Bez Persistent: raport obejmuje 24 h wstecz od chwili uruchomienia, wiec
+# nadrabiany po przestoju i tak nie pokrylby pominietej doby.
+
+[Install]
+WantedBy=timers.target

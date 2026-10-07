@@ -46,8 +46,6 @@ class ControlSafeFormatter(logging.Formatter):
 
 def configure_logging(app):
     """Wywoływane raz, przy starcie aplikacji (w create_app())."""
-    os.makedirs(LOG_DIR, exist_ok=True)
-
     log_level_name = app.config.get('LOG_LEVEL', 'INFO').upper()
     log_level = getattr(logging, log_level_name, logging.INFO)
 
@@ -61,12 +59,15 @@ def configure_logging(app):
     # przy przekroczeniu limitu kilka workerów przemianowuje plik niemal naraz
     # i historia ginie. WatchedFileHandler tylko zauważa, że plik podmieniono,
     # i otwiera nowy. Lokalnie (bez logrotate) app.log po prostu rośnie.
-    file_handler = WatchedFileHandler(LOG_FILE, encoding='utf-8')
-    file_handler.setFormatter(formatter)
-    file_handler.setLevel(log_level)
-
     root_logger = logging.getLogger()
-    root_logger.addHandler(file_handler)
+    # W testach pliku nie podpinamy: każdy test woła create_app(), więc handlery
+    # się mnożyły, a wpisy z pytest zalewały log służący do diagnostyki.
+    if not app.testing:
+        os.makedirs(LOG_DIR, exist_ok=True)
+        file_handler = WatchedFileHandler(LOG_FILE, encoding='utf-8')
+        file_handler.setFormatter(formatter)
+        file_handler.setLevel(log_level)
+        root_logger.addHandler(file_handler)
     # Root logger zostaje na WARNING, żeby biblioteki zewnętrzne (SQLAlchemy,
     # urllib3 itp.) nie zasypywały pliku swoimi wiadomościami DEBUG/INFO.
     root_logger.setLevel(logging.WARNING)

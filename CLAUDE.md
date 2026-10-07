@@ -280,7 +280,7 @@ Hasło szyfrowania (`BACKUP_PASSPHRASE_FILE`) musi istnieć także poza serwerem
 
 Konfiguracja w `app/logging_config.py` (`configure_logging()`, wołane raz w `create_app()`). **Główny kanał diagnostyki — sprawdzaj go zamiast zgadywać.**
 
-- **Plik**: `logs/app.log` (gitignored). `WatchedFileHandler` — rotację robi logrotate (`deploy/logrotate/budget`: co tydzień, 8 kopii, gzip), bo `RotatingFileHandler` w kilku workerach gunicorna rotował naraz i gubił historię. Lokalnie plik nie rotuje. Plik bywa duży — czytaj przez `tail`/`offset`, nie w całości.
+- **Plik**: `logs/app.log` (gitignored). `WatchedFileHandler` — rotację robi logrotate (`deploy/logrotate/budget`: co tydzień, 8 kopii, gzip), bo `RotatingFileHandler` w kilku workerach gunicorna rotował naraz i gubił historię. Lokalnie plik nie rotuje. W testach (`app.testing`) pliku nie podpinamy wcale — pytest nie pisze do `app.log`. Plik bywa duży — czytaj przez `tail`/`offset`, nie w całości.
 - **Format**: `%(asctime)s %(levelname)s [%(name)s] %(message)s`. Nazwa loggera = ścieżka modułu (np. `app.services.budget_service`).
 - **Poziom**: sterowany `LOG_LEVEL` z `.env` (domyślnie `INFO`; `DEBUG` dla szczegółów). Root logger zostaje na `WARNING`, żeby biblioteki (SQLAlchemy itp.) nie zaśmiecały pliku.
 - **Logi HTTP**: hooki `before_request`/`after_request` w `app/__init__.py` logują każde żądanie jako `METHOD path -> status (czas ms) user=...`. Globalny `@app.errorhandler(Exception)` zapisuje pełny traceback i zwraca 500. `werkzeug` wyciszony do `WARNING` (bez zdublowanych, kolorowanych ANSI wpisów).

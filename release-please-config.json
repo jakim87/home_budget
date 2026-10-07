@@ -4,9 +4,9 @@
   "packages": {
     ".": {
       "release-type": "simple",
-      "package-name": "ile-mam-kasy",
       "changelog-path": "CHANGELOG.md",
       "include-v-in-tag": true,
+      "include-component-in-tag": false,
       "changelog-sections": [
         { "type": "feat", "section": "Funkcje" },
         { "type": "fix", "section": "Poprawki" },

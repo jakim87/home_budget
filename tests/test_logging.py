@@ -7,6 +7,7 @@ kilka linii wyglądających jak osobne wpisy — po wdrożeniu jaila fail2ban
 dowolne IP. Traceback (wieloliniowy, z exc_info) musi przy tym zostać nietknięty.
 """
 import logging
+from logging.handlers import RotatingFileHandler, WatchedFileHandler
 
 from app.logging_config import ControlSafeFormatter
 
@@ -43,9 +44,31 @@ def test_zachowuje_wieloliniowy_traceback():
     assert '\n' in out
 
 
-def test_plik_logu_nie_rotuje_sie_w_procesie(app):
+def _handlery_plikowe():
+    # nie logging.FileHandler: pytest podpina własny, piszący donikąd
+    return [h for h in logging.getLogger().handlers
+            if isinstance(h, (WatchedFileHandler, RotatingFileHandler))]
+
+
+def test_plik_logu_nie_rotuje_sie_w_procesie(tmp_path, monkeypatch):
     """Rotacja w każdym workerze gunicorna osobno gubi historię — robi ją logrotate."""
-    from logging.handlers import RotatingFileHandler, WatchedFileHandler
-    handlery = logging.getLogger().handlers
-    assert any(isinstance(h, WatchedFileHandler) for h in handlery)
-    assert not any(isinstance(h, RotatingFileHandler) for h in handlery)
+    from flask import Flask
+    from app import logging_config
+    monkeypatch.setattr(logging_config, 'LOG_DIR', str(tmp_path))
+    monkeypatch.setattr(logging_config, 'LOG_FILE', str(tmp_path / 'app.log'))
+    przed = _handlery_plikowe()
+    nowe = []
+    try:
+        logging_config.configure_logging(Flask('poza_testami'))
+        nowe = [h for h in _handlery_plikowe() if h not in przed]
+        assert [type(h) for h in nowe] == [WatchedFileHandler]
+    finally:
+        for h in nowe:
+            logging.getLogger().removeHandler(h)
+            h.close()
+
+
+def test_aplikacja_testowa_nie_podpina_pliku_logu(app):
+    """Każdy test woła create_app() — handlery mnożyłyby się, a wpisy z pytest
+    zalewałyby logs/app.log, który służy do diagnostyki ręcznej pracy."""
+    assert _handlery_plikowe() == []

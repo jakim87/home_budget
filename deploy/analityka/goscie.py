@@ -25,6 +25,22 @@ LINIA = re.compile(
 ROBOT = re.compile(r'bot|crawl|spider|compatible;|headless|scan|research|curl|wget|python|powershell|go-http|^-?$', re.I)
 NIEWINNE_404 = re.compile(r'favicon|apple-touch-icon|robots\.txt|sitemap\.xml|\.well-known')
 PRZERWA = timedelta(minutes=30)  # dłuższa cisza = nowa wizyta
+# Co gość ZROBIŁ — tyle, ile widać w logu serwera: (metody, początek ścieżki, nazwa).
+# Pierwsze dopasowanie wygrywa; None = pomiń. Zakładki liczone w przeglądarce
+# (Dashboard, Raporty, Transakcje) nie zostawiają śladu, więc ich tu nie ma.
+AKCJE = (
+    ('POST', r'/api/login$', 'zalogował się'),
+    ('POST', r'/api/logout$', None),
+    ('POST', r'/api/register$', 'założył konto'),
+    ('POST', r'/api/feedback$', 'wysłał uwagę'),
+    ('GET', r'/api/demo/przykladowy-wyciag', 'pobrał przykładowy wyciąg'),
+    ('POST', r'/api/import/', 'wgrał wyciąg'),
+    ('POST|DELETE', r'/api/staging/', 'porządkował poczekalnię'),
+    ('GET', r'/api/budgets/', 'otworzył Budżet'),
+    ('PUT|DELETE', r'/api/budgets/', 'ustawiał budżet'),
+    ('POST|PUT|DELETE', r'/api/transactions', 'zmieniał transakcje'),
+    ('POST|PUT|DELETE', r'/api/', 'zmieniał inne dane'),
+)
 
 
 def urzadzenie(ua):
@@ -72,6 +88,24 @@ def wizyty(linie, domena):
     return sorted(wynik, key=lambda w: w['start'])
 
 
+def _akcje(sesja, strony):
+    wynik = []
+    for _, metoda, sciezka, status, _, _ in sesja:
+        if (metoda, sciezka, status) == ('POST', '/api/login', '401'):
+            nazwa = 'nieudane logowanie'
+        elif not status.startswith('2'):
+            continue
+        else:
+            nazwa = next((n for metody, wzor, n in AKCJE
+                          if metoda in metody.split('|') and re.match(wzor, sciezka)), None)
+            # nginx nie zna nazwy konta; demo poznajemy po wejściu przez /login?demo=1
+            if nazwa == 'zalogował się' and any(s.startswith('/login?demo') for s in strony):
+                nazwa = 'wszedł w demo'
+        if nazwa and nazwa not in wynik:
+            wynik.append(nazwa)
+    return wynik
+
+
 def _opisz(ip, sesja, domena):
     ok = [z for z in sesja if z[3] in ('200', '304')]
     statyki = [z for z in ok if z[2].startswith('/static/') and domena in z[4]]
@@ -91,6 +125,7 @@ def _opisz(ip, sesja, domena):
         'zalogowany': any(z[1] == 'POST' and z[2] == '/api/login' and z[3] == '200' for z in sesja),
         'skad': skad,
         'zadan': len(sesja),
+        'akcje': _akcje(sesja, strony),
     }
 
 

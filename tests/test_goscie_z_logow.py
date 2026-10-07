@@ -42,3 +42,4 @@ def test_czlowiek_przechodzi_a_skanery_odpadaja():
     assert pierwsza['zalogowany'] and not druga['zalogowany']
     assert pierwsza['skad'] == 'https://teams.example/'
     assert pierwsza['urzadzenia'] == ['Windows, Chrome']
+    assert pierwsza['akcje'] == ['wszedł w demo'] and druga['akcje'] == []

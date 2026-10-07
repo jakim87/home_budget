@@ -56,6 +56,8 @@ class Config:
     # dlatego nazwa i adres kontaktowy dają się nadpisać z .env.
     APP_AUTHOR = 'jakim87'
     APP_AUTHOR_URL = 'https://github.com/jakim87'
+    # Lista zmian dla użytkownika: strona wydań na GitHubie (tworzy je release-please).
+    APP_RELEASES_URL = 'https://github.com/jakim87/home_budget/releases'
     APP_ADMIN_NAME = os.getenv('APP_ADMIN_NAME', 'jakim87')
     APP_CONTACT_EMAIL = os.getenv('APP_CONTACT_EMAIL', 'jakim87@gmail.com')
 

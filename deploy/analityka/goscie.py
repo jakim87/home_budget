@@ -28,11 +28,13 @@ PRZERWA = timedelta(minutes=30)  # dłuższa cisza = nowa wizyta
 # Co gość ZROBIŁ — tyle, ile widać w logu serwera: (metody, początek ścieżki, nazwa).
 # Pierwsze dopasowanie wygrywa; None = pomiń. Zakładki liczone w przeglądarce
 # (Dashboard, Raporty, Transakcje) nie zostawiają śladu, więc ich tu nie ma.
+# Znaczenie każdej nazwy opisuje README.md obok — zmieniając listę, popraw i tabelę.
 AKCJE = (
     ('POST', r'/api/login$', 'zalogował się'),
     ('POST', r'/api/logout$', None),
     ('POST', r'/api/register$', 'założył konto'),
     ('POST', r'/api/feedback$', 'wysłał uwagę'),
+    ('GET', r'/kalkulator-kredytu', 'otworzył kalkulator kredytu'),
     ('GET', r'/api/demo/przykladowy-wyciag', 'pobrał przykładowy wyciąg'),
     ('POST', r'/api/import/', 'wgrał wyciąg'),
     ('POST|DELETE', r'/api/staging/', 'porządkował poczekalnię'),
@@ -93,7 +95,7 @@ def _akcje(sesja, strony):
     for _, metoda, sciezka, status, _, _ in sesja:
         if (metoda, sciezka, status) == ('POST', '/api/login', '401'):
             nazwa = 'nieudane logowanie'
-        elif not status.startswith('2'):
+        elif not status.startswith('2') and status != '304':  # 304 = strona z pamięci przeglądarki
             continue
         else:
             nazwa = next((n for metody, wzor, n in AKCJE

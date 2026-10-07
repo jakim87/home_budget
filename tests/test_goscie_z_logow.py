@@ -23,6 +23,7 @@ def test_czlowiek_przechodzi_a_skanery_odpadaja():
         # ten sam człowiek po dwóch godzinach — osobna wizyta
         linia('1.1.1.1', '10:30:00', 'GET /', 200),
         linia('1.1.1.1', '10:30:01', 'GET /static/landing/landing.js', 304, nasza),
+        linia('1.1.1.1', '10:30:20', 'GET /kalkulator-kredytu', 304, nasza),
         # skaner pobierający skrypty bez odsyłacza
         linia('2.2.2.2', '08:00:00', 'GET /', 200),
         linia('2.2.2.2', '08:00:01', 'GET /static/js/01_state.js', 200),
@@ -42,4 +43,4 @@ def test_czlowiek_przechodzi_a_skanery_odpadaja():
     assert pierwsza['zalogowany'] and not druga['zalogowany']
     assert pierwsza['skad'] == 'https://teams.example/'
     assert pierwsza['urzadzenia'] == ['Windows, Chrome']
-    assert pierwsza['akcje'] == ['wszedł w demo'] and druga['akcje'] == []
+    assert pierwsza['akcje'] == ['wszedł w demo'] and druga['akcje'] == ['otworzył kalkulator kredytu']

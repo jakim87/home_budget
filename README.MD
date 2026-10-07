@@ -232,6 +232,10 @@ budget/
 └── README.MD
 ```
 
+## Wersje i lista zmian
+
+Numeracja [SemVer](https://semver.org/lang/pl/), aktualna wersja w pliku `version.txt`, historia zmian w [CHANGELOG.md](CHANGELOG.md). Oba pliki prowadzi automat (release-please) na podstawie commitów `feat:` / `fix:`.
+
 ## Licencja
 
 Projekt jest objęty **Business Source License 1.1** (plik `LICENSE`).

@@ -1,0 +1,28 @@
+# Wydania: release-please czyta commity `feat:` / `fix:` z main i utrzymuje
+# otwarty PR „chore(main): release X.Y.Z" (podbity version.txt + CHANGELOG.md).
+# Merge tego PR-a tworzy tag vX.Y.Z i GitHub Release — moment wydania wybierasz Ty.
+# Tagów `deploy/...` (co stoi na serwerze) to nie dotyczy; to osobna oś.
+#
+# Uwaga: PR utworzony tokenem GITHUB_TOKEN nie uruchamia innych workflowów, więc
+# wymagane checki CI na chronionym main nigdy by się nie pojawiły. Dlatego użyj
+# sekretu RELEASE_PLEASE_TOKEN (PAT z uprawnieniami contents + pull-requests);
+# bez niego workflow działa, ale PR wydania trzeba "odświeżyć" (zamknąć i otworzyć).
+name: Wydanie
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

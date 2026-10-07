@@ -247,6 +247,16 @@ TDD workflow: RED (write failing test) → GREEN (minimal implementation) → RE
 3. **Blueprint**: Add route to existing or new `app/blueprints/` file → register in `app/__init__.py`
 4. **Test**: Add `tests/test_feature.py` using conftest fixtures
 
+## Wersjonowanie i lista zmian
+
+Dwie niezależne osie — nie myl ich: **wydanie** (`v1.2.0`, co nowego w produkcie) i **wdrożenie** (tag `deploy/2026-10-07d`, co dokładnie stoi na serwerze). Tagów `deploy/...` wersjonowanie nie dotyka.
+
+- Numeracja SemVer, start `1.0.0`. `feat:` podbija MINOR, `fix:` PATCH, `feat!:` / stopka `BREAKING CHANGE:` MAJOR.
+- Wersję i `CHANGELOG.md` prowadzi **release-please** (`.github/workflows/release.yml`): utrzymuje otwarty PR „chore(main): release X.Y.Z”; jego merge tworzy tag `vX.Y.Z` i GitHub Release. **Nie edytuj ręcznie** `version.txt`, `CHANGELOG.md` ani `.release-please-manifest.json`.
+- `config.APP_VERSION` czyta `version.txt` — stopka i pole „wersja” w zgłoszeniach pokazują prawdziwy numer.
+- Prefiksy commitów to jedyne źródło changelogu: `feat:` / `fix:` / `perf:` trafiają do listy zmian, więc opisuj w nich **efekt dla użytkownika**; wewnętrzne prace idą jako `refactor:` / `docs:` / `test:` / `chore:` (ukryte).
+- PR wydania tworzony `GITHUB_TOKEN`-em nie uruchamia CI, a `main` wymaga checków — dlatego workflow używa sekretu `RELEASE_PLEASE_TOKEN` (PAT), jeśli jest ustawiony.
+
 ## Za reverse proxy (produkcja)
 
 `TRUST_PROXY=1` opakowuje aplikację w `ProxyFix` (`x_for=1`, `x_proto=1`). Bez tego za nginx-em `request.remote_addr` to zawsze `127.0.0.1`, więc logi logowań i każdy limit per-IP są bezwartościowe. **Nie włączać przy bezpośrednim wystawieniu na świat** — pozwoliłoby podszyć się pod dowolne IP nagłówkiem `X-Forwarded-For`.

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -45,8 +46,9 @@ class Config:
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024
 
     # Wersja pokazywana w nagłówku. Flask sam udostępnia `config` w szablonach,
-    # więc wyświetlenie nie wymaga ani kontekstu, ani endpointa. Podbijaj ręcznie.
-    APP_VERSION = '1.0.0'
+    # więc wyświetlenie nie wymaga ani kontekstu, ani endpointa. Źródłem jest
+    # version.txt, który podbija release-please — nie edytuj go ręcznie.
+    APP_VERSION = (Path(__file__).parent / 'version.txt').read_text(encoding='utf-8').strip()
 
     # --- Dane wyświetlane w Regulaminie / Polityce prywatności / O aplikacji ---
     # Autor projektu jest stały (fakt o repozytorium), ale administratorem danych

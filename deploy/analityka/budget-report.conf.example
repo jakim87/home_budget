@@ -1,0 +1,23 @@
+# Wzor /etc/budget-report.conf — raport dobowy z odwiedzin (raport_dobowy.py).
+# Wlascicielem MUSI byc budget (budget-report.service chodzi jako User=budget).
+#
+# Instalacja (jednorazowo, na serwerze, jako root):
+#   cp /opt/budget/deploy/analityka/budget-report.conf.example /etc/budget-report.conf
+#   $EDITOR /etc/budget-report.conf
+#   $EDITOR /etc/budget-report.smtp-password    # jedna linia: haslo aplikacji Google
+#   chown budget:budget /etc/budget-report.conf /etc/budget-report.smtp-password
+#   chmod 600 /etc/budget-report.conf /etc/budget-report.smtp-password
+#   cp /opt/budget/deploy/systemd/budget-report.* /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now budget-report.timer
+#   systemctl start budget-report.service       # pierwszy mail od razu
+#
+# Haslo aplikacji (nie haslo do konta!) tworzy sie na
+# https://myaccount.google.com/apppasswords — wymaga weryfikacji dwuetapowej.
+# Odwolanie hasla w tym samym miejscu natychmiast wylacza wysylke.
+
+# Adres Gmail: z niego i na niego idzie raport (loguje sie nim do SMTP).
+REPORT_TO=adres@gmail.com
+
+# Wlasne adresy IP, oddzielone spacja — w raporcie oznaczane jako TY i nie
+# liczone do tematu wiadomosci. Puste = wszystkie wizyty licza sie jako obce.
+REPORT_MOJE_IP=""

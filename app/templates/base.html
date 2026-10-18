@@ -93,31 +93,100 @@
         <main>
             <!-- ZAKŁADKA 0: DASHBOARD -->
             <div id="tab-dashboard" class="space-y-6">
-                <!-- Net Worth -->
-                <div class="bg-gradient-to-br from-blue-600 to-blue-700 p-6 rounded-2xl shadow-md text-white">
-                    <p class="text-sm font-medium text-blue-100 mb-1">Majątek netto (Net Worth)</p>
-                    <p id="dashboard-net-worth" class="text-4xl font-bold">0.00 PLN</p>
-                    <p id="dashboard-net-worth-note" class="hidden text-xs text-blue-100 mt-1"></p>
+                <!-- Majątek netto: dziś po lewej, porównanie z końcem poprzedniego miesiąca i roku po prawej.
+                     Od lg w jednym rzędzie; węższy ekran przenosi porównania pod wartość. -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-x-10 gap-y-4">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-slate-500 mb-1">Majątek netto (Net Worth)</p>
+                        <p id="dashboard-net-worth" class="text-3xl xl:text-4xl font-bold text-slate-800 tabular-nums whitespace-nowrap">0,00 PLN</p>
+                        <p id="dashboard-net-worth-note" class="hidden text-xs text-slate-500 mt-1"></p>
+                    </div>
+                    <dl class="flex flex-wrap gap-y-3">
+                        <div class="pr-6 lg:pl-6 lg:border-l border-slate-200 min-w-[11rem]">
+                            <dt class="text-xs text-slate-500">Miesiąc temu · <span id="dashboard-delta-mc-kiedy"></span></dt>
+                            <dd id="dashboard-delta-mc-wartosc" class="text-xl font-semibold text-slate-800 tabular-nums whitespace-nowrap mt-1">—</dd>
+                            <dd id="dashboard-delta-mc-zmiana" class="text-xs font-medium whitespace-nowrap"></dd>
+                        </div>
+                        <div class="pl-6 border-l border-slate-200 min-w-[11rem]">
+                            <dt class="text-xs text-slate-500">Rok temu · <span id="dashboard-delta-rok-kiedy"></span></dt>
+                            <dd id="dashboard-delta-rok-wartosc" class="text-xl font-semibold text-slate-800 tabular-nums whitespace-nowrap mt-1">—</dd>
+                            <dd id="dashboard-delta-rok-zmiana" class="text-xs font-medium whitespace-nowrap"></dd>
+                        </div>
+                    </dl>
                 </div>
 
-                <!-- Majątek w czasie -->
+                <!-- Majątek w czasie: minimum wyboru — widok i zakres. Klik w miesiąc wybiera go
+                     dla sekcji „Udział majątku wg typu kont" (13_dashboard.js). -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
-                        <h2 class="font-bold text-slate-800">Majątek w czasie</h2>
-                        <div class="flex items-center gap-2 text-sm">
-                            <input type="month" id="networth-range-from" class="p-1.5 border border-slate-300 rounded-lg text-sm bg-white">
-                            <span class="text-slate-400">–</span>
-                            <input type="month" id="networth-range-to" class="p-1.5 border border-slate-300 rounded-lg text-sm bg-white">
+                        <div class="flex items-center gap-2">
+                            <h2 class="font-bold text-slate-800">Majątek w czasie</h2>
+                            <span class="info-tip">
+                                <button type="button" aria-label="Opis wykresu" aria-describedby="networth-info">i</button>
+                                <span role="tooltip" id="networth-info"></span>
+                            </span>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <div class="flex gap-1" role="group" aria-label="Widok wykresu">
+                                <button type="button" id="networth-view-razem" onclick="setNetWorthView('razem')">Razem</button>
+                                <button type="button" id="networth-view-typy" onclick="setNetWorthView('typy')">Wg typu kont</button>
+                            </div>
+                            <div class="flex gap-1" role="group" aria-label="Zakres">
+                                <button type="button" id="networth-range-6" onclick="setNetWorthRange('6')">6 mies.</button>
+                                <button type="button" id="networth-range-12" onclick="setNetWorthRange('12')">12 mies.</button>
+                                <button type="button" id="networth-range-all" onclick="setNetWorthRange('all')">Wszystko</button>
+                            </div>
                         </div>
                     </div>
                     <canvas id="networth-history-chart"></canvas>
+                    <div class="dashboard-wybor hidden flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 pt-3 border-t border-slate-100"></div>
                 </div>
 
-                <!-- Karty kont. Filtr dziala tez na wykres Przychody vs Wydatki w zakladce
-                     Podsumowanie (dashboardAccountIds w 13_dashboard.js) — stad wzmianka
-                     ponizej, mimo ze sam wykres tu juz nie stoi. -->
-                <p class="text-xs text-slate-500">Kliknij konta, by zawęzić dashboard i wykres w zakładce Podsumowanie. Brak zaznaczenia = wszystkie konta.</p>
-                <div id="dashboard-accounts" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+                <!-- Przychody i wydatki wg kategorii: liczone jak Raporty (13_dashboard.js, obrotyMiesieczne),
+                     zakres jak na wykresie majątku. -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
+                        <div class="flex items-center gap-2">
+                            <h2 class="font-bold text-slate-800">Przychody i wydatki wg kategorii</h2>
+                            <span class="info-tip">
+                                <button type="button" aria-label="Opis wykresu" aria-describedby="obroty-info">i</button>
+                                <span role="tooltip" id="obroty-info">Suma miesięczna w wybranych kategoriach, bez przelewów wewnętrznych — liczona tak samo jak w Raportach. Zakres jak na wykresie majątku. Kliknij miesiąc, żeby przejść do jego transakcji albo raportu.</span>
+                            </span>
+                        </div>
+                        <div class="relative" id="dash-cat-wrap">
+                            <button type="button" id="dash-cat-btn" onclick="toggleDashKategorie()" aria-haspopup="true" aria-expanded="false" class="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-medium">
+                                <span id="dash-cat-label">Kategorie: wszystkie</span>
+                                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </button>
+                            <div id="dash-cat-panel" class="hidden absolute top-full right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 p-3 min-w-[260px]">
+                                <div id="dash-cat-list" class="space-y-0.5 max-h-60 overflow-y-auto"></div>
+                                <button type="button" onclick="wyczyscDashKategorie()" class="mt-2 text-xs text-slate-500 hover:text-slate-700 underline">Wyczyść wybór</button>
+                            </div>
+                        </div>
+                    </div>
+                    <canvas id="dashboard-obroty-chart"></canvas>
+                    <div class="dashboard-wybor hidden flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 pt-3 border-t border-slate-100"></div>
+                </div>
+
+                <!-- Udział majątku wg typu kont — bieżący miesiąc albo wybrany kliknięciem w wykres. -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm" id="dashboard-struktura">
+                    <h2 class="font-bold text-slate-800">Udział majątku wg typu kont</h2>
+                    <p class="text-xs text-slate-500 mt-1">Stan na koniec <span id="dashboard-struktura-miesiac"></span>. Udział liczony w aktywach (sumie sald dodatnich); kredyty i karty to zobowiązania, więc mają udział ujemny i nie wchodzą na pasek.</p>
+                    <div id="dashboard-struktura-pasek" class="flex gap-0.5 h-5 my-4 rounded overflow-hidden bg-slate-100" role="img" aria-label="Udział typów kont w aktywach"></div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead>
+                                <tr class="text-xs text-slate-500">
+                                    <th class="py-2 pr-3 font-medium border-b border-slate-200">Typ konta</th>
+                                    <th class="py-2 pr-3 font-medium border-b border-slate-200 text-right hidden sm:table-cell">Konta</th>
+                                    <th class="py-2 pr-3 font-medium border-b border-slate-200 text-right">Saldo</th>
+                                    <th class="py-2 font-medium border-b border-slate-200 text-right">Udział w aktywach</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-struktura-body"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <!-- ZAKŁADKA 1: TRANSAKCJE -->
@@ -341,8 +410,8 @@
                 </div>
 
                 <!-- Przeniesione z Dashboardu: trend 12 miesiecy / 5 lat, niezalezny od
-                     wybranego wyzej okresu. Filtr kont dziedziczy z kart na Dashboardzie
-                     (dashboardAccountIds w 13_dashboard.js) — renderowany przy kazdym
+                     wybranego wyzej okresu. Filtr kont jak reszta Podsumowania: „Widok
+                     konta" (renderDashboardChart w 13_dashboard.js) — renderowany przy kazdym
                      renderSummary(), bo canvas jest ukryty (display:none), dopoki ta
                      zakladka nie jest aktywna, i Chart.js zmierzylby zerowa szerokosc. -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">

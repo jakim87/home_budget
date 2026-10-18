@@ -1,4 +1,4 @@
-document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('tx-date').value = toLocalISODate(new Date());
 initContractorCombobox();
 
 // Wejście z wizytówki: /login?demo=1 loguje na konto demo, /login?rejestracja=1 otwiera rejestrację.

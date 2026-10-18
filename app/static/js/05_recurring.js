@@ -133,7 +133,7 @@ window.openRecurringModal = function() {
     fetchRecurringTransactions(); // Pobierz najnowsze dane z backendu
     fetchPlannedTransactions();
     updateCategorySelects();
-    document.getElementById('rec-start-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('rec-start-date').value = toLocalISODate(new Date());
     document.getElementById('recurring-modal').classList.remove('hidden');
     document.getElementById('recurring-modal').classList.add('flex');
 };
@@ -145,7 +145,7 @@ window.closeRecurringModal = function() {
     document.getElementById('recurring-form').reset(); // Reset recurring form
     // Bez tego kolejne otwarcie modala przeliczałoby datę wg transakcji z poprzedniego użycia.
     delete document.getElementById('rec-start-date').dataset.txDate;
-    document.getElementById('rec-start-date').value = new Date().toISOString().split('T')[0]; // Reset recurring start date
+    document.getElementById('rec-start-date').value = toLocalISODate(new Date()); // Reset recurring start date
     toggleRecEndDate(); // Reset recurring end date toggle
     toggleRecFreqInputs(); // Reset recurring frequency inputs
 };

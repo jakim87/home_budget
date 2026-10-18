@@ -2,7 +2,7 @@
 // Zawsze cały majątek — Dashboard nie ma filtra kont. Zawężanie do konta robi
 // „Widok konta" na pozostałych zakładkach.
 let dashWidok = 'razem';          // wykres majątku: 'razem' | 'typy'
-let dashZakres = 'all';           // ostatnie '6' | '12' miesięcy albo 'all'
+let dashZakres = '12';            // ostatnie '6' | '12' miesięcy albo 'all'; domyślnie rok
 let dashWybranyMiesiac = null;    // 'RRRR-MM' wybrany kliknięciem w wykres; null = bieżący
 
 // Kolejność = kolejność warstw (od dołu) i wierszy tabeli udziałów. Kredyt na końcu:

@@ -9,11 +9,27 @@ const RE_DATA = /^(\d{1,2})\.(\d{1,2})\.?(\d{4})?$/;
 const SLOWA_DATY = { dzis: 0, dzisiaj: 0, wczoraj: 1, przedwczoraj: 2 };
 
 // Konto po fragmencie nazwy — tylko gdy jednoznaczne (dwa konta „Konto …" nie dają wyniku).
+// „_" w znaczniku zastępuje spację (pełna nazwa konta to jedno słowo tekstu).
 function kontoPoFragmencie(fragment) {
-    const f = normalizujTekst(fragment);
+    const f = normalizujTekst(fragment.replace(/_/g, ' '));
     if (!f) return null;
-    const pasujace = accounts.filter(a => normalizujTekst(a.name).split(/\s+/).some(w => w.startsWith(f)));
+    const dokladne = accounts.filter(a => normalizujTekst(a.name) === f);
+    if (dokladne.length === 1) return dokladne[0];
+    const pasujace = accounts.filter(a => pasujeDoKonta(a, f));
     return pasujace.length === 1 ? pasujace[0] : null;
+}
+
+function pasujeDoKonta(konto, f) {
+    const nazwa = normalizujTekst(konto.name);
+    return nazwa.startsWith(f) || nazwa.split(/\s+/).some(w => w.startsWith(f));
+}
+
+// Znacznik wybranego konta zostawiany w tekście: pierwsze słowo nazwy, które wskazuje konto
+// jednoznacznie („>oszczędnościowe"), a gdy takiego nie ma — cała nazwa z „_" zamiast spacji.
+function znacznikKonta(konto) {
+    const slowa = konto.name.split(/\s+/);
+    const jednoznaczne = slowa.find(s => accounts.filter(a => pasujeDoKonta(a, normalizujTekst(s))).length === 1);
+    return jednoznaczne || slowa.join('_');
 }
 
 const pierwszaKategoriaPrzelewu = () => categories.find(c => c.type === 'transfer') || null;
@@ -94,10 +110,12 @@ function tytulWpisu(wpis, kategoria) {
 function sugestieWpisu(tekst, kontoZrodloweId) {
     const m = tekst.match(/(?:^|\s)([>@])(\S*)$/);
     if (m) {
-        const f = normalizujTekst(m[2]);
+        const f = normalizujTekst(m[2].replace(/_/g, ' '));
+        // Znacznik już dokończony (wskazuje dokładnie jedno konto) — lista znika.
+        if (f && normalizujTekst(m[2]) === normalizujTekst(znacznikKonta(kontoPoFragmencie(m[2]) || { name: '' }))) return [];
         return accounts
             .filter(a => m[1] === '@' || a.id !== kontoZrodloweId)
-            .filter(a => !f || normalizujTekst(a.name).split(/\s+/).some(w => w.startsWith(f)))
+            .filter(a => !f || pasujeDoKonta(a, f))
             .map(a => ({ typ: 'konto', znacznik: m[1], fragment: m[1] + m[2], konto: a, nazwa: a.name,
                          opis: m[1] === '>' ? 'przelew na to konto' : 'konto transakcji' }));
     }
@@ -170,7 +188,10 @@ function wypelnijPolaWpisu(wpis) {
             pole('konto').dispatchEvent(new Event('change'));
         }
     }
-    if (!r.has('docelowe') && wpis.docelowe) pole('docelowe').value = wpis.docelowe.id;
+    if (!r.has('docelowe') && wpis.docelowe) {
+        updateDestAccountOptions();  // lista kont docelowych bez konta źródłowego
+        pole('docelowe').value = wpis.docelowe.id;
+    }
     if (!r.has('data')) pole('data').value = wpis.data || szybkiWpis.zachowanaData || toLocalISODate(new Date());
     document.querySelectorAll('[data-wpis-znacznik]').forEach(el => {
         const klucz = el.dataset.wpisZnacznik;
@@ -265,21 +286,8 @@ function wybierzPodpowiedzWpisu(i) {
         return;
     }
     if (s.typ === 'konto') {
-        // Konto trafia do pola, a znacznik znika z tekstu — nazwy kont bywają wielowyrazowe
-        // i niejednoznaczne, więc tekst nie musi ich odtwarzać (decyzja T6).
-        q.value = q.value.slice(0, q.value.length - s.fragment.length).replace(/\s+$/, '');
-        q.value += q.value ? ' ' : '';
-        if (s.znacznik === '@') {
-            pole('konto').value = s.konto.id;
-            pole('konto').dispatchEvent(new Event('change'));
-            szybkiWpis.reczne.add('konto');
-        } else {
-            ustawKategorieWpisu(pierwszaKategoriaPrzelewu()?.name);
-            szybkiWpis.reczne.add('kategoria');
-            updateDestAccountOptions();
-            pole('docelowe').value = s.konto.id;
-            szybkiWpis.reczne.add('docelowe');
-        }
+        // Znacznik zostaje w tekście, żeby wybór był widoczny w polu; pola ustawi rozkład tekstu.
+        q.value = q.value.slice(0, q.value.length - s.fragment.length) + s.znacznik + znacznikKonta(s.konto) + ' ';
     } else {
         q.value = q.value.slice(0, q.value.length - szybkiWpis.wpis.nazwa.length) + s.nazwa + ' ';
     }

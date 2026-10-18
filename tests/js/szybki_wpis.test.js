@@ -204,14 +204,27 @@ describe('formularz z szybkim wpisem', () => {
         expect(document.getElementById('tx-quick-summary').textContent).toContain('−85,60 PLN · Biedronka');
     });
 
-    it('wybór konta po „>" ustawia przelew i usuwa znacznik z tekstu (decyzja T6)', () => {
+    it('wybór konta po „>" zostawia w tekście znacznik konta i ustawia przelew', () => {
         q().focus();
-        wpisz('>k');
+        wpisz('500 >k');
         klawisz('ArrowDown');
         klawisz('Tab');
-        expect(q().value).toBe('');
+        // Znacznik zostaje widoczny — bez niego wybór wyglądał jak wyczyszczenie wpisu.
+        expect(q().value).toBe('500 >Karta ');
         expect(document.getElementById('tx-category').value).toBe('Przelew wewnętrzny');
         expect(document.getElementById('tx-dest-account').value).toBe('3');
+        expect(document.getElementById('tx-amount').value).toBe('500.00');
+        expect(document.getElementById('tx-quick-ghost').textContent).toContain('data');
+    });
+
+    it('konto bez jednoznacznego słowa dostaje pełną nazwę z „_" i nadal się rozpoznaje', () => {
+        accounts.push({ id: 5, name: 'Konto osobiste 2' });
+        q().focus();
+        wpisz('@konto_osobiste_2');
+        expect(rozlozWpis(q().value).konto.id).toBe(5);
+        expect(znacznikKonta(accounts[0])).toBe('Konto_osobiste');  // „osobiste" pasuje też do konta 5
+        expect(rozlozWpis('@Konto_osobiste').konto.id).toBe(1);     // pełna nazwa wygrywa z prefiksem
+        expect(znacznikKonta(accounts[1])).toBe('oszczędnościowe');
     });
 
     it('wyczyszczenie pola zdejmuje rozpoznane wartości, ręczne zostają', () => {

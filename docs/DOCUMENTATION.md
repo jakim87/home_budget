@@ -40,7 +40,7 @@
 - **Transakcje cykliczne** — definicje automatycznie wykonywanych transakcji wg harmonogramu (dziennie, tygodniowo, miesięcznie, rocznie)
 - **Transakcje zaplanowane** — jednorazowe transakcje z określoną datą wykonania w przyszłości
 - **Przelewu wewnętrzne** — automatyczne tworzenie lustrzanej transakcji na koncie docelowym przy przelewie między własnymi kontami
-- **Dashboard** — przegląd Net Worth, wykresy miesięczne i roczne wydatków/przychodów, bilans kont
+- **Dashboard** — Net Worth z porównaniem do poprzedniego miesiąca i roku, majątek w czasie (razem albo wg typu kont), przychody i wydatki wg wybranych kategorii, udział majątku wg typu kont; klik w miesiąc prowadzi do jego transakcji albo raportu
 - **Raporty** — osobna zakładka z filtrowaniem po zakresie dat, kategoriach i kontach; wykresy słupkowe i liniowe, domyślnie z wyłączeniem przelewów wewnętrznych (inaczej podwajałyby obroty)
 - **Budżet miesięczny** — plan kwoty na kategorię w danym miesiącu, zestawiony z wykonaniem i z rezerwacjami z harmonogramu; planowane są obie strony (przychody i wydatki), więc widać, czy plan wydatków mieści się w planie przychodów
 

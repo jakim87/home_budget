@@ -68,6 +68,23 @@ body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
     white-space: pre; overflow: hidden; pointer-events: none;
 }
 
+/* Panel szybkiego wpisu na telefonie (21_szybki_wpis.js): wysuwany od dołu, zawiera formularz
+   przeniesiony z zakładki Transakcje. Akcje poboczne (import, uzgodnienie) zostają w zakładce. */
+#tx-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; max-height: 90vh; overflow-y: auto;
+    padding: 0.5rem 0.5rem calc(1rem + env(safe-area-inset-bottom, 0px));
+    background: #f8fafc; border-radius: 1rem 1rem 0 0; box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.25);
+}
+#tx-sheet-tlo { position: fixed; inset: 0; z-index: 45; background: rgba(15, 23, 42, 0.45); }
+#tx-sheet .tx-akcje-poboczne { display: none; }
+#tx-sheet #tx-form-card { border: 0; box-shadow: none; padding: 0.25rem 0.5rem; background: transparent; }
+@media (prefers-reduced-motion: no-preference) {
+    #tx-sheet:not(.hidden) { animation: wysunPanel 0.22s ease-out; }
+}
+@keyframes wysunPanel { from { transform: translateY(100%); } to { transform: none; } }
+/* Na telefonie komunikaty nad przyciskiem „+", nie pod nim. */
+@media (pointer: coarse) { #toast-container { bottom: 88px; } }
+
 @keyframes slideIn {
     to { opacity: 1; transform: translateY(0); }
 }
@@ -169,3 +186,11 @@ body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
     /* Komorka bez wartosci ("—") zajmowalaby caly wiersz karty. */
     .tabela-karty td:has(> .komorka-pusta:only-child) { display: none; }
 }
+
+/* Przycisk „+" pełnym kolorem akcentu: unosi się nad treścią, więc obrys (styl przycisków
+   w warstwie Classical) zlewałby się z wykresem pod spodem. Bez klas bg-* — Classical ich nie dotknie. */
+#tx-fab {
+    background: var(--color-accent, #2563eb); color: #fff; border: 0;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.3);
+}
+#tx-fab:focus-visible { outline: 3px solid var(--color-accent-700, #1d4ed8); outline-offset: 2px; }

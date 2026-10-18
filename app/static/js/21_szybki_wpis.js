@@ -374,6 +374,8 @@ function rysujNajczestszych() {
 // „dziś" i konta domyślnego, chyba że zaznaczono „Zachowaj" (decyzja T7).
 function poZapisieSzybkiegoWpisu() {
     const zachowaj = document.getElementById('tx-quick-sticky')?.checked;
+    // Panel na telefonie zamyka się po zapisie; z „Zachowaj" zostaje na kolejny paragon.
+    if (panelWpisuOtwarty() && !zachowaj) zamknijPanelWpisu();
     szybkiWpis.zachowanaData = zachowaj ? pole('data').value : null;
     szybkiWpis.zachowaneKonto = zachowaj ? Number(pole('konto').value) : null;
     szybkiWpis.reczne.clear();
@@ -396,6 +398,7 @@ function poZapisieSzybkiegoWpisu() {
 }
 
 function initSzybkiWpis() {
+    initPanelWpisu();
     const q = document.getElementById('tx-desc');
     if (!q) return;
 
@@ -464,9 +467,82 @@ function initSzybkiWpis() {
 
 // Odświeżenie danych (nowi kontrahenci, kategorie) — wołane z fetchInitialData.
 function odswiezDaneSzybkiegoWpisu() {
+    odswiezPrzyciskWpisu();
+    if (otworzWpisPoZaladowaniu) { otworzWpisPoZaladowaniu = false; otworzWpis(); }
     rysujNajczestszych();
     const przyklady = przykladyWpisu();
     const q = document.getElementById('tx-desc');
     if (q && przyklady.length) q.placeholder = `np. ${przyklady[szybkiWpis.przyklad % przyklady.length]}`;
     podsumujWpis();
+}
+
+// --- Szybki wpis z każdej zakładki (telefon) ---
+// Przycisk „+" otwiera od dołu panel z TYM SAMYM formularzem, przeniesionym z zakładki
+// Transakcje (bez drugiej kopii id). Tylko na urządzeniu dotykowym i nie na zakładce
+// Transakcje, gdzie formularz i tak stoi na górze.
+let otworzWpisPoZaladowaniu = false;  // skrót /login?dodaj=1 — panel po wczytaniu danych
+let miejsceFormularzaWpisu = null;
+
+const panelWpisuOtwarty = () => !document.getElementById('tx-sheet')?.classList.contains('hidden');
+
+function odswiezPrzyciskWpisu(zakladka) {
+    const fab = document.getElementById('tx-fab');
+    if (!fab) return;
+    const aktywna = zakladka || (['dashboard', 'transactions', 'summary', 'budget', 'categories', 'staging', 'reports']
+        .find(n => !document.getElementById(`tab-${n}`)?.classList.contains('tab-hidden')));
+    fab.classList.toggle('hidden', !ekranDotykowy() || aktywna === 'transactions' || !accounts.length);
+}
+
+function otworzPanelWpisu() {
+    const karta = document.getElementById('tx-form-card');
+    if (!karta || panelWpisuOtwarty()) return;
+    miejsceFormularzaWpisu = document.createComment('miejsce formularza transakcji');
+    karta.before(miejsceFormularzaWpisu);
+    document.getElementById('tx-sheet-body').append(karta);
+    document.getElementById('tx-sheet').classList.remove('hidden');
+    document.getElementById('tx-sheet-tlo').classList.remove('hidden');
+    document.getElementById('tx-desc').focus();
+}
+
+function zamknijPanelWpisu() {
+    if (!panelWpisuOtwarty()) return;
+    miejsceFormularzaWpisu.after(document.getElementById('tx-form-card'));
+    miejsceFormularzaWpisu.remove();
+    document.getElementById('tx-sheet').classList.add('hidden');
+    document.getElementById('tx-sheet-tlo').classList.add('hidden');
+    document.getElementById('tx-fab')?.focus();
+}
+
+// Skrót z ekranu telefonu: panel; na komputerze — zakładka Transakcje z kursorem w polu.
+function otworzWpis() {
+    if (ekranDotykowy()) {
+        otworzPanelWpisu();
+    } else {
+        switchTab('transactions');
+        document.getElementById('tx-desc')?.focus();
+    }
+}
+
+function zadajOtwarciaWpisu() {
+    otworzWpisPoZaladowaniu = true;
+}
+
+function initPanelWpisu() {
+    document.getElementById('tx-fab')?.addEventListener('click', otworzPanelWpisu);
+    document.getElementById('tx-sheet-tlo')?.addEventListener('click', zamknijPanelWpisu);
+    document.getElementById('tx-sheet-zamknij')?.addEventListener('click', zamknijPanelWpisu);
+    const panel = document.getElementById('tx-sheet');
+    panel?.addEventListener('keydown', e => {
+        // Pierwszy Esc zamyka listę podpowiedzi (obsługuje ją pole), dopiero kolejny panel.
+        if (e.key === 'Escape' && document.getElementById('tx-quick-sugg').classList.contains('hidden')) {
+            zamknijPanelWpisu();
+            return;
+        }
+        // Fokus zostaje w panelu, dopóki jest otwarty (okno dialogowe).
+        if (e.key !== 'Tab' || e.defaultPrevented) return;
+        const fokusowalne = [...panel.querySelectorAll('button, input, select, textarea')].filter(el => !el.disabled && el.getClientRects().length);
+        const [pierwszy, ostatni] = [fokusowalne[0], fokusowalne[fokusowalne.length - 1]];
+        if (e.shiftKey && document.activeElement === pierwszy) { e.preventDefault(); ostatni.focus(); }
+        else if (!e.shiftKey && document.activeElement === ostatni) { e.preventDefault(); pierwszy.focus(); }
+    });
 }

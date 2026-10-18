@@ -52,6 +52,23 @@ def test_zalogowany_na_login_wraca_do_aplikacji(logged_in_client):
     assert response.headers['Location'].endswith('/')
 
 
+def test_skrot_szybkiego_wpisu_przechodzi_przez_logowanie(logged_in_client):
+    """Skrót z ekranu telefonu (/login?dodaj=1) musi dotrzeć do aplikacji z parametrem —
+    inaczej zalogowany trafia na zwykły Dashboard zamiast na panel wpisu."""
+    response = logged_in_client.get('/login?dodaj=1')
+
+    assert response.status_code == 302
+    assert response.headers['Location'].endswith('/?dodaj=1')
+
+
+def test_login_nie_przenosi_obcych_parametrow(logged_in_client):
+    """Przekierowanie składa adres samo — nie przepisuje niczego z zapytania."""
+    response = logged_in_client.get('/login?next=https://zly.example&dodaj=1')
+
+    assert response.headers['Location'].endswith('/?dodaj=1')
+    assert 'zly.example' not in response.headers['Location']
+
+
 def test_wizytowka_pokazuje_demo_tylko_gdy_konto_demo_istnieje(client, app):
     """Bez DEMO_ENABLED link prowadzilby do logowania na konto, ktorego nie ma."""
     app.config['DEMO_ENABLED'] = False

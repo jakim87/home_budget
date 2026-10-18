@@ -21,6 +21,9 @@ function switchTab(tabName) {
         container.classList.add('max-w-7xl');
     }
 
+    if (panelWpisuOtwarty()) zamknijPanelWpisu();  // formularz wraca do zakładki Transakcje
+    odswiezPrzyciskWpisu(tabName);
+
     if (tabName === 'dashboard') renderDashboard();
     if (tabName === 'summary') renderSummary();
     if (tabName === 'transactions') renderTransactions();

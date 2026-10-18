@@ -16,6 +16,18 @@
 <body class="text-slate-800 antialiased pb-20">
     <div id="toast-container"></div>
 
+    <!-- Szybki wpis z każdej zakładki na telefonie (21_szybki_wpis.js): przycisk „+" i panel od dołu,
+         do którego przenoszony jest TEN SAM formularz z zakładki Transakcje (bez kopii id). -->
+    <button type="button" id="tx-fab" aria-label="Dodaj transakcję" aria-haspopup="dialog" class="hidden fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full text-3xl leading-none">+</button>
+    <div id="tx-sheet-tlo" class="hidden"></div>
+    <div id="tx-sheet" role="dialog" aria-modal="true" aria-label="Nowa transakcja" class="hidden">
+        <div class="flex items-center justify-center relative pb-1">
+            <span class="block w-10 h-1 rounded bg-slate-300"></span>
+            <button type="button" id="tx-sheet-zamknij" aria-label="Zamknij" class="absolute right-1 -top-1 px-2 text-2xl leading-none text-slate-500">×</button>
+        </div>
+        <div id="tx-sheet-body"></div>
+    </div>
+
     <!-- Pasek postępu zatwierdzania (widoczny z każdej zakładki) -->
     <div id="staging-progress-bar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 z-50 min-w-[340px]">
         <div class="flex items-center gap-3 mb-2.5">
@@ -107,7 +119,7 @@
                             <dd id="dashboard-delta-mc-wartosc" class="text-xl font-semibold text-slate-800 tabular-nums whitespace-nowrap mt-1">—</dd>
                             <dd id="dashboard-delta-mc-zmiana" class="text-xs font-medium whitespace-nowrap"></dd>
                         </div>
-                        <div class="pl-6 border-l border-slate-200 min-w-[11rem]">
+                        <div class="pr-6 sm:pl-6 sm:border-l border-slate-200 min-w-[11rem]">
                             <dt class="text-xs text-slate-500">Rok temu · <span id="dashboard-delta-rok-kiedy"></span></dt>
                             <dd id="dashboard-delta-rok-wartosc" class="text-xl font-semibold text-slate-800 tabular-nums whitespace-nowrap mt-1">—</dd>
                             <dd id="dashboard-delta-rok-zmiana" class="text-xs font-medium whitespace-nowrap"></dd>
@@ -193,7 +205,7 @@
             <div id="tab-transactions" class="tab-hidden space-y-8">
                 <!-- Formularz dodawania: szybki wpis jedną linią (21_szybki_wpis.js) nad polami, które
                      pokazują, co aplikacja z niego zrozumiała. Zapis bez zmian — 11_transactions.js. -->
-                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
+                <div id="tx-form-card" class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
                     <div class="flex flex-wrap justify-between items-baseline gap-x-6 gap-y-2 mb-4">
                         <div class="flex items-center gap-2">
                             <h2 id="form-title" class="text-xl font-bold text-slate-800">Nowa transakcja</h2>
@@ -210,7 +222,7 @@
                             </span>
                         </div>
                         <!-- Akcje poboczne jako odnośniki: jedynym przyciskiem sekcji jest „Zapisz”. -->
-                        <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                        <div class="tx-akcje-poboczne flex flex-wrap gap-x-5 gap-y-1 text-sm">
                             <button type="button" onclick="openReconcileModal()" class="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:decoration-blue-700">Uzgodnij saldo</button>
                             <!-- Ukryty na telefonie: import CSV zaklada plik z banku na dysku,
                                  czego zwiedzajacy na telefonie zwykle nie ma pod reka. Samouczek

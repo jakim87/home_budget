@@ -230,3 +230,51 @@ describe('formularz z szybkim wpisem', () => {
         expect(document.getElementById('tx-quick-sugg').textContent).toContain('<img');
     });
 });
+
+describe('panel szybkiego wpisu na telefonie', () => {
+    beforeEach(async () => {
+        const { readFileSync } = await import('node:fs');
+        const szablon = readFileSync('app/templates/base.html', 'utf-8');
+        const formularz = szablon.match(/<form id="transaction-form"[\s\S]*?<\/form>/)[0];
+        const panel = szablon.match(/<button type="button" id="tx-fab"[\s\S]*?<div id="tx-sheet-body"><\/div>\s*<\/div>/)[0];
+        document.body.innerHTML = '<form id="category-form"><input id="cat-name"><select id="cat-type"></select></form>'
+            + panel + `<div id="tab-transactions"><div id="tx-form-card">${formularz}</div></div>`;
+        window.matchMedia = () => ({ matches: true });  // urządzenie dotykowe
+        zaladujModuly('07_categories.js');
+        updateCategorySelects();
+        updateAccountSelects();
+        initSzybkiWpis();
+    });
+    afterEach(() => { delete window.matchMedia; });
+
+    it('„+" przenosi ten sam formularz do panelu, a zamknięcie oddaje go zakładce', () => {
+        document.getElementById('tx-fab').click();
+        expect(document.getElementById('tx-sheet-body').contains(document.getElementById('transaction-form'))).toBe(true);
+        expect(document.querySelectorAll('#transaction-form')).toHaveLength(1);
+        expect(document.activeElement.id).toBe('tx-desc');
+
+        document.getElementById('tx-sheet-zamknij').click();
+        expect(document.getElementById('tab-transactions').contains(document.getElementById('transaction-form'))).toBe(true);
+        expect(document.getElementById('tx-sheet').classList.contains('hidden')).toBe(true);
+    });
+
+    it('po zapisie panel się zamyka, a z „Zachowaj" zostaje otwarty', () => {
+        document.getElementById('tx-fab').click();
+        document.getElementById('tx-quick-sticky').checked = true;
+        poZapisieSzybkiegoWpisu();
+        expect(panelWpisuOtwarty()).toBe(true);
+        document.getElementById('tx-quick-sticky').checked = false;
+        poZapisieSzybkiegoWpisu();
+        expect(panelWpisuOtwarty()).toBe(false);
+    });
+
+    it('„+" nie pokazuje się na zakładce Transakcje ani na komputerze', () => {
+        odswiezPrzyciskWpisu('dashboard');
+        expect(document.getElementById('tx-fab').classList.contains('hidden')).toBe(false);
+        odswiezPrzyciskWpisu('transactions');
+        expect(document.getElementById('tx-fab').classList.contains('hidden')).toBe(true);
+        window.matchMedia = () => ({ matches: false });
+        odswiezPrzyciskWpisu('dashboard');
+        expect(document.getElementById('tx-fab').classList.contains('hidden')).toBe(true);
+    });
+});

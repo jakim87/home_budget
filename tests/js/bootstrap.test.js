@@ -11,7 +11,7 @@ function start(adres, { przyciskDemo = true } = {}) {
 }
 
 beforeEach(() => {
-    for (const nazwa of ['initContractorCombobox', 'initSzybkiWpis', 'fetchInitialData', 'loginAsDemo', 'showLoginModal', 'showAuthView']) {
+    for (const nazwa of ['initContractorCombobox', 'initSzybkiWpis', 'zadajOtwarciaWpisu', 'fetchInitialData', 'loginAsDemo', 'showLoginModal', 'showAuthView']) {
         globalThis[nazwa] = vi.fn();
     }
 });
@@ -57,5 +57,19 @@ describe('domyslna data w formularzu transakcji', () => {
         vi.setSystemTime(new Date('2026-03-15T23:30:00Z')); // w Warszawie juz 16 marca, 0:30
         start('/login');
         expect(document.getElementById('tx-date').value).toBe('2026-03-16');
+    });
+});
+
+describe('skrot szybkiego wpisu', () => {
+    it('?dodaj=1 zamawia otwarcie wpisu po wczytaniu danych i zostawia parametr w adresie', () => {
+        start('/?dodaj=1');
+        expect(zadajOtwarciaWpisu).toHaveBeenCalledOnce();
+        expect(fetchInitialData).toHaveBeenCalledOnce();
+        expect(window.location.search).toBe('?dodaj=1');
+    });
+
+    it('bez parametru niczego nie otwiera', () => {
+        start('/');
+        expect(zadajOtwarciaWpisu).not.toHaveBeenCalled();
     });
 });

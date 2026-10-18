@@ -1,9 +1,8 @@
 // --- TRANSAKCJE ---
 
-// Podpięcie Auto-uzupełniania do głównych formularzy
-document.getElementById('tx-desc').addEventListener('input', function(e) {
-    handleAutoFill(e.target.value, document.getElementById('tx-contractor'), document.getElementById('tx-category'));
-});
+// Pole #tx-desc formularza transakcji obsługuje szybki wpis (21_szybki_wpis.js);
+// tu auto-uzupełnianie zostaje tylko dla formularza transakcji cyklicznych.
+let ostatnioDodanaTxId = null;  // wiersz podświetlany w historii tuż po zapisie
 
 const recDesc = document.getElementById('rec-desc');
 if (recDesc) {
@@ -17,7 +16,7 @@ document.getElementById('tx-category').addEventListener('change', function() {
     this.dataset.userSet = '1';
     const catName = this.value;
     const cat = categories.find(c => c.name === catName);
-    const isTransfer = cat && cat.type === 'transfer';
+    const isTransfer = !!(cat && cat.type === 'transfer');  // bez !! pusta kategoria dałaby toggle(…, undefined), czyli przełączenie
     document.getElementById('tx-contractor-wrapper').classList.toggle('hidden', isTransfer);
     document.getElementById('tx-dest-account-wrapper').classList.toggle('hidden', !isTransfer);
     if (isTransfer) {
@@ -36,7 +35,6 @@ document.getElementById('tx-account').addEventListener('change', function() {
 document.getElementById('transaction-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const dateInput = document.getElementById('tx-date').value;
-    const descInput = document.getElementById('tx-desc').value.trim();
     const rawAmount = parseFloat(document.getElementById('tx-amount').value);
     const categoryInput = document.getElementById('tx-category').value;
     const accountInput = document.getElementById('tx-account').value;
@@ -73,6 +71,8 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
     }
 
     const finalAmount = getSignFromCategoryName(categoryInput) * Math.abs(rawAmount);
+    // Tytuł z szybkiego wpisu: tekst nazwy bez kwoty i daty, a gdy go nie ma — kategoria.
+    const descInput = tytulWpisu(rozlozWpis(document.getElementById('tx-desc').value), categoryInput);
 
     const txData = {
         date: dateInput,
@@ -92,17 +92,20 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
         });
         
         if (response.ok) {
-            document.getElementById('tx-desc').value = '';
-            document.getElementById('tx-amount').value = '';
-            document.getElementById('tx-contractor').value = '';
-            document.getElementById('tx-contractor-input').value = '';
+            const nowa = await response.json();
             document.getElementById('tx-comment').value = '';
-            delete document.getElementById('tx-category').dataset.userSet;
-            // Konto zostaje takie, jakie wybrał użytkownik — kolejne transakcje zwykle
-            // idą na to samo konto. Nie nadpisujemy go kontem z „Widoku konta".
+            // Czyste pole na kolejny wpis; data i konto zostają tylko przy „Zachowaj datę i konto".
+            poZapisieSzybkiegoWpisu();
 
-            showToast('Transakcja została zapisana pomyślnie.');
-            fetchInitialData(); // Pobiera na nowo dane by odświeżyć globalne saldo
+            const kwota = `${finalAmount < 0 ? '−' : '+'}${formatKwota(Math.abs(finalAmount))} PLN`;
+            showToast(`Dodano: ${descInput}, ${kwota}`, 'success', { etykieta: 'Cofnij', wykonaj: () => cofnijDodanieTransakcji(nowa.id) });
+            ostatnioDodanaTxId = nowa.id;
+            await fetchInitialData(); // Pobiera na nowo dane by odświeżyć globalne saldo
+            setTimeout(() => {
+                if (ostatnioDodanaTxId !== nowa.id) return;
+                ostatnioDodanaTxId = null;
+                document.querySelector(`.tx-select-check[value="${nowa.id}"]`)?.closest('tr')?.classList.remove('bg-amber-50');
+            }, 4000);
         } else {
             showToast('Błąd serwera podczas zapisywania transakcji.', 'error');
         }
@@ -419,7 +422,7 @@ function renderTransactions() {
                     return `<span id="${uid}-s" class="text-slate-600 text-xs cursor-pointer hover:text-blue-600" ${toggleAttrs}>${escapeHtml(c.substring(0, maxLen))}&hellip; <span class="text-blue-500 font-medium">[rozwiń]</span></span><span id="${uid}-f" class="hidden text-slate-600 text-xs">${escapeHtml(c)} <span class="text-blue-500 font-medium cursor-pointer" ${toggleAttrs}>[zwiń]</span></span>`;
                 })();
 
-                row.className = `transition-colors group hover:bg-slate-50 ${isVirtual ? 'bg-indigo-50/30' : ''}`;
+                row.className = `transition-colors group hover:bg-slate-50 ${isVirtual ? 'bg-indigo-50/30' : ''} ${t.id === ostatnioDodanaTxId ? 'bg-amber-50' : ''}`;
                 const selectCellHtml = isVirtual
                     ? '<td class="p-4 border-b border-slate-100"></td>'
                     : `<td data-label="Zaznacz" class="p-4 border-b border-slate-100">
@@ -476,6 +479,20 @@ function renderTransactions() {
 function accountLabelById(accId) {
     const acc = accounts.find(a => a.id == accId) || inactiveAccounts.find(a => a.id == accId);
     return acc ? acc.name : `konto #${accId}`;
+}
+
+// „Cofnij" z komunikatu po zapisie: transakcja dopiero co dodana, więc bez pytania.
+// To zwykłe, trwałe usunięcie — przy przelewie wewnętrznym znikają obie nogi.
+async function cofnijDodanieTransakcji(id) {
+    try {
+        const response = await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
+        if (!response.ok) { showToast('Nie udało się cofnąć dodania transakcji.', 'error'); return; }
+        showToast('Cofnięto dodanie transakcji.', 'info');
+        fetchInitialData();
+    } catch (error) {
+        console.error(error);
+        showToast('Błąd połączenia z serwerem API.', 'error');
+    }
 }
 
 window.deleteTransaction = async function(id) {

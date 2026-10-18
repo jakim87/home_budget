@@ -32,6 +32,7 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
         renderInactiveAccounts();
         renderTransactions();
         renderDashboard();
+        odswiezDaneSzybkiegoWpisu();
         await fetchPlannedTransactions();
         await fetchRecurringTransactions();
         await fetchRecurringPreview(viewDate.getFullYear(), viewDate.getMonth() + 1);

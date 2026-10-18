@@ -53,9 +53,9 @@ def test_seed_demo_tworzy_konto_i_dane(app):
     assert counts['accounts'] == len(DEMO_ACCOUNTS)
     assert counts['recurring'] == 1
 
-    # Kontrahenci ze słownika + po jednym na każdy cel przelewu + jeden zwrotny
-    # ("Moje konto: Konto osobiste"), którego zakłada sama aplikacja, żeby na koncie
-    # docelowym było widać źródło przelewu.
+    # Kontrahenci ze słownika + po jednym na każdy cel przelewu + "Moje konto: Konto
+    # osobiste" (cel wypłaty kredytu, a zarazem źródło widoczne na kontach docelowych —
+    # aplikacja go nie dubluje, bo szuka go po powiązanym koncie).
     nazwy = {c.name for c in db.session.query(Contractor).filter_by(user_token=user.token).all()}
     for cel in DEMO_TRANSFER_TARGETS:
         assert f'Moje konto: {cel}' in nazwy
@@ -217,3 +217,48 @@ def test_poczekalnia_demo_nie_psuje_lustra_w_historii(app):
     lustra = db.session.query(Transaction).filter_by(user_token=token, origin='mirror',
                                                      account_id=oszczednosciowe.id).count()
     assert lustra > 0, "Brak lustrzanych wpływów na koncie oszczędnościowym"
+
+
+def _salda_na_koniec_miesiecy(token):
+    """{(konto, 'RRRR-MM'): saldo na koniec miesiąca} — z transakcji, jak wykres majątku."""
+    from app.services.demo_service import MONTHS_OF_HISTORY, _month_starts
+    konta = {a.id: a.name for a in db.session.query(Account).filter_by(user_token=token).all()}
+    transakcje = db.session.query(Transaction).filter_by(user_token=token).all()
+    wynik = {}
+    for start in _month_starts(MONTHS_OF_HISTORY):
+        ym = start.strftime('%Y-%m')
+        for konto_id, nazwa in konta.items():
+            wynik[(nazwa, ym)] = sum(
+                (t.amount for t in transakcje if t.account_id == konto_id and t.date.strftime('%Y-%m') <= ym),
+                Decimal('0.00'),
+            )
+    return wynik, [s.strftime('%Y-%m') for s in _month_starts(MONTHS_OF_HISTORY)]
+
+
+def test_historia_kredytu_gotowkowego(app):
+    """Demo pokazuje majątek pod kreską: 18 miesięcy temu dodatni, potem kredyt 40 tys. na
+    remont, ostatnia rata pół roku temu, a od 8 miesięcy rachunek maklerski."""
+    seed_demo('demo', 'demo-do-ogladania')
+    salda, miesiace = _salda_na_koniec_miesiecy(_demo_user().token)
+    netto = {ym: sum(v for (_, m), v in salda.items() if m == ym) for ym in miesiace}
+
+    assert len(miesiace) == 19
+    assert netto[miesiace[0]] > 0, "18 miesięcy temu majątek ma być dodatni, przed kredytem"
+    assert salda[('Kredyt gotówkowy', miesiace[0])] == 0
+    assert salda[('Kredyt gotówkowy', miesiace[1])] == Decimal('-40000.00')
+    assert netto[miesiace[1]] < 0, "Po wydaniu kredytu na remont majątek schodzi pod zero"
+    assert netto[miesiace[6]] < 0, "Rok temu kredyt nadal przewyższa oszczędności"
+    assert salda[('Kredyt gotówkowy', miesiace[11])] < 0
+    assert salda[('Kredyt gotówkowy', miesiace[12])] == 0, "Ostatnia rata 6 miesięcy temu"
+    assert salda[('Rachunek maklerski', miesiace[9])] == 0
+    assert salda[('Rachunek maklerski', miesiace[10])] > 0, "Rachunek maklerski od 8 miesięcy"
+    assert netto[miesiace[-1]] > netto[miesiace[12]] > 0
+
+
+def test_konto_osobiste_nie_schodzi_pod_zero(app):
+    """Raty idą z konta osobistego — demo nie może pokazywać debetu, którego nikt nie planował."""
+    seed_demo('demo', 'demo-do-ogladania')
+    salda, miesiace = _salda_na_koniec_miesiecy(_demo_user().token)
+    for ym in miesiace:
+        assert salda[('Konto osobiste', ym)] >= 0, f"Debet na koncie osobistym w {ym}"
+        assert salda[('Gotówka', ym)] >= 0, f"Ujemna gotówka w {ym}"

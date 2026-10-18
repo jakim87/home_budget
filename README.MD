@@ -17,7 +17,8 @@ Zrealizowane:
 - Wykrywanie transferów wewnętrznych i parowanie obu nóg przelewu
 - Transakcje cykliczne i zaplanowane (harmonogramy)
 - Budżet miesięczny: plan per kategoria zestawiony z wykonaniem i rezerwacjami z harmonogramu
-- Dashboard z wykresami i śledzeniem wartości netto (Net Worth), z kontami walutowymi wycenianymi po kursie średnim NBP
+- Dashboard z wartością netto (Net Worth) i jej zmianą m/m i r/r, majątkiem wg typu kont i wykresem kategorii; konta walutowe wyceniane po kursie średnim NBP
+- Szybki wpis transakcji jedną linią („Biedronka 85,60 wczoraj”) z podpowiedziami; na telefonie przycisk „+” z każdej zakładki
 - Moduł raportów: KPI, wykresy, filtry kont/kategorii/kontrahentów, presety zakresów dat
 - Obsługa typów kont, w tym kredytów (zobowiązania / wartość ujemna)
 - Ręczne wprowadzanie transakcji, również gotówkowych

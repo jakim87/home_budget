@@ -1,17 +1,17 @@
 // Wejscie z wizytowki: /login?demo=1 i /login?rejestracja=1 obsluguje 99_bootstrap.js.
 // To jedyna droga z wizytowki do aplikacji, a pytest tej sciezki nie dotyka.
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { zaladujModuly } from './helpers.js';
 
 function start(adres, { przyciskDemo = true } = {}) {
     document.body.innerHTML = '<input id="tx-date">' + (przyciskDemo ? '<button id="demo-login-btn"></button>' : '');
     window.history.replaceState(null, '', adres);
-    zaladujModuly('99_bootstrap.js');
+    zaladujModuly('04_helpers.js', '99_bootstrap.js');
 }
 
 beforeEach(() => {
-    for (const nazwa of ['initContractorCombobox', 'fetchInitialData', 'loginAsDemo', 'showLoginModal', 'showAuthView']) {
+    for (const nazwa of ['initContractorCombobox', 'initSzybkiWpis', 'zadajOtwarciaWpisu', 'fetchInitialData', 'loginAsDemo', 'showLoginModal', 'showAuthView']) {
         globalThis[nazwa] = vi.fn();
     }
 });
@@ -43,5 +43,33 @@ describe('start aplikacji', () => {
         expect(showLoginModal).toHaveBeenCalledOnce();
         expect(showAuthView).toHaveBeenCalledWith('register');
         expect(window.location.search).toBe('');
+    });
+});
+
+describe('domyslna data w formularzu transakcji', () => {
+    // Strefa ustawiona na sztywno: w CI (UTC) blad liczenia daty w UTC bylby niewidoczny.
+    const strefa = process.env.TZ;
+    beforeEach(() => { process.env.TZ = 'Europe/Warsaw'; });
+    afterEach(() => { vi.useRealTimers(); process.env.TZ = strefa; });
+
+    it('tuz po polnocy jest dzisiejsza data lokalna, nie wczorajsza z UTC', () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-03-15T23:30:00Z')); // w Warszawie juz 16 marca, 0:30
+        start('/login');
+        expect(document.getElementById('tx-date').value).toBe('2026-03-16');
+    });
+});
+
+describe('skrot szybkiego wpisu', () => {
+    it('?dodaj=1 zamawia otwarcie wpisu po wczytaniu danych i zostawia parametr w adresie', () => {
+        start('/?dodaj=1');
+        expect(zadajOtwarciaWpisu).toHaveBeenCalledOnce();
+        expect(fetchInitialData).toHaveBeenCalledOnce();
+        expect(window.location.search).toBe('?dodaj=1');
+    });
+
+    it('bez parametru niczego nie otwiera', () => {
+        start('/');
+        expect(zadajOtwarciaWpisu).not.toHaveBeenCalled();
     });
 });

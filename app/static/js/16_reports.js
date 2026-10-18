@@ -142,6 +142,28 @@ function resetRptFilters() {
     rptSetPreset('6months');
 }
 
+// Wejście z Dashboardu („Szczegółowy raport"): cały wybrany miesiąc i kategorie z filtra
+// wykresu (pusta lista = domyślne przychody i wydatki). Pierwsze otwarcie Raportów
+// nadpisałoby daty presetem „6 miesięcy", więc listy inicjalizujemy tutaj.
+function rptPokazOkres(od, doDaty, kategorieIds) {
+    if (!rptInitialized) {
+        rptInitDropdowns();
+        rptInitialized = true;
+    }
+    document.querySelectorAll('.rpt-acc-check, .rpt-cont-check').forEach(chk => { chk.checked = true; });
+    document.querySelectorAll('.rpt-cat-check').forEach(chk => {
+        const cat = categories.find(c => c.id == parseInt(chk.value));
+        chk.checked = kategorieIds.length
+            ? kategorieIds.includes(cat?.id)
+            : !!cat && (cat.type === 'income' || cat.type === 'expense');
+    });
+    const excludeChk = document.getElementById('rpt-exclude-transfers');
+    if (excludeChk) excludeChk.checked = true;
+    document.getElementById('rpt-date-from').value = od;
+    document.getElementById('rpt-date-to').value = doDaty;
+    switchTab('reports');  // renderReports() przeliczy raport z tymi filtrami
+}
+
 function applyRptFilters() {
     const dateFrom = document.getElementById('rpt-date-from')?.value || null;
     const dateTo = document.getElementById('rpt-date-to')?.value || null;
@@ -256,16 +278,16 @@ function renderRptBarChart() {
                 {
                     label: 'Przychody',
                     data: labels.map(m => parseFloat(months[m].income.toFixed(2))),
-                    backgroundColor: 'rgba(16,185,129,0.75)',
-                    borderColor: 'rgb(16,185,129)',
+                    backgroundColor: PALETA.ochra + 'BF',
+                    borderColor: PALETA.ochra,
                     borderWidth: 1,
                     borderRadius: 4
                 },
                 {
                     label: 'Wydatki',
                     data: labels.map(m => parseFloat(months[m].expense.toFixed(2))),
-                    backgroundColor: 'rgba(239,68,68,0.75)',
-                    borderColor: 'rgb(239,68,68)',
+                    backgroundColor: PALETA.stal + 'BF',
+                    borderColor: PALETA.stal,
                     borderWidth: 1,
                     borderRadius: 4
                 }
@@ -303,8 +325,8 @@ function renderRptLineChart() {
                 {
                     label: 'Narastająco',
                     data: cumNet,
-                    borderColor: 'rgb(139,92,246)',
-                    backgroundColor: 'rgba(139,92,246,0.1)',
+                    borderColor: PALETA.ochra,
+                    backgroundColor: PALETA.ochra + '1F',
                     borderWidth: 2,
                     fill: true,
                     tension: 0.3,
@@ -314,7 +336,7 @@ function renderRptLineChart() {
                 {
                     label: 'Bilans miesięczny',
                     data: monthlyNet,
-                    borderColor: 'rgb(59,130,246)',
+                    borderColor: PALETA.stal,
                     backgroundColor: 'transparent',
                     borderWidth: 2,
                     borderDash: [5, 5],

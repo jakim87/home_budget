@@ -1,8 +1,12 @@
-document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('tx-date').value = toLocalISODate(new Date());
 initContractorCombobox();
+initSzybkiWpis();
 
 // Wejście z wizytówki: /login?demo=1 loguje na konto demo, /login?rejestracja=1 otwiera rejestrację.
 const wejscieZWizytowki = new URLSearchParams(window.location.search);
+// Skrót szybkiego wpisu z ekranu telefonu (/login?dodaj=1). Parametr zostaje w adresie,
+// żeby tę stronę dało się dodać do ekranu głównego.
+if (wejscieZWizytowki.has('dodaj')) zadajOtwarciaWpisu();
 if (wejscieZWizytowki.has('demo') || wejscieZWizytowki.has('rejestracja')) {
     history.replaceState(null, '', window.location.pathname);
 }

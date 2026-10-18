@@ -7,47 +7,52 @@ const TOURS = {
         {
             el: '#dashboard-net-worth',
             akcja: 'Spójrz na Majątek netto',
-            efekt: 'To suma sald wszystkich aktywnych kont. Rośnie i maleje wraz z każdą zapisaną operacją — konta zamknięte i nieaktywne nie są tu liczone.',
+            efekt: 'To suma sald wszystkich aktywnych kont, a obok porównanie z końcem poprzedniego miesiąca i tego samego miesiąca rok temu. Dashboard zawsze liczy wszystkie konta — „Widok konta” w nagłówku go nie zawęża.',
         },
         {
-            el: '#networth-range-from',
-            akcja: 'Ustaw zakres miesięcy',
-            efekt: 'Wykres poniżej pokaże, jak Twój majątek zmieniał się w wybranym okresie. Przydaje się, żeby zobaczyć trend zamiast pojedynczej liczby.',
+            el: '#networth-view-typy',
+            akcja: 'Kliknij „Wg typu kont”',
+            efekt: 'Wykres rozłoży majątek na warstwy: rachunki, oszczędności, inwestycje, a kredyty i karty pod zerem. Linia na wierzchu to majątek netto — dlatego biegnie niżej niż szczyt warstw o kwotę zobowiązań.',
         },
         {
-            el: '#global-account-filter',
-            akcja: 'Wybierz konto z listy „Widok konta"',
-            efekt: 'Zawęża CAŁĄ aplikację do jednego konta — dashboard, historię i podsumowanie; w historii dochodzi wtedy kolumna „Saldo po" ze stanem konta po każdej operacji. Wróć na „Wszystkie konta", jeśli czegoś nie widzisz tam, gdzie się spodziewasz.',
+            el: '#networth-history-chart',
+            akcja: 'Kliknij wybrany miesiąc na wykresie',
+            efekt: 'Sekcja „Udział majątku wg typu kont” pokaże stan z końca tego miesiąca, a pod wykresem pojawią się przyciski „Pokaż transakcje” i „Szczegółowy raport” dla tego miesiąca.',
+        },
+        {
+            el: '#dash-cat-btn',
+            akcja: 'Wybierz kategorie z listy',
+            efekt: 'Wykres przychodów i wydatków policzy tylko zaznaczone kategorie, tak samo jak zakładka Raporty — przelewy między własnymi kontami nigdy się tu nie liczą. Bez zaznaczenia widać wszystkie przychody i wydatki.',
         },
     ],
 
     transactions: [
         {
-            el: '#openImportModalBtn',
-            akcja: 'Kliknij „Importuj wyciąg z banku"',
-            efekt: 'Otworzy się okno wgrywania wyciągu — CSV, HTML lub PDF z ING albo mBanku, CSV z Pekao, Millennium i Revoluta, rozpoznawane automatycznie po zawartości pliku. Wgrane operacje trafiają najpierw do poczekalni w zakładce „Do weryfikacji" — saldo konta jeszcze się nie zmienia.',
-        },
-        {
-            el: '#tx-contractor-input',
-            akcja: 'Zacznij wpisywać nazwę kontrahenta',
-            efekt: 'Pole podpowiada istniejących kontrahentów i podstawia ich domyślną kategorię. Kontrahent nazwany „Moje konto: …" oznacza przelew własny — aplikacja utworzy wtedy lustrzaną operację na koncie docelowym.',
+            el: '#tx-desc',
+            akcja: 'Wpisz transakcję jedną linią, np. „Biedronka 85,60 wczoraj”',
+            efekt: 'Aplikacja rozpozna kontrahenta z jego kategorią, kwotę i datę i wpisze je w pola poniżej — Tab dokańcza podpowiedź. „@” zmienia konto, a „>” robi przelew na własne konto, który pojawi się też na koncie docelowym.',
         },
         {
             el: '#submit-btn',
-            akcja: 'Zapisz operację',
-            efekt: 'Saldo wskazanego konta zmieni się natychmiast — bez etapu weryfikacji, w odróżnieniu od importu z pliku. Sprawdź konto przed zapisem, to najczęstsze źródło rozjazdu z wyciągiem.',
+            akcja: 'Naciśnij Enter albo kliknij „Zapisz”',
+            efekt: 'Saldo konta zmieni się od razu — bez etapu weryfikacji, w odróżnieniu od importu z pliku. Linia obok przycisku mówi, co dokładnie się zapisze; po zapisie komunikat przez chwilę pozwala to „Cofnij”.',
+        },
+        {
+            el: '#openImportModalBtn',
+            akcja: 'Kliknij „Importuj wyciąg”',
+            efekt: 'Otworzy się okno wgrywania wyciągu — CSV, HTML lub PDF z ING albo mBanku, CSV z Pekao, Millennium i Revoluta, rozpoznawane automatycznie po zawartości pliku. Wgrane operacje trafiają najpierw do poczekalni w zakładce „Do weryfikacji” — saldo konta jeszcze się nie zmienia.',
         },
         {
             // Nagłówek kolumny, nie całe <tbody>: podświetlenie listy obejmowało całą
             // tabelę, więc użytkownik i tak musiał sam szukać, o które ikony chodzi.
             el: '#th-tx-actions',
-            akcja: 'Skorzystaj z ikon w kolumnie „Akcje"',
+            akcja: 'Skorzystaj z ikon w kolumnie „Akcje”',
             efekt: 'Edycja działa w miejscu, bez przeładowania. Usunięcie jest trwałe — aplikacja nie ma kosza ani archiwum, więc pomyłkę poprawia się, wpisując operację ponownie.',
         },
         {
             el: '#openRecurringModalBtn',
-            akcja: 'Kliknij „Transakcje Cykliczne"',
-            efekt: 'Otworzy się okno z harmonogramami i operacjami zaplanowanymi na przyszłość. Powtarzalną płatność szybciej jednak założysz z gotowego wpisu: wejdź w edycję jego wiersza, a obok „Zapisz" pojawi się ikona cyklu, która przeniesie kwotę, kategorię, kontrahenta i dzień miesiąca do formularza.',
+            akcja: 'Kliknij „Transakcje cykliczne”',
+            efekt: 'Otworzy się okno z harmonogramami i operacjami zaplanowanymi na przyszłość. Powtarzalną płatność szybciej jednak założysz z gotowego wpisu: wejdź w edycję jego wiersza, a obok „Zapisz” pojawi się ikona cyklu, która przeniesie kwotę, kategorię, kontrahenta i dzień miesiąca do formularza.',
         },
     ],
 

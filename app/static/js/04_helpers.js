@@ -1,4 +1,27 @@
 // --- FUNKCJE POMOCNICZE ---
+
+// Paleta „Noble" — stała kolorystyka wykresów i znaczników w całej aplikacji, dobrana do
+// warstwy Classical (ciepłe szarości, ochra jako akcent). Chart.js nie czyta CSS, więc kolory
+// żyją tutaj; nowy kolor dopisuj do tej listy zamiast wpisywać wartość w module.
+// Przychody i majątek — ochra, wydatki — stal (celowo nie czerwień: czerwień zostaje
+// dla sald ujemnych i błędów).
+const PALETA = {
+    ochra: '#b68235',    // akcent aplikacji · majątek netto · przychody
+    stal: '#5f6f8c',     // wydatki
+    lupek: '#4a6fa5',    // rachunki bieżące (ROR)
+    szalwia: '#5e8f7b',  // oszczędnościowe (KO)
+    miod: '#d0a45a',     // rachunek maklerski
+    sliwka: '#8b6a8f',   // IKZE
+    popiel: '#9b9797',   // konta bez typu
+    umbra: '#8a6b55',    // kredyty i karty (zobowiązania)
+};
+
+// Tekst do porównań: małe litery, bez polskich znaków („Żabka" = „zabka").
+// „ł" osobno — nie rozkłada się na literę i znak diakrytyczny.
+function normalizujTekst(s) {
+    return String(s).toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 function escapeHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
@@ -47,13 +70,24 @@ function klawiszJakKlik(event) {
     }
 }
 
-function showToast(message, type = 'success') {
+// akcja (opcjonalna): { etykieta, wykonaj } — przycisk w komunikacie, np. „Cofnij".
+// Komunikat z akcją wisi dłużej, żeby zdążyć ją kliknąć.
+function showToast(message, type = 'success', akcja = null) {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.innerText = message;
+    if (akcja) {
+        const przycisk = document.createElement('button');
+        przycisk.type = 'button';
+        przycisk.className = 'toast-akcja';
+        przycisk.textContent = akcja.etykieta;
+        przycisk.addEventListener('click', () => { toast.remove(); akcja.wykonaj(); });
+        toast.append(przycisk);
+        toast.classList.add('z-akcja');
+    }
     container.appendChild(toast);
-    setTimeout(() => { if(container.contains(toast)) toast.remove(); }, 3500);
+    setTimeout(() => { if(container.contains(toast)) toast.remove(); }, akcja ? 6500 : 3500);
 }
 
 // Data lokalna jako YYYY-MM-DD. Nie używamy toISOString(), bo ten przelicza na UTC

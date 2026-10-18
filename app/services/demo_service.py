@@ -22,7 +22,7 @@ from app.models import (
     Account, Category, Contractor, Frequency, RecurringTransaction, Transaction,
     TransactionStaging, User,
 )
-from app.services.budget_service import create_transaction
+from app.services.budget_service import create_transaction, get_or_create_reconciliation_category
 from app.services.category_service import create_starter_categories
 from app.services.import_history_service import record_statement_import
 
@@ -31,7 +31,22 @@ logger = logging.getLogger(__name__)
 # Stałe ziarno: demo ma wyglądać identycznie po każdym nocnym odtworzeniu.
 # Zmiana tej liczby = inny (nadal sensowny) zestaw kwot i dat.
 SEED = 20260830
-MONTHS_OF_HISTORY = 12
+# Bieżący miesiąc i 18 poprzednich: tyle trzeba, żeby było widać cały kredyt gotówkowy
+# (patrz LOAN_*) razem z miesiącem przed nim.
+MONTHS_OF_HISTORY = 19
+
+# Kredyt gotówkowy — na nim demo pokazuje majątek netto pod kreską. Indeksy to numery
+# miesięcy historii od najstarszego (0 = 18 miesięcy temu). Kredyt jest wzięty 17 miesięcy
+# temu i od razu wydany na remont, więc majątek spada poniżej zera; spłacany stałą ratą
+# kapitałową, ostatnia rata 6 miesięcy temu. Odsetki to osobny wydatek co miesiąc.
+LOAN_MONTH = 1
+LOAN_AMOUNT = Decimal('40000.00')
+LOAN_INSTALLMENT = Decimal('3650.00')
+LOAN_LAST_INSTALLMENT_MONTH = 12
+LOAN_MONTHLY_INTEREST = Decimal('0.009')
+# Rachunek maklerski otwarty 8 miesięcy temu: wpłata z oszczędności, potem co miesiąc
+# z konta osobistego.
+BROKERAGE_MONTH = 10
 
 # Zdarzenia jednorazowe rozrzucone po historii. Bez nich krzywa majątku jest idealnie
 # prosta — każdy miesiąc wygląda tak samo, więc od razu widać, że to dane wygenerowane.
@@ -58,6 +73,8 @@ DEMO_ACCOUNTS = [
     ('Konto oszczędnościowe', 'ING', 'KO', False),
     ('Karta kredytowa', 'Millennium', 'Kredyt', False),
     ('Gotówka', 'Portfel', None, False),
+    ('Rachunek maklerski', 'XTB', 'Rach. Maklerski', False),
+    ('Kredyt gotówkowy', 'Pekao', 'Kredyt', False),
 ]
 
 # (nazwa, reguły dopasowania, kategoria domyślna) — reguły pokazują, po czym
@@ -81,7 +98,9 @@ DEMO_CONTRACTORS = [
 # Konta, na które demo robi przelewy wewnętrzne. Dla każdego powstaje kontrahent
 # "Moje konto: {nazwa}" — po tej nazwie plus kategorii typu 'transfer' aplikacja
 # rozpoznaje przelew i sama dokłada drugą nogę.
-DEMO_TRANSFER_TARGETS = ('Konto oszczędnościowe', 'Gotówka', 'Karta kredytowa')
+DEMO_TRANSFER_TARGETS = (
+    'Konto oszczędnościowe', 'Gotówka', 'Karta kredytowa', 'Rachunek maklerski', 'Kredyt gotówkowy',
+)
 
 # Poczekalnia importu w demo: nogi przelewów wewnętrznych, na których widać, jak
 # aplikacja oznacza drugą stronę operacji („Obie strony" / „Brak drugiej strony").
@@ -205,7 +224,8 @@ def seed_demo(username: str, password: str) -> dict:
             contractors[name] = cont
 
         transfer_cat = cats['Przelew wewnętrzny']
-        for target in DEMO_TRANSFER_TARGETS:
+        # Konto osobiste też: na nie przychodzi wypłata kredytu z konta kredytowego.
+        for target in (*DEMO_TRANSFER_TARGETS, 'Konto osobiste'):
             cel = accounts[target]
             cont = Contractor(
                 name=f'Moje konto: {cel.name}', user_token=utok,
@@ -318,6 +338,8 @@ def _generate_history(utok, accounts, cats, contractors) -> None:
     ror = accounts['Konto osobiste']
     karta = accounts['Karta kredytowa']
     gotowka = accounts['Gotówka']
+    oszczednosci = accounts['Konto oszczędnościowe']
+    kredyt = accounts['Kredyt gotówkowy']
 
     def add(account, amount, title, when, contractor_name, category_name):
         """Pomija daty z przyszłości — bieżący miesiąc jest zwykle niepełny."""
@@ -335,13 +357,15 @@ def _generate_history(utok, accounts, cats, contractors) -> None:
     months = _month_starts(MONTHS_OF_HISTORY)
 
     # Stan początkowy: bez tego historia zaczyna się od zera na wszystkich kontach,
-    # a portfel schodzi na minus przy pierwszych zakupach za gotówkę.
-    for account, kwota in ((ror, '12000.00'), (accounts['Konto oszczędnościowe'], '25000.00'),
-                           (gotowka, '850.00')):
+    # a portfel schodzi na minus przy pierwszych zakupach za gotówkę. Kategoria systemowa
+    # (jak przy uzgodnieniu salda), bo to nie przychód — inaczej pierwszy miesiąc na
+    # wykresie przychodów miałby słupek kilka razy wyższy od pensji.
+    uzgodnienie = get_or_create_reconciliation_category()
+    for account, kwota in ((ror, '4000.00'), (oszczednosci, '6000.00'), (gotowka, '600.00')):
         create_transaction(
             user_token=utok, account_id=account.id, amount=Decimal(kwota),
             title='Stan początkowy', transaction_date=months[0],
-            category_id=cats['Inne przychody'].id, commit=False, origin='manual',
+            category_id=uzgodnienie.id, commit=False, origin='manual',
         )
 
     # Karta spłacana jest z opóźnieniem jednego miesiąca (wyciąg przychodzi po fakcie),
@@ -349,14 +373,15 @@ def _generate_history(utok, accounts, cats, contractors) -> None:
     # zsuwa się na kilka tysięcy debetu — nikt tak nie żyje.
     karta_do_splaty = Decimal('0.00')
 
-    for month_start in months:
+    for i, month_start in enumerate(months):
         def day(number):
             return month_start.replace(day=number)
+        splaca_kredyt = LOAN_MONTH <= i <= LOAN_LAST_INSTALLMENT_MONTH
 
         # --- Stałe pozycje miesiąca ---
         # Pensja lekko się waha (nadgodziny, różna liczba dni roboczych), ale zostaje
         # w wąskim przedziale — to ma być etat, nie działalność z nierównym przychodem.
-        add(ror, f'{rng.randint(6480, 7120)}.{rng.randint(0, 99):02d}',
+        add(ror, f'{rng.randint(7700, 8300)}.{rng.randint(0, 99):02d}',
             'Wynagrodzenie', day(10), 'Pracodawca sp. z o.o.', 'Wynagrodzenie')
         add(ror, '-2350.00', 'Czynsz', day(11), 'Wspólnota Mieszkaniowa', 'Rachunki')
         # Prąd drożeje zimą — rachunek za grzanie widać w danych, tak jak w życiu.
@@ -370,8 +395,10 @@ def _generate_history(utok, accounts, cats, contractors) -> None:
         # Przelewy wewnętrzne — create_transaction sam dopisze wpływ na koncie
         # docelowym i zepnie obie nogi (linked_transaction_id). Na majątek netto nie
         # wpływają (znoszą się), ale zmienna kwota nie robi z oszczędności schodków.
-        add(ror, f'-{rng.choice([700, 1000, 1000, 1300, 1600])}.00', 'Odkładam na wakacje',
-            day(15), '__transfer__Konto oszczędnościowe', 'Przelew wewnętrzny')
+        # W czasie spłaty kredytu nic nie jest odkładane — nadwyżka idzie na raty.
+        if not splaca_kredyt:
+            add(ror, f'-{rng.choice([700, 1000, 1000, 1300, 1600])}.00', 'Odkładam na wakacje',
+                day(15), '__transfer__Konto oszczędnościowe', 'Przelew wewnętrzny')
         add(ror, f'-{rng.choice([300, 400, 500])}.00', 'Wypłata z bankomatu', day(8),
             '__transfer__Gotówka', 'Przelew wewnętrzny')
 
@@ -405,13 +432,34 @@ def _generate_history(utok, accounts, cats, contractors) -> None:
                 '__transfer__Karta kredytowa', 'Przelew wewnętrzny')
         karta_do_splaty = Decimal(karta.balance)
 
+        # --- Kredyt gotówkowy: wypłata wydana od razu na remont, potem raty i odsetki ---
+        if i == LOAN_MONTH:
+            add(kredyt, str(-LOAN_AMOUNT), 'Wypłata kredytu gotówkowego', day(3),
+                '__transfer__Konto osobiste', 'Przelew wewnętrzny')
+            add(ror, str(-LOAN_AMOUNT), 'Remont mieszkania', day(6), None, 'Inne')
+        elif splaca_kredyt:
+            pozostalo = -Decimal(kredyt.balance)
+            odsetki = (pozostalo * LOAN_MONTHLY_INTEREST).quantize(Decimal('0.01'))
+            add(ror, str(-odsetki), 'Odsetki od kredytu gotówkowego', day(18), None, 'Inne')
+            add(ror, str(-min(LOAN_INSTALLMENT, pozostalo)), 'Rata kredytu gotówkowego', day(18),
+                '__transfer__Kredyt gotówkowy', 'Przelew wewnętrzny')
+
+        # --- Rachunek maklerski: wpłata z oszczędności na otwarcie, potem co miesiąc ---
+        if i == BROKERAGE_MONTH:
+            add(oszczednosci, '-2000.00', 'Otwarcie rachunku maklerskiego', day(4),
+                '__transfer__Rachunek maklerski', 'Przelew wewnętrzny')
+        elif i > BROKERAGE_MONTH:
+            add(ror, f'-{rng.choice([400, 500, 600])}.00', 'Wpłata na rachunek maklerski', day(16),
+                '__transfer__Rachunek maklerski', 'Przelew wewnętrzny')
+
     # --- Zdarzenia jednorazowe: to one łamią prostą linię majątku ---
     # Każde ląduje w innym miesiącu (sample bez powtórzeń), w losowym dniu. Wakacje
     # celowo w lipcu lub sierpniu, jeśli taki miesiąc jest w historii — inaczej
-    # wyglądałyby jak przypadkowy wydatek.
+    # wyglądałyby jak przypadkowy wydatek. Tylko po spłacie kredytu: wcześniej konto
+    # osobiste ledwo spina raty, a duży wydatek wpędziłby je w debet.
     wakacje, pozostale = ONE_OFF_EVENTS[0], list(ONE_OFF_EVENTS[1:])
-    lato = [m for m in months if m.month in (7, 8)]
-    wolne_miesiace = list(months)
+    wolne_miesiace = months[LOAN_LAST_INSTALLMENT_MONTH + 1:]
+    lato = [m for m in wolne_miesiace if m.month in (7, 8)]
     if lato:
         title, amount, category, contractor_name = wakacje
         miesiac_wakacji = rng.choice(lato)

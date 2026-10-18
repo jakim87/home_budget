@@ -191,56 +191,95 @@
 
             <!-- ZAKŁADKA 1: TRANSAKCJE -->
             <div id="tab-transactions" class="tab-hidden space-y-8">
-                <!-- Formularz dodawania/edycji -->
+                <!-- Formularz dodawania: szybki wpis jedną linią (21_szybki_wpis.js) nad polami, które
+                     pokazują, co aplikacja z niego zrozumiała. Zapis bez zmian — 11_transactions.js. -->
                 <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
-                        <h2 id="form-title" class="text-lg font-bold text-slate-700 flex items-center gap-2">
-                            <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-                            Dodaj transakcję
-                        </h2>
-                    <div class="flex flex-wrap gap-2">
-                        <button onclick="openReconcileModal()" class="flex items-center gap-2 px-3 py-1.5 bg-sky-100 text-sky-700 hover:bg-sky-200 rounded-lg text-sm font-medium transition-colors shadow-sm focus:ring-2 focus:ring-sky-400">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                            Uzgodnij saldo
-                        </button>
-                        <!-- Ukryty na telefonie: import CSV zaklada plik z banku na dysku,
-                             czego zwiedzajacy na telefonie zwykle nie ma pod reka. Samouczek
-                             (17_tour.js) sam pomija krok wskazujacy ten przycisk, gdy jest
-                             niewidoczny — patrz krokWidoczny w startTour(). -->
-                        <button id="openImportModalBtn" class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg text-sm font-medium transition-colors shadow-sm focus:ring-2 focus:ring-emerald-400">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                            Importuj wyciąg z banku
-                        </button>
-                        <button id="openRecurringModalBtn" onclick="openRecurringModal()" class="flex items-center gap-2 px-3 py-1.5 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg text-sm font-medium transition-colors shadow-sm focus:ring-2 focus:ring-indigo-400">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                            Transakcje Cykliczne
-                        </button>
-                    </div>
-                    </div>
-                <form id="transaction-form" class="flex flex-col gap-4">
-                        <div class="flex flex-col md:flex-row gap-4">
-                            <input type="date" id="tx-date" required class="p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                            <select id="tx-account" required class="w-full md:w-40 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"><option value="">Wybierz konto...</option></select>
-                            <input type="text" id="tx-desc" placeholder="Podpowiedź (uzupełni kontrahenta i kategorię)" class="flex-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                    <div class="flex flex-wrap justify-between items-baseline gap-x-6 gap-y-2 mb-4">
+                        <div class="flex items-center gap-2">
+                            <h2 id="form-title" class="text-xl font-bold text-slate-800">Nowa transakcja</h2>
+                            <span class="info-tip">
+                                <button type="button" aria-label="Jak szybko dodać transakcję" aria-describedby="tx-quick-info">i</button>
+                                <span role="tooltip" id="tx-quick-info">
+                                    <b>Jak dodać transakcję jedną linią</b><br>
+                                    1. Zacznij pisać nazwę kontrahenta — <kbd>Tab</kbd> dokańcza podpowiedź, strzałki wybierają inną.<br>
+                                    2. Dopisz kwotę, np. 85,60.<br>
+                                    3. Jeśli to nie dziś, dopisz datę: „wczoraj” albo 9.10.<br>
+                                    4. <kbd>Enter</kbd> zapisuje i czyści pole na kolejny wpis.<br>
+                                    Dodatki: <b>@</b> zmienia konto, <b>&gt;</b> robi przelew na własne konto. Pola pod spodem pokazują, co aplikacja zrozumiała — każde można poprawić ręcznie.
+                                </span>
+                            </span>
                         </div>
-                        <div class="flex flex-col md:flex-row gap-4">
-                            <div class="relative w-full md:w-48" id="tx-contractor-wrapper">
-                                <input type="text" id="tx-contractor-input" placeholder="Kontrahent..." autocomplete="off"
+                        <!-- Akcje poboczne jako odnośniki: jedynym przyciskiem sekcji jest „Zapisz”. -->
+                        <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                            <button type="button" onclick="openReconcileModal()" class="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:decoration-blue-700">Uzgodnij saldo</button>
+                            <!-- Ukryty na telefonie: import CSV zaklada plik z banku na dysku,
+                                 czego zwiedzajacy na telefonie zwykle nie ma pod reka. Samouczek
+                                 (17_tour.js) sam pomija krok wskazujacy ten przycisk, gdy jest
+                                 niewidoczny — patrz krokWidoczny w startTour(). -->
+                            <button type="button" id="openImportModalBtn" class="hidden sm:inline text-blue-700 underline decoration-blue-300 underline-offset-2 hover:decoration-blue-700">Importuj wyciąg</button>
+                            <button type="button" id="openRecurringModalBtn" onclick="openRecurringModal()" class="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:decoration-blue-700">Transakcje cykliczne</button>
+                        </div>
+                    </div>
+                    <form id="transaction-form" class="flex flex-col gap-3">
+                        <div class="relative">
+                            <input type="text" id="tx-desc" autocomplete="off" spellcheck="false" maxlength="255"
+                                aria-label="Szybki wpis: kontrahent, kwota, data" aria-autocomplete="list" aria-controls="tx-quick-sugg"
+                                placeholder="np. Biedronka 85,60 wczoraj"
+                                class="w-full p-3 text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                            <div id="tx-quick-ghost" class="tx-quick-ghost" aria-hidden="true"></div>
+                            <ul id="tx-quick-sugg" role="listbox" class="hidden absolute z-30 left-0 right-0 top-full mt-1 p-1 bg-white border border-slate-200 rounded-lg shadow-lg text-sm"></ul>
+                        </div>
+                        <!-- Tylko na urządzeniu dotykowym (21_szybki_wpis.js): @ i > są tam na drugim ekranie klawiatury. -->
+                        <div id="tx-quick-tokens" class="hidden gap-2" aria-label="Skróty">
+                            <button type="button" data-znacznik="@" class="flex-1 p-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-700">@ konto</button>
+                            <button type="button" data-znacznik="&gt;" class="flex-1 p-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-700">&gt; przelew</button>
+                        </div>
+                        <div id="tx-quick-chips" class="hidden flex flex-wrap items-center gap-2 text-xs text-slate-500"></div>
+
+                        <!-- Rozpoznane pola: te same id co wcześniej; ręczna zmiana wygrywa z rozpoznaniem. -->
+                        <div class="grid grid-cols-2 lg:grid-cols-[8rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_10rem_minmax(0,1.2fr)] gap-3 pt-3 border-t border-slate-200">
+                            <div class="flex flex-col gap-1 col-span-2 lg:col-span-1">
+                                <label for="tx-amount" class="flex justify-between text-xs text-slate-500">Kwota <span data-wpis-znacznik="kwota" class="text-amber-700"></span></label>
+                                <input type="number" id="tx-amount" placeholder="0,00" step="0.01" min="0.01" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-right tabular-nums">
+                            </div>
+                            <div class="relative flex flex-col gap-1" id="tx-contractor-wrapper">
+                                <label for="tx-contractor-input" class="flex justify-between text-xs text-slate-500">Kontrahent <span data-wpis-znacznik="kontrahent" class="text-amber-700"></span></label>
+                                <input type="text" id="tx-contractor-input" placeholder="brak" autocomplete="off"
                                     class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                                 <input type="hidden" id="tx-contractor">
-                                <ul id="tx-contractor-dropdown" class="absolute z-30 w-full bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto hidden text-sm"></ul>
+                                <ul id="tx-contractor-dropdown" class="absolute z-30 top-full w-full bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto hidden text-sm"></ul>
                             </div>
-                            <div id="tx-dest-account-wrapper" class="hidden w-full md:w-48">
+                            <div id="tx-dest-account-wrapper" class="hidden flex flex-col gap-1">
+                                <label for="tx-dest-account" class="flex justify-between text-xs text-slate-500">Konto docelowe <span data-wpis-znacznik="docelowe" class="text-amber-700"></span></label>
                                 <select id="tx-dest-account" class="w-full p-2.5 border border-blue-400 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-blue-50 cursor-pointer">
                                     <option value="">Wybierz konto docelowe...</option>
                                 </select>
                             </div>
-                            <select id="tx-category" required class="w-full md:w-48 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"></select>
-                            <input type="number" id="tx-amount" placeholder="Kwota" step="0.01" min="0.01" required class="w-full md:w-32 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                            <input type="text" id="tx-comment" placeholder="Komentarz (opcjonalnie)" maxlength="255" class="flex-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-600 placeholder-slate-400">
+                            <div class="flex flex-col gap-1">
+                                <label for="tx-category" class="flex justify-between text-xs text-slate-500">Kategoria <span data-wpis-znacznik="kategoria" class="text-amber-700"></span></label>
+                                <select id="tx-category" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"></select>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label for="tx-account" class="flex justify-between text-xs text-slate-500">Konto <span data-wpis-znacznik="konto" class="text-amber-700"></span></label>
+                                <select id="tx-account" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"><option value="">Wybierz konto...</option></select>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label for="tx-date" class="flex justify-between text-xs text-slate-500">Data <span data-wpis-znacznik="data" class="text-amber-700"></span></label>
+                                <input type="date" id="tx-date" required class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                            </div>
+                            <div class="flex flex-col gap-1 col-span-2 lg:col-span-1">
+                                <label for="tx-comment" class="text-xs text-slate-500">Komentarz</label>
+                                <input type="text" id="tx-comment" placeholder="opcjonalnie" maxlength="255" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white text-slate-600 placeholder-slate-400">
+                            </div>
                         </div>
-                        <div>
-                            <button type="submit" id="submit-btn" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 w-full md:w-auto">Zapisz</button>
+
+                        <label class="inline-flex items-center gap-2 text-xs text-slate-500 cursor-pointer self-start">
+                            <input type="checkbox" id="tx-quick-sticky" class="rounded border-slate-300">
+                            Zachowaj datę i konto dla kolejnego wpisu
+                        </label>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <p id="tx-quick-summary" class="text-sm text-slate-500 flex-1 min-w-[16rem]" aria-live="polite"></p>
+                            <button type="submit" id="submit-btn" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 w-full sm:w-auto">Zapisz</button>
                         </div>
                     </form>
                 </div>
@@ -1362,6 +1401,7 @@
     <script src="{{ url_for('static', filename='js/18_feedback.js') }}"></script>
     <script src="{{ url_for('static', filename='js/19_bulk_edit.js') }}"></script>
     <script src="{{ url_for('static', filename='js/20_budget.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/21_szybki_wpis.js') }}"></script>
     <script src="{{ url_for('static', filename='js/99_bootstrap.js') }}"></script>
 </body>
 </html>

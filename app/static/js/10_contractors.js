@@ -91,43 +91,32 @@ window.deleteContractor = async function(id) {
 }
 
 // --- AUTO-UZUPEŁNIANIE NA PODSTAWIE OPISU ---
+// Jedno dopasowanie kontrahenta do tekstu dla wszystkich formularzy (edycja wiersza,
+// cykliczne, szybki wpis): nazwa (min. 3 znaki, żeby uniknąć losowych trafień) albo
+// reguła (min. 2) zawarta w tekście; pierwsze trafienie w kolejności słownika.
+// Bez rozróżniania wielkości liter i polskich znaków.
+function dopasujKontrahenta(tekst) {
+    if (!tekst || tekst.length < 2) return null;
+    const t = normalizujTekst(tekst);
+    return contractors.find(c =>
+        (c.name && c.name.length >= 3 && t.includes(normalizujTekst(c.name)))
+        || (c.rules || '').split(',').map(r => normalizujTekst(r.trim())).some(r => r.length >= 2 && t.includes(r))
+    ) || null;
+}
+
 window.handleAutoFill = function(textValue, contSelectEl, catSelectEl) {
-    if (!textValue || textValue.length < 2) return;
-    const text = textValue.toLowerCase();
-
-    for (const c of contractors) {
-        let matchFound = false;
-        
-        // Sprawdź dokładną nazwę (minimum 3 znaki, żeby uniknąć losowych trafień)
-        if (c.name && c.name.length >= 3 && text.includes(c.name.toLowerCase())) {
-            matchFound = true;
-        }
-        
-        // Sprawdź przypisane słowa kluczowe
-        if (!matchFound && c.rules) {
-            const rules = c.rules.split(',').map(r => r.trim().toLowerCase()).filter(r => r.length >= 2);
-            for (const rule of rules) {
-                if (text.includes(rule)) {
-                    matchFound = true;
-                    break;
-                }
-            }
-        }
-
-        if (matchFound) {
-            if (contSelectEl && contSelectEl.value != c.id) {
-                contSelectEl.value = c.id;
-                const displayEl = document.getElementById(contSelectEl.id + '-input');
-                if (displayEl) displayEl.value = c.name;
-            }
-            // Select kategorii operuje nazwami, nie ID. Ręczny wybór użytkownika
-            // w formularzu transakcji (dataset.userSet) ma pierwszeństwo.
-            if (catSelectEl && c.default_category_name && !catSelectEl.dataset.userSet
-                && catSelectEl.value != c.default_category_name) {
-                catSelectEl.value = c.default_category_name;
-            }
-            return; // Zatrzymujemy szukanie na pierwszym dopasowaniu
-        }
+    const c = dopasujKontrahenta(textValue);
+    if (!c) return;
+    if (contSelectEl && contSelectEl.value != c.id) {
+        contSelectEl.value = c.id;
+        const displayEl = document.getElementById(contSelectEl.id + '-input');
+        if (displayEl) displayEl.value = c.name;
+    }
+    // Select kategorii operuje nazwami, nie ID. Ręczny wybór użytkownika
+    // w formularzu transakcji (dataset.userSet) ma pierwszeństwo.
+    if (catSelectEl && c.default_category_name && !catSelectEl.dataset.userSet
+        && catSelectEl.value != c.default_category_name) {
+        catSelectEl.value = c.default_category_name;
     }
 }
 

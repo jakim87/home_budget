@@ -51,6 +51,23 @@ body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
 }
 .info-tip:hover > [role="tooltip"], .info-tip:focus-within > [role="tooltip"] { display: block; }
 
+.info-tip kbd {
+    font: 0.75rem ui-monospace, Consolas, monospace;
+    padding: 0 0.25rem; border: 1px solid #e2e8f0; border-radius: 0.25rem; background: #f8fafc;
+}
+
+/* Komunikat z przyciskiem (np. „Cofnij" po zapisie transakcji) wisi dłużej. */
+.toast.z-akcja { display: flex; align-items: center; justify-content: space-between; gap: 1rem; animation: slideIn 0.3s forwards, fadeOut 0.3s 6s forwards; }
+.toast-akcja { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+/* Szara podpowiedź w polu szybkiego wpisu (21_szybki_wpis.js): leży NA polu, z tym samym
+   odstępem i krojem, więc dokończenie nazwy stoi tuż za wpisanym tekstem. */
+.tx-quick-ghost {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    padding: 0.75rem; border: 1px solid transparent; font-size: 1rem;
+    white-space: pre; overflow: hidden; pointer-events: none;
+}
+
 @keyframes slideIn {
     to { opacity: 1; transform: translateY(0); }
 }

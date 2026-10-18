@@ -11,7 +11,7 @@ function start(adres, { przyciskDemo = true } = {}) {
 }
 
 beforeEach(() => {
-    for (const nazwa of ['initContractorCombobox', 'fetchInitialData', 'loginAsDemo', 'showLoginModal', 'showAuthView']) {
+    for (const nazwa of ['initContractorCombobox', 'initSzybkiWpis', 'fetchInitialData', 'loginAsDemo', 'showLoginModal', 'showAuthView']) {
         globalThis[nazwa] = vi.fn();
     }
 });

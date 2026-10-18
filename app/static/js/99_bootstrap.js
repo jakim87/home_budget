@@ -1,5 +1,6 @@
 document.getElementById('tx-date').value = toLocalISODate(new Date());
 initContractorCombobox();
+initSzybkiWpis();
 
 // Wejście z wizytówki: /login?demo=1 loguje na konto demo, /login?rejestracja=1 otwiera rejestrację.
 const wejscieZWizytowki = new URLSearchParams(window.location.search);

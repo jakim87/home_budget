@@ -104,7 +104,9 @@ function updateCategorySelects() {
     const contCatSelect = document.getElementById('cont-cat');
     
     const currentFormVal = formSelect.value;
-    formSelect.innerHTML = getCategoryOptionsHtml(currentFormVal, false);
+    // Pusta pozycja na górze: szybki wpis zostawia kategorię niewybraną, dopóki jej nie rozpozna.
+    const formHtml = getCategoryOptionsHtml(currentFormVal, false);
+    formSelect.innerHTML = (formHtml.startsWith('<option value="">') ? '' : '<option value="">Wybierz kategorię…</option>') + formHtml;
 
     if(recSelect) {
         const currentRecVal = recSelect.value;

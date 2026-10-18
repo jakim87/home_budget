@@ -210,21 +210,26 @@ describe('formularz z szybkim wpisem', () => {
         klawisz('ArrowDown');
         klawisz('Tab');
         // Znacznik zostaje widoczny — bez niego wybór wyglądał jak wyczyszczenie wpisu.
-        expect(q().value).toBe('500 >Karta ');
+        expect(q().value).toBe('500 >Karta kredytowa ');
         expect(document.getElementById('tx-category').value).toBe('Przelew wewnętrzny');
         expect(document.getElementById('tx-dest-account').value).toBe('3');
         expect(document.getElementById('tx-amount').value).toBe('500.00');
         expect(document.getElementById('tx-quick-ghost').textContent).toContain('data');
     });
 
-    it('konto bez jednoznacznego słowa dostaje pełną nazwę z „_" i nadal się rozpoznaje', () => {
-        accounts.push({ id: 5, name: 'Konto osobiste 2' });
+    it('pełna nazwa konta ze spacjami: wybór z listy i rozpoznanie najdłuższej pasującej nazwy', () => {
+        accounts.push({ id: 5, name: 'Poduszka Finansowa' }, { id: 6, name: 'Konto osobiste 2' });
         q().focus();
-        wpisz('@konto_osobiste_2');
-        expect(rozlozWpis(q().value).konto.id).toBe(5);
-        expect(znacznikKonta(accounts[0])).toBe('Konto_osobiste');  // „osobiste" pasuje też do konta 5
-        expect(rozlozWpis('@Konto_osobiste').konto.id).toBe(1);     // pełna nazwa wygrywa z prefiksem
-        expect(znacznikKonta(accounts[1])).toBe('oszczędnościowe');
+        wpisz('>pod');
+        klawisz('Tab');
+        expect(q().value).toBe('>Poduszka Finansowa ');
+        wpisz('>Poduszka Finansowa 300');
+        expect(document.getElementById('tx-dest-account').value).toBe('5');
+        expect(document.getElementById('tx-amount').value).toBe('300.00');
+        expect(rozlozWpis('>Poduszka Finansowa 300').nazwa).toBe('');      // słowa nazwy konta nie trafiają do tytułu
+        expect(rozlozWpis('@Konto osobiste 2 50').konto.id).toBe(6);         // najdłuższa pasująca nazwa
+        expect(rozlozWpis('@Konto osobiste 50').konto.id).toBe(1);           // dokładna nazwa wygrywa z prefiksem
+        expect(rozlozWpis('@Konto osobiste 50').kwota).toBe(50);
     });
 
     it('wyczyszczenie pola zdejmuje rozpoznane wartości, ręczne zostają', () => {

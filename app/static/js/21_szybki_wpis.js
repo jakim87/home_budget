@@ -9,9 +9,10 @@ const RE_DATA = /^(\d{1,2})\.(\d{1,2})\.?(\d{4})?$/;
 const SLOWA_DATY = { dzis: 0, dzisiaj: 0, wczoraj: 1, przedwczoraj: 2 };
 
 // Konto po fragmencie nazwy — tylko gdy jednoznaczne (dwa konta „Konto …" nie dają wyniku).
-// „_" w znaczniku zastępuje spację (pełna nazwa konta to jedno słowo tekstu).
+// Konto po początku nazwy albo któregoś jej słowa — tylko gdy jednoznaczne („@konto" przy
+// dwóch kontach „Konto …" nie daje wyniku). Dokładna nazwa wygrywa z prefiksem.
 function kontoPoFragmencie(fragment) {
-    const f = normalizujTekst(fragment.replace(/_/g, ' '));
+    const f = normalizujTekst(fragment);
     if (!f) return null;
     const dokladne = accounts.filter(a => normalizujTekst(a.name) === f);
     if (dokladne.length === 1) return dokladne[0];
@@ -24,12 +25,16 @@ function pasujeDoKonta(konto, f) {
     return nazwa.startsWith(f) || nazwa.split(/\s+/).some(w => w.startsWith(f));
 }
 
-// Znacznik wybranego konta zostawiany w tekście: pierwsze słowo nazwy, które wskazuje konto
-// jednoznacznie („>oszczędnościowe"), a gdy takiego nie ma — cała nazwa z „_" zamiast spacji.
-function znacznikKonta(konto) {
-    const slowa = konto.name.split(/\s+/);
-    const jednoznaczne = slowa.find(s => accounts.filter(a => pasujeDoKonta(a, normalizujTekst(s))).length === 1);
-    return jednoznaczne || slowa.join('_');
+// Konto za znacznikiem „@"/„>" na pozycji i: najdłuższy ciąg słów równy pełnej nazwie konta
+// (nazwy mają spacje — „>Poduszka Finansowa"), a gdy żaden nie pasuje — samo słowo jako początek
+// nazwy („>podusz"). Zwraca konto i liczbę zajętych słów.
+function kontoZaZnacznikiem(tokeny, i) {
+    for (let j = tokeny.length; j > i + 1; j--) {
+        const nazwa = normalizujTekst([tokeny[i].slice(1), ...tokeny.slice(i + 1, j)].join(' '));
+        const konto = accounts.find(a => normalizujTekst(a.name) === nazwa);
+        if (konto) return { konto, slow: j - i };
+    }
+    return { konto: kontoPoFragmencie(tokeny[i].slice(1)), slow: 1 };
 }
 
 const pierwszaKategoriaPrzelewu = () => categories.find(c => c.type === 'transfer') || null;
@@ -41,16 +46,23 @@ function rozlozWpis(tekst, dzis = new Date()) {
     const wynik = { kwota: null, data: null, konto: null, docelowe: null, nazwa: '', kontrahent: null, kategoria: null };
     let tokeny = String(tekst).trim().split(/\s+/).filter(Boolean);
 
-    tokeny = tokeny.filter(t => {
-        if (t[0] === '@') { wynik.konto = kontoPoFragmencie(t.slice(1)); return false; }
-        if (t[0] === '>') { wynik.docelowe = kontoPoFragmencie(t.slice(1)); return false; }
+    const pozostale = [];
+    for (let i = 0; i < tokeny.length; i++) {
+        const t = tokeny[i];
+        if (t[0] === '@' || t[0] === '>') {
+            const { konto, slow } = kontoZaZnacznikiem(tokeny, i);
+            if (t[0] === '@') wynik.konto = konto; else wynik.docelowe = konto;
+            i += slow - 1;
+            continue;
+        }
         const ileDni = SLOWA_DATY[normalizujTekst(t)];
         if (ileDni !== undefined) {
             wynik.data = toLocalISODate(new Date(dzis.getFullYear(), dzis.getMonth(), dzis.getDate() - ileDni));
-            return false;
+            continue;
         }
-        return true;
-    });
+        pozostale.push(t);
+    }
+    tokeny = pozostale;
 
     // „12.10" samo jest kwotą; datą staje się dopiero obok osobnej kwoty albo z rokiem.
     // Data bez roku zawsze wskazuje przeszłość (ostatnie takie wystąpienie) — przyszłą
@@ -110,9 +122,9 @@ function tytulWpisu(wpis, kategoria) {
 function sugestieWpisu(tekst, kontoZrodloweId) {
     const m = tekst.match(/(?:^|\s)([>@])(\S*)$/);
     if (m) {
-        const f = normalizujTekst(m[2].replace(/_/g, ' '));
-        // Znacznik już dokończony (wskazuje dokładnie jedno konto) — lista znika.
-        if (f && normalizujTekst(m[2]) === normalizujTekst(znacznikKonta(kontoPoFragmencie(m[2]) || { name: '' }))) return [];
+        const f = normalizujTekst(m[2]);
+        // Pełna nazwa konta już wpisana — lista znika.
+        if (f && accounts.some(a => normalizujTekst(a.name) === f)) return [];
         return accounts
             .filter(a => m[1] === '@' || a.id !== kontoZrodloweId)
             .filter(a => !f || pasujeDoKonta(a, f))
@@ -286,8 +298,8 @@ function wybierzPodpowiedzWpisu(i) {
         return;
     }
     if (s.typ === 'konto') {
-        // Znacznik zostaje w tekście, żeby wybór był widoczny w polu; pola ustawi rozkład tekstu.
-        q.value = q.value.slice(0, q.value.length - s.fragment.length) + s.znacznik + znacznikKonta(s.konto) + ' ';
+        // Pełna nazwa konta zostaje w tekście, żeby wybór był widoczny w polu; pola ustawi rozkład tekstu.
+        q.value = q.value.slice(0, q.value.length - s.fragment.length) + s.znacznik + s.konto.name + ' ';
     } else {
         q.value = q.value.slice(0, q.value.length - szybkiWpis.wpis.nazwa.length) + s.nazwa + ' ';
     }

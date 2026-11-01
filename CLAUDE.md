@@ -283,6 +283,18 @@ Rejestracja pod `POST /api/register` jest **publiczna** — bez zaproszeń i bez
 
 `MAX_CONTENT_LENGTH` = 10 MB (drugą warstwą jest `client_max_body_size` w nginx).
 
+## Praca na produkcji przez SSH
+
+Produkcja (`ilemamkasy.pl`, kod w `/opt/budget`) jest dostępna z sesji Claude przez SSH. Nazwa hosta, klucz i szczegóły dostępu żyją **wyłącznie lokalnie** (ustawienia i pamięć Claude) — repo jest publiczne. Na serwerze `sudo` działa bez hasła, więc **jedynym bezpiecznikiem są poniższe zasady** — serwer niczego nie odmówi.
+
+- **Odczyt bez pytania**: status usług, logi, `git log`, `flask db current`, `SELECT`.
+- **Każda zmiana dopiero po zgodzie w czacie, na konkretną operację** (zgoda nie przechodzi na następne): deploy, restart/stop usług, migracje, `flask seed-demo` / `reset-password` / `feedback-delete`, `pip`, zapis do bazy, edycja plików i konfiguracji (nginx, systemd, fail2ban, ufw, sshd).
+- **Kod tylko przez GitHub**: `git pull --ff-only` z `main`, nigdy edycja plików aplikacji na serwerze — inaczej produkcja rozjeżdża się z repo i z tym, co sprawdziło CI. Wyjątek: pliki, których w repo nie ma z założenia (`.env`, sekrety w `/etc`).
+- **Przed migracją albo operacją na danych** — świeży backup bazy; po deployu tag `deploy/RRRR-MM-DD` dopiero po sprawdzeniu, że serwer stoi na danym commicie.
+- **Sekrety nie trafiają do rozmowy**: nie wyświetlaj `.env`, haseł z `/etc` ani hasła szyfrowania kopii.
+- **Dane użytkowników**: baza produkcyjna to prawdziwe finanse wielu osób — zapytania ogranicz do tego, czego wymaga zadanie, i nie kopiuj ich treści poza serwer.
+- **Zakazane bez wyraźnego polecenia użytkownika**: `flask db downgrade`, `DROP`/`TRUNCATE`, kasowanie kopii zapasowych, `ENABLE_DEV_RESET`, zmiana `git` na serwerze inna niż fast-forward.
+
 ## Kopie zapasowe
 
 `deploy/backup/` — skrypty i jednostki systemd. Kopia powstaje codziennie o 02:00 UTC

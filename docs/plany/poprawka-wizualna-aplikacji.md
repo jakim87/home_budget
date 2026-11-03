@@ -1,6 +1,6 @@
 # Poprawka wizualna aplikacji — plan wdrożenia
 
-Stan: **sekcje 1 i 2 wdrożone na produkcję 2026-10-18** (PR #234, v1.2.0). Sekcja 3 — decyzje rozstrzygnięte 2026-11-03 (wszystkie wg rekomendacji), do implementacji. Sekcja 4 (Wnioski) — propozycja z 2026-11-01. Spisany 2026-10-11. Kolejne zakładki dopisujemy jako następne sekcje.
+Stan: **sekcje 1 i 2 wdrożone na produkcję 2026-10-18** (PR #234, v1.2.0). Sekcja 3 — decyzje rozstrzygnięte 2026-11-03 (wszystkie wg rekomendacji), implementacja w PR #242. Sekcja 4 (Wnioski) — propozycja z 2026-11-01. Spisany 2026-10-11. Kolejne zakładki dopisujemy jako następne sekcje.
 
 Makieta (dane przykładowe, zatwierdzona 2026-10-11): https://claude.ai/artifact/JPdP9HGg3HYdpXxmHA2fnH
 
@@ -206,7 +206,13 @@ Komunikat z „Cofnij" w panelu zależy od decyzji 9.
 
 Makieta (dane przykładowe, 2026-10-24): https://claude.ai/artifact/PrFZnW8iMBB7sVQ7vdFNMw
 
-Stan: **decyzje rozstrzygnięte 2026-11-03 — wszystkie wg rekomendacji**; nic nie wdrożone.
+Stan: **decyzje rozstrzygnięte 2026-11-03 — wszystkie wg rekomendacji**; implementacja w PR #242 (niewdrożona).
+
+Odstępstwa w implementacji (PR #242):
+- krok 3 samouczka wskazuje filtr `#sf-transfer` zamiast nagłówka sekcji przelewów — nagłówek buduje JS, a selektory samouczka muszą istnieć w `base.html`;
+- po zatwierdzeniu nogi pary partner dostaje stan „już zaksięgowana” lokalnie, bez pobierania poczekalni od nowa — inaczej przepadłyby niezapisane wybory na innych wierszach;
+- „To inna operacja — zostaw” działa tylko w bieżącej sesji (zapamiętanie wymagałoby kolumny i migracji);
+- lustro na koncie nogi przelewu nie liczy się jako możliwy duplikat — zatwierdzenie je zastąpi (#217).
 
 ### Co pokazuje makieta
 

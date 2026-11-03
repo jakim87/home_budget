@@ -144,15 +144,16 @@ Użytkownik wybiera plik wyciągu
   Powiadomienie: "Zaimportowano N transakcji do weryfikacji"
 ```
 
+Wgrywanie i zatwierdzanie są w jednej zakładce **Import** (na telefonie ukrytej). Kilka plików naraz: konto każdego rozpoznaje się po numerze rachunku z wyciągu; plik bez numeru (Revolut CSV, wyciąg ING z jednym kontem) dostaje na liście wyników wybór konta i „Wgraj ponownie”.
+
 **Stany transakcji w stagingu:**
 
 | Stan w UI | Warunek | Znaczenie |
 |-----------|---------|-----------|
-| `Przelew` | proposed_category.type = 'transfer' | Przelew wewnętrzny — auto-wykryty |
-| `Zmapowano` | proposed_category + proposed_contractor_id | Pełne dopasowanie do kontrahenta |
-| `Auto-sugestia` | suggested_contractor_name bez proposed_contractor_id | Algorytm zasugerował nazwę, wymaga akceptacji |
-| `Częściowo` | tylko jedna z: kategoria lub kontrahent | Dopasowanie niepełne |
-| *(brak badge)* | brak proposed_category i proposed_contractor_id | Brak dopasowania — wymaga ręcznego uzupełnienia |
+| sekcja „Przelewy między Twoimi kontami” | proposed_category.type = 'transfer' | Przelew wewnętrzny — auto-wykryty; para z tego samego importu to jeden wiersz |
+| `Gotowe` | proposed_category + proposed_contractor_id (przelew: konto po drugiej stronie) | Można zatwierdzić |
+| `Uzupełnij …` | brak kategorii lub kontrahenta | Wymaga ręcznego uzupełnienia; sugestia nowego kontrahenta jako „Nowy: … · Dodaj” |
+| `Możliwy duplikat` | na tym koncie jest transakcja o tej samej kwocie w oknie ±4 dni | „Porównaj z historią” pokazuje ją obok; hurtowe zatwierdzenie pomija taki wiersz |
 
 ---
 
@@ -179,7 +180,7 @@ Użytkownik wybiera kategorię i kontrahenta w dropdownie
   Usunięcie rekordu ze staging
 ```
 
-**Zatwierdzanie zbiorcze** — wszystkie transakcje z kompletem `proposed_category` i `proposed_contractor_id` można zatwierdzić jednym kliknięciem „Zatwierdź zmapowane".
+**Zatwierdzanie zbiorcze** — „Zatwierdź gotowe" zatwierdza wszystkie wiersze w stanie `Gotowe`; możliwe duplikaty i wiersze do uzupełnienia zostają w poczekalni.
 
 **Odrzucanie** — przycisk „Odrzuć wszystkie" usuwa cały staging użytkownika bez tworzenia transakcji.
 

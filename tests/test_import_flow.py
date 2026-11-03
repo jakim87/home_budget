@@ -496,6 +496,53 @@ def test_staging_preview_parowanie_nog_jeden_do_jednego(logged_in_client, test_u
     assert sorted(stany.values()) == ['missing', 'staging', 'staging']
 
 
+def test_staging_preview_para_wskazuje_partnera(logged_in_client, test_user, dwa_konta):
+    """transfer_pair_id: para z tej samej poczekalni wskazuje na siebie nawzajem.
+
+    Front łączy po nim parę w jeden wiersz. Noga nadmiarowa i każdy stan bez
+    partnera w poczekalni mają None — inaczej front skleiłby nogę z obcą.
+    """
+    k = dwa_konta
+    _wyciagi(test_user.token, k['a'])
+    wyplyw = _stg(test_user.token, k['a'], "-500.00", k['cont_b'], k['cat'])
+    _stg(test_user.token, k['b'], "500.00", k['cont_a'], k['cat'])
+    _stg(test_user.token, k['b'], "500.00", k['cont_a'], k['cat'])
+
+    wiersze = _poczekalnia(logged_in_client)
+    partner = wiersze[wyplyw.id]['transfer_pair_id']
+    assert wiersze[partner]['transfer_pair_id'] == wyplyw.id
+    nadmiarowa = next(r for r in wiersze.values() if r['transfer_pair'] == 'missing')
+    assert nadmiarowa['transfer_pair_id'] is None
+
+
+def test_import_bez_numeru_rachunku_prosi_o_konto(logged_in_client, test_user):
+    """Plik bez numeru rachunku i bez wskazanego konta → 400 z needs_account.
+
+    Po tej fladze strona importu pokazuje przy pliku wybór konta i „Wgraj ponownie"
+    — przy kilku plikach naraz konto rozpoznaje się wyłącznie po numerze.
+    """
+    from app.services.demo_service import build_sample_statement_csv
+    resp = _upload_auto_no_account(logged_in_client, build_sample_statement_csv().encode('utf-8-sig'), "ing.csv")
+    assert resp.status_code == 400
+    assert resp.get_json()['needs_account'] is True
+    assert db.session.query(TransactionStaging).count() == 0
+
+
+def test_inny_blad_importu_nie_prosi_o_konto(logged_in_client, test_user):
+    resp = _upload_auto_no_account(logged_in_client, b"to nie jest wyciag", "x.csv")
+    assert resp.status_code == 400
+    assert 'needs_account' not in resp.get_json()
+
+
+def test_staging_preview_bez_pary_w_poczekalni_nie_ma_partnera(logged_in_client, test_user, dwa_konta):
+    """Stany 'mirror' i 'booked' (druga strona poza poczekalnią) nie wskazują wiersza."""
+    k = dwa_konta
+    wyplyw = _stg(test_user.token, k['a'], "-500.00", k['cont_b'], k['cat'])
+    wiersz = _poczekalnia(logged_in_client)[wyplyw.id]
+    assert wiersz['transfer_pair'] == 'mirror'
+    assert wiersz['transfer_pair_id'] is None
+
+
 def test_staging_preview_druga_noga_juz_zatwierdzona(logged_in_client, test_user, dwa_konta):
     """Druga noga jako zatwierdzona, niepowiązana transakcja → 'booked', nie ostrzeżenie.
 

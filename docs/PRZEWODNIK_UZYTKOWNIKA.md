@@ -75,8 +75,8 @@ Mimo że w drugiej transakcji pole „dane kontrahenta” jest bezużyteczne (to
 1. Sprawdza, czy to przelew między Twoimi własnymi kontami (po numerze rachunku) — jeśli tak, koniec, gotowe.
 2. Sprawdza, czy nazwa **istniejącego** kontrahenta pojawia się w połączonym tekście tytuł+dane kontrahenta — jeśli tak, przypisuje ten sam kontrahent i tę samą kategorię co ostatnio.
 3. Jeśli nie znajdzie dokładnego dopasowania, próbuje znaleźć **podobną** nazwę (drobne literówki, różnice w zapisie) — ale tylko gdy podobieństwo jest bardzo wysokie.
-4. Jeśli nic nie pasuje — appka nie zgaduje na siłę, tylko podpowiada nazwę do zaakceptowania lub poprawienia przy weryfikacji w zakładce „Do weryfikacji”.
+4. Jeśli nic nie pasuje — appka nie zgaduje na siłę, tylko podpowiada nazwę do zaakceptowania lub poprawienia przy zatwierdzaniu w zakładce „Import”.
 
 ### Co zrobić, gdy appka źle dopasuje albo nie dopasuje wcale
 
-To normalne przy zupełnie nowym sklepie/kontrahencie. Przy zatwierdzaniu w zakładce „Do weryfikacji” po prostu popraw nazwę na czystą i krótką (np. „Żabka” zamiast „Żabka Z1234 Warszawa”) — od tego momentu appka będzie rozpoznawać ten sklep poprawnie przy każdej kolejnej transakcji, niezależnie od numeru placówki czy miasta.
+To normalne przy zupełnie nowym sklepie/kontrahencie. Przy zatwierdzaniu w zakładce „Import” po prostu popraw nazwę na czystą i krótką (np. „Żabka” zamiast „Żabka Z1234 Warszawa”) — od tego momentu appka będzie rozpoznawać ten sklep poprawnie przy każdej kolejnej transakcji, niezależnie od numeru placówki czy miasta.

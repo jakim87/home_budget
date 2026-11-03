@@ -185,7 +185,7 @@ Import transakcji z plików bankowych odbywa się w bezpieczny, dwuetapowy spos�
 
 1. **Staging (poczekalnia):** Zaimportowane transakcje trafiają najpierw do tabeli tymczasowej `transaction_staging`.
 2. **Analiza i propozycja:** Algorytm dopasowuje kontrahenta i kategorię na podstawie słów kluczowych i numerów kont. Wykrywa również transfery wewnętrzne.
-3. **Weryfikacja przez użytkownika:** Zakładka "Do weryfikacji" umożliwia akceptację propozycji systemu, ręczną korektę lub odrzucenie błędnych wpisów.
+3. **Weryfikacja przez użytkownika:** Zakładka "Import" (wgrywanie wyciągów i poczekalnia) umożliwia akceptację propozycji systemu, ręczną korektę lub odrzucenie błędnych wpisów.
 4. **Zatwierdzenie:** Po zatwierdzeniu transakcja trafia do głównej tabeli `transactions`, a saldo powiązanego konta jest aktualizowane.
 
 ## Architektura edycji danych (Audit Trail)

@@ -24,6 +24,7 @@ from bs4 import BeautifulSoup
 from app import db
 from app.models import Account, Transaction, TransactionStaging
 from app.services.budget_service import (
+    BrakKontaError,
     _MBANK_ACCOUNT_RE,
     _normalize_acc_num,
     build_ing_account_maps,
@@ -190,7 +191,7 @@ def parse_mbank_html(content: str, user_token: str, main_account_id: Optional[in
     ostatnia bywa numerem rachunku kontrahenta. CSV skleja to w jeden blob.
     """
     if main_account_id is None:
-        raise ValueError("Wyciąg mBank dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+        raise BrakKontaError("Wyciąg mBank dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
 
     soup = BeautifulSoup(content, 'html.parser')
     full_text = soup.get_text(' ')
@@ -267,7 +268,7 @@ def parse_mbank_pdf(raw: bytes, user_token: str, main_account_id: Optional[int] 
     ciąg 26 cyfr we własnej linii.
     """
     if main_account_id is None:
-        raise ValueError("Wyciąg mBank dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+        raise BrakKontaError("Wyciąg mBank dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
 
     import fitz
     with fitz.open(stream=raw, filetype='pdf') as doc:
@@ -450,7 +451,7 @@ def parse_ing_pdf(raw: bytes, user_token: str, main_account_id: Optional[int] = 
     is_multi_account = bool(account_entries)
 
     if not is_multi_account and main_account_id is None:
-        raise ValueError("Plik PDF zawiera jedno konto — proszę wybrać konto docelowe przed importem.")
+        raise BrakKontaError("Plik PDF zawiera jedno konto — proszę wybrać konto docelowe przed importem.")
 
     starts = [i for i in range(len(lines) - 1) if _ING_DATE_RE.match(lines[i]) and _ING_DATE_RE.match(lines[i + 1])]
     if not starts:
@@ -568,7 +569,7 @@ def parse_pekao_csv(content: str, user_token: str, main_account_id: Optional[int
     jako podpowiedź (#192). Brak salda po operacji.
     """
     if main_account_id is None:
-        raise ValueError("Wyciąg Pekao dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+        raise BrakKontaError("Wyciąg Pekao dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
 
     transactions: list[dict] = []
     skipped_count = 0
@@ -640,7 +641,7 @@ def parse_millennium_csv(content: str, user_token: str, main_account_id: Optiona
     spacją. Brak kategorii z banku.
     """
     if main_account_id is None:
-        raise ValueError("Wyciąg Millennium dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+        raise BrakKontaError("Wyciąg Millennium dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
 
     transactions: list[dict] = []
     skipped_count = 0
@@ -745,7 +746,7 @@ def parse_revolut_csv(content: str, user_token: str, main_account_id: Optional[i
       nogi wymiany walut mają ten sam tytuł, po którym są parowane.
     """
     if main_account_id is None:
-        raise ValueError("Wyciąg Revolut dotyczy jednego subkonta walutowego — proszę wybrać konto docelowe przed importem.")
+        raise BrakKontaError("Wyciąg Revolut dotyczy jednego subkonta walutowego — proszę wybrać konto docelowe przed importem.")
     konto = db.session.query(Account).filter_by(id=main_account_id, user_token=user_token).first()
     if konto is None:
         raise ValueError("Wybrane konto nie istnieje lub brak uprawnień.")

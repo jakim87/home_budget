@@ -21,6 +21,9 @@ function switchTab(tabName) {
         container.classList.add('max-w-7xl');
     }
 
+    // Import zawsze pokazuje wszystkie konta — przełącznik „Widok konta" by tu mylił.
+    document.getElementById('global-account-filter').parentElement.classList.toggle('hidden', tabName === 'staging');
+
     if (panelWpisuOtwarty()) zamknijPanelWpisu();  // formularz wraca do zakładki Transakcje
     odswiezPrzyciskWpisu(tabName);
 

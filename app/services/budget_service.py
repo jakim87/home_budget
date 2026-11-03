@@ -19,6 +19,14 @@ import logging
 # Dzięki temu w pliku logów widać dokładnie, KTÓRY moduł zapisał daną linię.
 logger = logging.getLogger(__name__)
 
+
+class BrakKontaError(ValueError):
+    """Plik dotyczy jednego konta, nie niesie jego numeru, a konta nie wskazano.
+
+    Osobna klasa, bo strona importu reaguje na nią inaczej niż na resztę błędów:
+    pokazuje przy pliku wybór konta i „Wgraj ponownie" (blueprint dokłada needs_account).
+    """
+
 _LEGAL_SUFFIXES = re.compile(
     r'\bSP(?:ÓŁKA)?\s+Z\s+O\.?O\.?\b'
     r'|\bSP(?:ÓŁKA)?\s+ZOO\b'
@@ -765,7 +773,7 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
         raise ValueError("Nie znaleziono kolumny z kwotą transakcji ('Kwota transakcji' lub 'Kwota transakcji (waluta rachunku)').")
 
     if not is_multi_account and main_account_id is None:
-        raise ValueError("Plik CSV zawiera jedno konto — proszę wybrać konto docelowe przed importem.")
+        raise BrakKontaError("Plik CSV zawiera jedno konto — proszę wybrać konto docelowe przed importem.")
 
     # 4. Parsuj wiersze transakcji i przypisz właściwe account_id
     transactions: list[dict] = []
@@ -832,7 +840,7 @@ def parse_mbank_csv(file_content: str, user_token: str, main_account_id: Optiona
     dzięki czemu dalszy przepływ (save_transactions_to_staging) jest bank-agnostyczny.
     """
     if main_account_id is None:
-        raise ValueError("Plik CSV z mBanku dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+        raise BrakKontaError("Plik CSV z mBanku dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
 
     lines = file_content.splitlines()
 
@@ -1254,10 +1262,12 @@ def _pair_staging_transfer_legs(
     user_token: str,
     legs: list[tuple[TransactionStaging, Account]],
     accounts: list[Account],
-) -> list[str]:
+) -> tuple[list[str], list[Optional[int]]]:
     """Ustala dla każdej nogi przelewu, skąd weźmie się jej druga strona.
 
     legs: pary (wiersz poczekalni, konto po drugiej stronie) w kolejności wyświetlania.
+    Zwraca (stany, partnerzy): partnerzy[i] to indeks w `legs` nogi sparowanej
+    w tej samej poczekalni (stan 'staging'), w pozostałych stanach None.
 
     Parowanie jest 1:1 — sparowana noga zostaje zużyta. Bez tego trzy identyczne
     wpływy przy jednym wypływie pokazałyby trzy razy „obie strony", a dwa z nich
@@ -1268,6 +1278,7 @@ def _pair_staging_transfer_legs(
     """
     window = timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
     stany: list[Optional[str]] = [None] * len(legs)
+    partnerzy: list[Optional[int]] = [None] * len(legs)
 
     waluta = {a.id: a.currency or 'PLN' for a in accounts}
 
@@ -1285,6 +1296,7 @@ def _pair_staging_transfer_legs(
             tx_j, dest_j = legs[j]
             if stany[j] is None and pasuje(tx, dest, tx_j.account_id, dest_j.id, tx_j.amount, tx_j.date, tx_j.title):
                 stany[i] = stany[j] = 'staging'
+                partnerzy[i], partnerzy[j] = j, i
                 break
 
     # 2. Druga noga jest już zatwierdzoną transakcją czekającą na powiązanie —
@@ -1344,7 +1356,7 @@ def _pair_staging_transfer_legs(
             pokrycie[dest.id] = account_has_statement_imports(user_token, dest.id)
         stany[i] = 'missing' if pokrycie[dest.id] else 'mirror'
 
-    return stany
+    return stany, partnerzy
 
 
 def list_pending_staging(user_token: str) -> list[dict]:
@@ -1412,8 +1424,11 @@ def list_pending_staging(user_token: str) -> list[dict]:
 
         data.append(item)
 
-    for item, stan in zip(leg_items, _pair_staging_transfer_legs(user_token, legs, active_accounts)):
+    stany, partnerzy = _pair_staging_transfer_legs(user_token, legs, active_accounts)
+    for item, stan, partner in zip(leg_items, stany, partnerzy):
         item['transfer_pair'] = stan
+        # Front łączy po nim parę w jeden wiersz („Zatwierdź obie").
+        item['transfer_pair_id'] = leg_items[partner]['id'] if partner is not None else None
 
     return data
 

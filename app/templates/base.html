@@ -88,8 +88,11 @@
         <nav class="flex flex-wrap gap-x-3 gap-y-0.5 sm:gap-6 border-b border-slate-200 mb-4 md:mb-6">
             <button onclick="switchTab('dashboard')" id="btn-tab-dashboard" class="tab-active pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Dashboard</button>
             <button onclick="switchTab('transactions')" id="btn-tab-transactions" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Transakcje</button>
-            <button onclick="switchTab('staging')" id="btn-tab-staging" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none flex items-center gap-2">
-                Do weryfikacji <span id="staging-badge" class="hidden bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+            <!-- Ukryta na telefonie, jak Raporty: import zakłada plik z banku na dysku,
+                 a zatwierdzanie poczekalni — szeroką tabelę. Licznik = liczba operacji
+                 (para przelewu to dwie). -->
+            <button onclick="switchTab('staging')" id="btn-tab-staging" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none hidden sm:flex items-center gap-2">
+                Import <span id="staging-badge" class="hidden bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
             </button>
             <button onclick="switchTab('summary')" id="btn-tab-summary" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Podsumowanie</button>
             <button onclick="switchTab('budget')" id="btn-tab-budget" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Budżet</button>
@@ -224,11 +227,6 @@
                         <!-- Akcje poboczne jako odnośniki: jedynym przyciskiem sekcji jest „Zapisz”. -->
                         <div class="tx-akcje-poboczne flex flex-wrap gap-x-5 gap-y-1 text-sm">
                             <button type="button" onclick="openReconcileModal()" class="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:decoration-blue-700">Uzgodnij saldo</button>
-                            <!-- Ukryty na telefonie: import CSV zaklada plik z banku na dysku,
-                                 czego zwiedzajacy na telefonie zwykle nie ma pod reka. Samouczek
-                                 (17_tour.js) sam pomija krok wskazujacy ten przycisk, gdy jest
-                                 niewidoczny — patrz krokWidoczny w startTour(). -->
-                            <button type="button" id="openImportModalBtn" class="hidden sm:inline text-blue-700 underline decoration-blue-300 underline-offset-2 hover:decoration-blue-700">Importuj wyciąg</button>
                             <button type="button" id="openRecurringModalBtn" onclick="openRecurringModal()" class="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:decoration-blue-700">Transakcje cykliczne</button>
                         </div>
                     </div>
@@ -353,47 +351,101 @@
                 </div>
             </div>
 
-            <!-- ZAKŁADKA 4: DO WERYFIKACJI (STAGING) -->
+            <!-- ZAKŁADKA: IMPORT WYCIĄGÓW (STAGING) -->
+            <!-- Identyfikator „staging" zostaje (06_tabs.js, klucz samouczka); zmieniła się
+                 tylko nazwa wyświetlana. Strona zawsze pokazuje wszystkie konta — „Widok
+                 konta" jest na niej ukryty (switchTab). -->
             <div id="tab-staging" class="tab-hidden space-y-6">
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                        <h2 id="staging-heading" class="font-semibold text-slate-800 flex items-center gap-2">Transakcje oczekujące na zatwierdzenie</h2>
-                        <div class="flex gap-4">
+                <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-4">
+                        <h2 id="import-heading" class="font-semibold text-slate-800">Import wyciągów</h2>
+                        <p class="text-xs text-slate-500">ING (CSV, PDF), mBank (CSV, HTML, PDF), Pekao, Millennium i Revolut (CSV) — bank rozpoznaje się po zawartości pliku.</p>
+                    </div>
+                    {% if config.DEMO_ENABLED %}
+                    <!-- Tryb demo: zwiedzający nie ma pod ręką wyciągu z banku, więc podsuwamy
+                         gotowy plik od razu przy polu wgrywania. -->
+                    <a href="/api/demo/przykladowy-wyciag.csv" download id="demo-sample-statement"
+                       class="flex items-center gap-3 mb-4 p-4 bg-amber-50 border-2 border-amber-300 rounded-xl hover:bg-amber-100 hover:border-amber-400 transition-colors group">
+                        <span class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-amber-400 rounded-lg">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"></path></svg>
+                        </span>
+                        <span class="min-w-0">
+                            <span class="block text-sm font-bold text-amber-900 group-hover:underline">Pobierz przykładowy wyciąg</span>
+                            <span class="block text-xs text-amber-800 mt-0.5">Nie masz pliku z banku? Weź nasz. Nie ma numeru rachunku, więc przed wgraniem wskaż w „Ustawieniach ręcznych” konto „Konto osobiste”.</span>
+                        </span>
+                    </a>
+                    {% endif %}
+                    <div id="import-dropzone" class="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center transition-colors">
+                        <p class="font-medium text-slate-700">Przeciągnij tu pliki z banku</p>
+                        <p class="text-xs text-slate-500 mt-1">Najlepiej wyciągi ze wszystkich kont naraz — obie strony przelewu między Twoimi kontami sparują się w poczekalni. Konto rozpoznaje się po numerze rachunku z wyciągu.</p>
+                        <div class="mt-4 flex flex-wrap justify-center items-center gap-4">
+                            <button type="button" id="pickFilesBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors">Wybierz pliki</button>
+                            <button type="button" id="pickFolderBtn" class="text-sm text-blue-700 underline decoration-blue-300 underline-offset-2 hover:decoration-blue-700">albo cały folder</button>
+                        </div>
+                        <input type="file" id="csvFileInput" accept=".csv,.html,.htm,.pdf" multiple class="hidden">
+                        <input type="file" id="folderInput" webkitdirectory class="hidden">
+                        <p id="import-progress" class="hidden text-sm text-slate-500 mt-3" aria-live="polite"></p>
+                    </div>
+                    <details id="import-manual" class="mt-3 text-sm">
+                        <summary class="cursor-pointer text-slate-600 hover:text-slate-800">Ustawienia ręczne</summary>
+                        <div class="grid sm:grid-cols-2 gap-3 mt-3">
+                            <label class="block text-slate-700">Bank i format
+                                <select id="import-bank-select" class="mt-1 w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer">
+                                    <option value="auto" selected>Wykryj automatycznie (zalecane)</option>
+                                    <option value="ing/csv">ING Bank Śląski (CSV)</option>
+                                    <option value="ing/pdf">ING Bank Śląski (PDF)</option>
+                                    <option value="mbank/csv">mBank (CSV)</option>
+                                    <option value="mbank/html">mBank (HTML)</option>
+                                    <option value="mbank/pdf">mBank (PDF)</option>
+                                    <option value="pekao/csv">Pekao SA (CSV)</option>
+                                    <option value="millennium/csv">Bank Millennium (CSV)</option>
+                                    <option value="revolut/csv">Revolut (CSV)</option>
+                                </select>
+                            </label>
+                            <label class="block text-slate-700">Konto
+                                <select id="import-account-select" class="mt-1 w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"></select>
+                            </label>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-2">Konto wskaż, gdy plik nie zawiera numeru rachunku (Revolut, wyciąg ING z jednym kontem). Ustawienia działają przy wgrywaniu jednego pliku — przy kilku naraz o konto dla pliku bez numeru aplikacja zapyta na liście wyników. Dla mBanku najczytelniejsze opisy ma format HTML („Zestawienie operacji”).</p>
+                    </details>
+                    <div id="import-results" class="hidden mt-3 border border-slate-200 rounded-lg divide-y divide-slate-100 text-sm"></div>
+                    <p id="importError" class="text-rose-500 text-sm mt-2 hidden"></p>
+                    <div class="mt-3">
+                        <button type="button" id="toggleImportHistoryBtn" class="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-800">
+                            <svg id="importHistoryChevron" class="w-3.5 h-3.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                            Historia importów
+                        </button>
+                        <div id="import-history" class="hidden mt-2 border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto text-xs"></div>
+                    </div>
+                </section>
+
+                <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-start gap-3">
+                        <div class="min-w-0">
+                            <h2 id="staging-heading" class="font-semibold text-slate-800">Do zatwierdzenia</h2>
+                            <p id="staging-summary" class="text-sm text-slate-600 mt-0.5"></p>
+                            <p class="text-xs text-slate-500 mt-0.5">Salda kont zmieniają się dopiero po zatwierdzeniu. Operacje są pogrupowane według kont, nie plików.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-4">
+                            <button onclick="reanalyzeStaging()" class="text-sm text-blue-600 hover:text-blue-700 font-medium">Rozpoznaj ponownie</button>
                             <button onclick="clearStaging()" class="text-sm text-rose-600 hover:text-rose-700 font-medium">Odrzuć wszystkie</button>
-                            <button id="approve-all-btn" onclick="approveAllStaging()" class="text-sm text-emerald-600 hover:text-emerald-700 font-medium">Zatwierdź zmapowane</button>
-                            <button onclick="reanalyzeStaging()" class="text-sm text-blue-600 hover:text-blue-700 font-medium">Odśwież mapowanie</button>
+                            <button id="approve-all-btn" onclick="approveAllStaging()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed">Zatwierdź gotowe</button>
                         </div>
                     </div>
-                    <!-- Filtry statusu -->
+                    <!-- Filtry liczą wiersze na ekranie (para przelewu = 1). -->
                     <div id="staging-filters" class="hidden px-4 py-3 border-b border-slate-100 flex flex-wrap gap-2">
-                        <button onclick="setStagingFilter('all')" id="sf-all" class="text-xs px-3 py-1 rounded-full font-medium transition-colors bg-slate-700 text-white">Wszystkie (<span id="sf-count-all">0</span>)</button>
-                        <button onclick="setStagingFilter('mapped')" id="sf-mapped" class="text-xs px-3 py-1 rounded-full font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200">Zmapowane (<span id="sf-count-mapped">0</span>)</button>
-                        <button onclick="setStagingFilter('suggestion')" id="sf-suggestion" class="text-xs px-3 py-1 rounded-full font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200">Auto-sugestia (<span id="sf-count-suggestion">0</span>)</button>
-                        <button onclick="setStagingFilter('partial')" id="sf-partial" class="text-xs px-3 py-1 rounded-full font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200">Częściowo (<span id="sf-count-partial">0</span>)</button>
-                        <button onclick="setStagingFilter('unmapped')" id="sf-unmapped" class="text-xs px-3 py-1 rounded-full font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200">Niezmapowane (<span id="sf-count-unmapped">0</span>)</button>
-                        <button onclick="setStagingFilter('duplicate')" id="sf-duplicate" class="text-xs px-3 py-1 rounded-full font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200">Możliwy duplikat (<span id="sf-count-duplicate">0</span>)</button>
+                        <button onclick="setStagingFilter('all')" id="sf-all">Wszystkie (<span id="sf-count-all">0</span>)</button>
+                        <button onclick="setStagingFilter('ready')" id="sf-ready">Gotowe (<span id="sf-count-ready">0</span>)</button>
+                        <button onclick="setStagingFilter('todo')" id="sf-todo">Do uzupełnienia (<span id="sf-count-todo">0</span>)</button>
+                        <button onclick="setStagingFilter('dup')" id="sf-duplicate">Możliwe duplikaty (<span id="sf-count-dup">0</span>)</button>
+                        <button onclick="setStagingFilter('transfer')" id="sf-transfer">Przelewy między kontami (<span id="sf-count-transfer">0</span>)</button>
                     </div>
-                    <div class="overflow-x-auto">
-                    <table class="tabela-karty w-full text-left border-collapse sm:table-fixed sm:min-w-[860px]">
-                            <thead>
-                                <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-                                    <th class="p-3 font-semibold w-[9%] cursor-pointer select-none whitespace-nowrap" tabindex="0" onkeydown="klawiszJakKlik(event)" onclick="toggleStagingSort('date')">Data <span id="sort-icon-date" class="ml-0.5 text-slate-300">↕</span></th>
-                                    <th class="p-3 font-semibold cursor-pointer select-none" tabindex="0" onkeydown="klawiszJakKlik(event)" onclick="toggleStagingSort('title')">Tytuł z banku <span id="sort-icon-title" class="ml-0.5 text-slate-300">↕</span></th>
-                                    <th id="th-stg-mapping" class="p-3 font-semibold w-[34%]">Kontrahent i Kategoria</th>
-                                    <th class="p-3 font-semibold w-[12%] text-right cursor-pointer select-none whitespace-nowrap" tabindex="0" onkeydown="klawiszJakKlik(event)" onclick="toggleStagingSort('amount')">Kwota <span id="sort-icon-amount" class="ml-0.5 text-slate-300">↕</span></th>
-                                    <th class="p-3 font-semibold w-[11%] text-center">Akcja</th>
-                                </tr>
-                            </thead>
-                            <tbody id="staging-list" class="divide-y divide-slate-100">
-                                <!-- Wiersze ładowane przez JS -->
-                            </tbody>
-                        </table>
-                        <div id="staging-empty" class="hidden flex flex-col items-center justify-center p-12 text-slate-400">
-                            <svg class="w-16 h-16 mb-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7"></path></svg>
-                            <p class="text-sm font-medium text-slate-500">Brak transakcji do weryfikacji.</p>
-                        </div>
+                    <div id="staging-list" class="p-4 space-y-6"></div>
+                    <div id="staging-empty" class="hidden flex flex-col items-center justify-center p-12 text-slate-400">
+                        <svg class="w-16 h-16 mb-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7"></path></svg>
+                        <p class="text-sm font-medium text-slate-500">Brak operacji do zatwierdzenia. Wgraj wyciąg powyżej.</p>
                     </div>
-                </div>
+                </section>
             </div>
 
             <!-- ZAKŁADKA 2: PODSUMOWANIE -->
@@ -882,88 +934,6 @@
                     <button type="submit" id="feedback-submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow focus:ring-4 focus:ring-blue-300">Wyślij</button>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <div id="import-modal" class="fixed inset-0 bg-slate-900/50 hidden flex-col items-center justify-center z-50 px-4 backdrop-blur-sm transition-opacity">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-                <h3 class="text-lg font-bold text-slate-800">Import transakcji</h3>
-                <button id="closeImportModalBtn" class="text-slate-400 hover:text-slate-600 focus:outline-none transition-colors rounded-lg">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
-            <div class="p-6 overflow-y-auto">
-                {% if config.DEMO_ENABLED %}
-                <!-- Tryb demo: zwiedzający nie ma pod ręką wyciągu z banku, więc podsuwamy
-                     gotowy plik od razu na wejściu — bez niego cała zakładka importu jest
-                     dla niego ślepym zaułkiem. -->
-                <a href="/api/demo/przykladowy-wyciag.csv" download id="demo-sample-statement"
-                   class="flex items-center gap-3 mb-6 p-4 bg-amber-50 border-2 border-amber-300 rounded-xl hover:bg-amber-100 hover:border-amber-400 transition-colors group">
-                    <span class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-amber-400 rounded-lg">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"></path></svg>
-                    </span>
-                    <span class="min-w-0">
-                        <span class="block text-sm font-bold text-amber-900 group-hover:underline">Pobierz przykładowy wyciąg</span>
-                        <span class="block text-xs text-amber-800 mt-0.5">Nie masz pliku z banku? Weź nasz, wgraj go poniżej i wskaż konto „Konto osobiste".</span>
-                    </span>
-                </a>
-                {% endif %}
-                <form id="importForm">
-                    <div class="mb-5">
-                        <label for="import-bank-select" class="block text-sm font-medium text-slate-700 mb-2">
-                            Bank (format wyciągu)
-                        </label>
-                        <select id="import-bank-select" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-1">
-                            <option value="auto" selected>Wykryj automatycznie (zalecane)</option>
-                            <option value="ing/csv">ING Bank Śląski (CSV)</option>
-                            <option value="ing/pdf">ING Bank Śląski (PDF)</option>
-                            <option value="mbank/csv">mBank (CSV)</option>
-                            <option value="mbank/html">mBank (HTML)</option>
-                            <option value="mbank/pdf">mBank (PDF)</option>
-                            <option value="pekao/csv">Pekao SA (CSV)</option>
-                            <option value="millennium/csv">Bank Millennium (CSV)</option>
-                            <option value="revolut/csv">Revolut (CSV)</option>
-                        </select>
-                        <p class="text-xs text-slate-500 mb-4">Obsługiwane: ING (CSV, PDF), mBank (CSV, HTML, PDF), Pekao (CSV), Millennium (CSV), Revolut (CSV — jedno subkonto walutowe na plik). Wskazówka: dla mBanku najlepszym formatem jest <span class="font-medium">HTML</span> („Zestawienie operacji") — ma najczytelniejsze opisy transakcji.</p>
-                        <label class="block text-sm font-medium text-slate-700 mb-2">
-                            Konto (opcjonalne)
-                        </label>
-                        <p class="text-xs text-slate-500 mb-2">Konto jest rozpoznawane automatycznie po numerze rachunku z wyciągu. Wybierz ręcznie tylko, gdy wyciąg nie zawiera numeru. Przy imporcie wielu plików wybór jest ignorowany — każdy plik trafia na swoje konto.</p>
-                        <select id="import-account-select" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer mb-4"></select>
-                        <label for="csvFileInput" class="block text-sm font-medium text-slate-700 mb-2 mt-4">
-                            Wybierz pliki z historią (.csv, .html, .pdf)
-                        </label>
-                        <input type="file" id="csvFileInput" accept=".csv,.html,.htm,.pdf" multiple class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                        <div class="flex items-center justify-between mt-2">
-                            <button type="button" id="pickFolderBtn" class="text-xs text-blue-600 hover:text-blue-800 font-medium underline underline-offset-2">…albo wybierz cały folder z wyciągami</button>
-                            <span id="pickedFilesInfo" class="text-xs text-slate-500"></span>
-                        </div>
-                        <input type="file" id="folderInput" webkitdirectory class="hidden">
-                        <div id="import-results" class="hidden mt-3 border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-48 overflow-y-auto text-sm"></div>
-                        <p id="importError" class="text-rose-500 text-sm mt-2 hidden"></p>
-
-                        <div class="mt-4 pt-4 border-t border-slate-100">
-                            <button type="button" id="toggleImportHistoryBtn" class="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-800">
-                                <svg id="importHistoryChevron" class="w-3.5 h-3.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                                Historia importów
-                            </button>
-                            <div id="import-history" class="hidden mt-2 border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto text-xs"></div>
-                        </div>
-                    </div>
-                    
-                    <div class="flex justify-end gap-3 mt-6">
-                        <button type="button" id="closeImportModalBtnAlt" class="px-5 py-2.5 text-slate-700 font-medium bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-all focus:ring-2 focus:ring-slate-200">Anuluj</button>
-                        <button type="submit" id="submitImportBtn" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all shadow-sm focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center min-w-[120px]">
-                            <span id="importBtnText">Zaimportuj</span>
-                            <svg id="importBtnLoader" class="hidden animate-spin ml-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                        </button>
-                    </div>
-                </form>
-            </div>
         </div>
     </div>
 

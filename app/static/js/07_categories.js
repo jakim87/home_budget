@@ -43,6 +43,10 @@ function getCategoryOptionsHtml(selectedValue = null, byId = false) {
     return html;
 }
 
+function jestKategoriaSystemowa(name) {
+    return !!categories.find(c => c.name === name)?.is_system_category;
+}
+
 function getSignFromCategoryName(name) {
     const cat = categories.find(c => c.name === name);
     return (cat && cat.type === 'income') ? 1 : -1;

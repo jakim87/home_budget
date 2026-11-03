@@ -64,6 +64,156 @@ function getStagingStatus(t) {
     return { hasSuggestion, isFullyMapped, isPartiallyMapped, isUnmapped, isTransfer, hasDuplicate };
 }
 
+// Okno szukania duplikatu — ta sama wartość co _DUPLICATE_MATCH_WINDOW_DAYS
+// w budget_service.py: podgląd ma pokazać historię z okna, w którym szuka serwer.
+const DUPLIKAT_OKNO_DNI = 4;
+
+function nazwaKonta(id) {
+    const a = accounts.find(x => x.id == id) || inactiveAccounts.find(x => x.id == id);
+    return a ? a.name : 'Konto nieznane';
+}
+
+// Konto po drugiej stronie przelewu: wybór z tej sesji albo kontrahent „Moje konto: X";
+// gdy żadne nie wskazuje konta ze słownika — nazwa, którą podał serwer.
+function nazwaDrugiegoKonta(t) {
+    const id = resolveStagingDestAccountId(t);
+    if (id) return nazwaKonta(id);
+    const obce = t.transfer_own === 'from' ? t.transfer_to : t.transfer_from;
+    return obce ? obce.name : '?';
+}
+
+// Lustro na koncie nogi przelewu nie jest duplikatem: zatwierdzenie tej nogi
+// je zastąpi (#217), więc to nie ta sama operacja wpisana dwa razy.
+function kandydaciDuplikatu(t) {
+    const lista = t.duplicate_candidates || [];
+    return getStagingStatus(t).isTransfer ? lista.filter(c => c.origin !== 'mirror') : lista;
+}
+
+// Przelewy i zwykłe operacje. Para to dwie nogi sparowane przez serwer w tej
+// poczekalni (transfer_pair_id wskazują nawzajem) — jeden wiersz, wypływ pierwszy.
+// Noga, której kategorię zmieniono w tej sesji na zwykłą, jest zwykłą operacją.
+function podzielPoczekalnie(lista) {
+    const czyPrzelew = t => getStagingStatus(t).isTransfer;
+    const poId = new Map(lista.map(t => [t.id, t]));
+    const uzyte = new Set();
+    const przelewy = [], operacje = [];
+    lista.forEach(t => {
+        if (uzyte.has(t.id)) return;
+        uzyte.add(t.id);
+        if (!czyPrzelew(t)) { operacje.push(t); return; }
+        const p = poId.get(t.transfer_pair_id);
+        if (p && !uzyte.has(p.id) && p.transfer_pair_id === t.id && czyPrzelew(p) && !t._rozdziel && !p._rozdziel) {
+            uzyte.add(p.id);
+            przelewy.push(t.amount < 0 ? [t, p] : [p, t]);
+        } else {
+            przelewy.push([t]);
+        }
+    });
+    return { przelewy, operacje };
+}
+
+// [[konto, wiersze], …] w kolejności słownika kont; wiersz bez znanego konta na końcu.
+function grupujPoKontach(operacje) {
+    const grupy = new Map();
+    operacje.forEach(t => {
+        const klucz = t.account_id ?? null;
+        if (!grupy.has(klucz)) grupy.set(klucz, []);
+        grupy.get(klucz).push(t);
+    });
+    const kolejnosc = k => {
+        if (k === null) return Infinity;
+        const i = accounts.findIndex(a => a.id == k);
+        return i < 0 ? accounts.length : i;
+    };
+    return [...grupy.entries()].sort((a, b) => kolejnosc(a[0]) - kolejnosc(b[0]));
+}
+
+// 'dup' | 'todo' | 'ready' dla pozycji listy (operacja albo przelew z 1–2 nogami).
+// Możliwy duplikat nie jest gotowy, dopóki użytkownik go nie rozstrzygnie —
+// „Zatwierdź gotowe" go pomija.
+function statusPozycji(nogi) {
+    if (nogi.some(t => !t._nie_duplikat && kandydaciDuplikatu(t).length)) return 'dup';
+    return nogi.every(t => getStagingStatus(t).isFullyMapped) ? 'ready' : 'todo';
+}
+
+// Liczniki filtrów liczą WIERSZE na ekranie (para = 1), licznik w menu — operacje
+// (para = 2). Rozjazd jest zamierzony.
+function licznikiFiltrow(przelewy, operacje) {
+    const licz = { all: 0, ready: 0, todo: 0, dup: 0, transfer: przelewy.length };
+    [...przelewy, ...operacje.map(t => [t])].forEach(nogi => {
+        licz.all++;
+        licz[statusPozycji(nogi)]++;
+    });
+    return licz;
+}
+
+function pasujeDoFiltra(nogi, czyPrzelew) {
+    return stagingFilter === 'all' || (stagingFilter === 'transfer' && czyPrzelew) || statusPozycji(nogi) === stagingFilter;
+}
+
+// Pole konta po drugiej stronie: dla wypływu to konto docelowe, dla wpływu — źródłowe.
+function etykietaKierunku(t) {
+    return t.amount < 0 ? 'Na konto' : 'Z konta';
+}
+
+function trasaPrzelewu(nogi) {
+    if (nogi.length === 2) return { z: nazwaKonta(nogi[0].account_id), na: nazwaKonta(nogi[1].account_id), wlasne: null };
+    const t = nogi[0];
+    const wlasne = nazwaKonta(t.account_id), inne = nazwaDrugiegoKonta(t);
+    return t.amount < 0 ? { z: wlasne, na: inne, wlasne: 'z' } : { z: inne, na: wlasne, wlasne: 'na' };
+}
+
+// Każda noga w walucie swojego konta; wymiana walut pokazuje obie kwoty.
+function kwotaPrzelewu(nogi) {
+    const kw = t => `${formatKwota(Math.abs(t.amount))} ${walutaKonta(t.account_id)}`;
+    if (nogi.length === 2 && walutaKonta(nogi[0].account_id) !== walutaKonta(nogi[1].account_id)) {
+        return `${kw(nogi[0])} → ${kw(nogi[1])}`;
+    }
+    return kw(nogi[0]);
+}
+
+// Skąd weźmie się druga strona — słowami, według transfer_pair z serwera
+// (gałęzie handle_internal_transfer, patrz _pair_staging_transfer_legs).
+function opisDrugiejStrony(nogi) {
+    if (nogi.length === 2) {
+        return { klasa: 'ok', glowne: 'Obie operacje są w tym imporcie',
+                 opis: 'Zatwierdzenie zaksięguje obie i połączy je w jeden przelew.' };
+    }
+    const t = nogi[0];
+    const inne = nazwaDrugiegoKonta(t);
+    // Stan z serwera dotyczy zapisanego konta — po zmianie w tej sesji jest nieaktualny.
+    if (t._dest_account_id) {
+        return { klasa: 'info', glowne: 'Zmieniono konto',
+                 opis: `Aplikacja sprawdzi drugą stronę na koncie ${inne} przy zatwierdzeniu.` };
+    }
+    switch (t.transfer_pair) {
+        case 'staging': return { klasa: 'ok', glowne: 'Druga strona jest w tym imporcie',
+                                 opis: 'Zatwierdź obie operacje — połączą się w jeden przelew.' };
+        case 'booked': return { klasa: 'ok', glowne: 'Druga strona jest już zaksięgowana',
+                                opis: 'Zatwierdzenie połączy ją z tą operacją w jeden przelew.' };
+        case 'mirror': return { klasa: 'info', glowne: 'Dopisze ją aplikacja',
+                                opis: `${inne} nie dostaje wyciągów, więc ${t.amount < 0 ? 'wpływ' : 'wypływ'} pojawi się tam sam po zatwierdzeniu.` };
+        case 'missing': return { klasa: 'bad', glowne: `Brak — zaimportuj wyciąg z konta ${inne}`,
+                                 opis: `To konto dostaje własne wyciągi albo ma inną walutę, więc aplikacja nie dopisze tej operacji sama. Dopóki jej nie zaimportujesz, saldo konta ${inne} się nie zmieni.` };
+        default: return { klasa: 'info', glowne: 'Aplikacja ustali przy zatwierdzeniu', opis: '' };
+    }
+}
+
+// Historia konta wiersza z okna ±DUPLIKAT_OKNO_DNI — do porównania bez wychodzenia
+// z importu. Kandydaci w kolejności z serwera (najbliższa data pierwsza).
+function oknoDuplikatu(t) {
+    const przesun = dni => {
+        const d = new Date(`${t.date}T00:00:00`);
+        d.setDate(d.getDate() + dni);
+        return toLocalISODate(d);
+    };
+    const od = przesun(-DUPLIKAT_OKNO_DNI), doDnia = przesun(DUPLIKAT_OKNO_DNI);
+    const wiersze = transactions
+        .filter(h => h.account_id == t.account_id && h.date >= od && h.date <= doDnia)
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
+    return { od, do: doDnia, wiersze, kandydaci: kandydaciDuplikatu(t).map(c => c.id) };
+}
+
 const ORIGIN_LABELS = {
     manual: 'dodana ręcznie',
     import: 'z importu wyciągu',

@@ -144,8 +144,10 @@ def test_cykliczna_juz_wykonana_nie_liczy_sie_podwojnie(app, test_user_token, ko
     """Harmonogram wykonal sie na poczatku miesiaca: jest transakcja, a next_run_date
     przesunal sie na kolejny miesiac. Rezerwacja w tym miesiacu ma byc zerowa."""
     dzis = date.today()
-    wykonana = dzis - timedelta(days=2)
-    nastepna = dzis + timedelta(days=28)
+    # Daty od pierwszego dnia miesiaca, nie od dzis: "dzis - 2 dni" w pierwszych dniach
+    # miesiaca wypada w poprzednim, a wtedy kolejne wystapienie slusznie rezerwuje.
+    wykonana = dzis.replace(day=1)
+    nastepna = (wykonana + timedelta(days=32)).replace(day=1)
     rt = RecurringTransaction(
         user_token=test_user_token, account_id=konto.id, category_id=kategorie['jedzenie'].id,
         title="Abonament", amount=Decimal("-99.00"), frequency=Frequency.MONTHLY,

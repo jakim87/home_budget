@@ -5,7 +5,7 @@ from app.models import Contractor
 from app.schemas import StagingApproveSchema
 from app.services.account_service import resolve_statement_account
 from app.services.demo_service import build_sample_statement_csv
-from app.services.budget_service import parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging, dismiss_staging_as_duplicate
+from app.services.budget_service import BrakKontaError, parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging, dismiss_staging_as_duplicate
 from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf, parse_ing_pdf, parse_pekao_csv, parse_millennium_csv, parse_revolut_csv
 from app.services.import_history_service import list_import_history, record_batch
 from app import limiter
@@ -43,6 +43,14 @@ def _read_upload():
     if file.filename == '':
         return None, (jsonify({'error': 'Nie wybrano pliku.'}), 400)
     return file.read(), None
+
+
+def _blad_parsera(e: ValueError):
+    """Odpowiedź na błąd parsera; plik bez numeru rachunku dostaje needs_account."""
+    body = {'error': str(e)}
+    if isinstance(e, BrakKontaError):
+        body['needs_account'] = True
+    return jsonify(body), 400
 
 
 def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None,
@@ -144,7 +152,7 @@ def import_auto():
             main_account_id=int(account_id) if account_id else None
         )
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return _blad_parsera(e)
 
     extra = {'detected': {'bank': bank, 'format': fmt}}
     if resolved_account:
@@ -198,7 +206,7 @@ def import_manual(bank, fmt='csv'):
             main_account_id=int(account_id) if account_id else None
         )
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return _blad_parsera(e)
 
     return _stage_and_respond(result, user_token,
                               meta={'filename': request.files['file'].filename,

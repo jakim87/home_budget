@@ -515,6 +515,25 @@ def test_staging_preview_para_wskazuje_partnera(logged_in_client, test_user, dwa
     assert nadmiarowa['transfer_pair_id'] is None
 
 
+def test_import_bez_numeru_rachunku_prosi_o_konto(logged_in_client, test_user):
+    """Plik bez numeru rachunku i bez wskazanego konta → 400 z needs_account.
+
+    Po tej fladze strona importu pokazuje przy pliku wybór konta i „Wgraj ponownie"
+    — przy kilku plikach naraz konto rozpoznaje się wyłącznie po numerze.
+    """
+    from app.services.demo_service import build_sample_statement_csv
+    resp = _upload_auto_no_account(logged_in_client, build_sample_statement_csv().encode('utf-8-sig'), "ing.csv")
+    assert resp.status_code == 400
+    assert resp.get_json()['needs_account'] is True
+    assert db.session.query(TransactionStaging).count() == 0
+
+
+def test_inny_blad_importu_nie_prosi_o_konto(logged_in_client, test_user):
+    resp = _upload_auto_no_account(logged_in_client, b"to nie jest wyciag", "x.csv")
+    assert resp.status_code == 400
+    assert 'needs_account' not in resp.get_json()
+
+
 def test_staging_preview_bez_pary_w_poczekalni_nie_ma_partnera(logged_in_client, test_user, dwa_konta):
     """Stany 'mirror' i 'booked' (druga strona poza poczekalnią) nie wskazują wiersza."""
     k = dwa_konta

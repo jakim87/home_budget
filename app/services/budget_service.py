@@ -19,6 +19,14 @@ import logging
 # Dzięki temu w pliku logów widać dokładnie, KTÓRY moduł zapisał daną linię.
 logger = logging.getLogger(__name__)
 
+
+class BrakKontaError(ValueError):
+    """Plik dotyczy jednego konta, nie niesie jego numeru, a konta nie wskazano.
+
+    Osobna klasa, bo strona importu reaguje na nią inaczej niż na resztę błędów:
+    pokazuje przy pliku wybór konta i „Wgraj ponownie" (blueprint dokłada needs_account).
+    """
+
 _LEGAL_SUFFIXES = re.compile(
     r'\bSP(?:ÓŁKA)?\s+Z\s+O\.?O\.?\b'
     r'|\bSP(?:ÓŁKA)?\s+ZOO\b'
@@ -765,7 +773,7 @@ def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[
         raise ValueError("Nie znaleziono kolumny z kwotą transakcji ('Kwota transakcji' lub 'Kwota transakcji (waluta rachunku)').")
 
     if not is_multi_account and main_account_id is None:
-        raise ValueError("Plik CSV zawiera jedno konto — proszę wybrać konto docelowe przed importem.")
+        raise BrakKontaError("Plik CSV zawiera jedno konto — proszę wybrać konto docelowe przed importem.")
 
     # 4. Parsuj wiersze transakcji i przypisz właściwe account_id
     transactions: list[dict] = []
@@ -832,7 +840,7 @@ def parse_mbank_csv(file_content: str, user_token: str, main_account_id: Optiona
     dzięki czemu dalszy przepływ (save_transactions_to_staging) jest bank-agnostyczny.
     """
     if main_account_id is None:
-        raise ValueError("Plik CSV z mBanku dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+        raise BrakKontaError("Plik CSV z mBanku dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
 
     lines = file_content.splitlines()
 

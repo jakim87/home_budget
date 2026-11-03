@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/jakim87/home_budget/compare/v1.2.0...v1.2.1) (2026-11-03)
+
+
+### Poprawki
+
+* edycja uzgodnienia salda nie zmienia już kategorii ani znaku kwoty ([#238](https://github.com/jakim87/home_budget/issues/238)) ([d313af9](https://github.com/jakim87/home_budget/commit/d313af9bf7a96dc14daea3234b73eb19386ce894))
+* samouczek na telefonie przewija do podświetlonego elementu i nie zasłania go dymkiem ([#236](https://github.com/jakim87/home_budget/issues/236)) ([086ca17](https://github.com/jakim87/home_budget/commit/086ca171dc4b4467b014d153f3ed38e05f338767))
+
 ## [1.2.0](https://github.com/jakim87/home_budget/compare/v1.1.0...v1.2.0) (2026-10-18)
 
 

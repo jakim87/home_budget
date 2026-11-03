@@ -35,12 +35,7 @@ const TOURS = {
         {
             el: '#submit-btn',
             akcja: 'Naciśnij Enter albo kliknij „Zapisz”',
-            efekt: 'Saldo konta zmieni się od razu — bez etapu weryfikacji, w odróżnieniu od importu z pliku. Linia obok przycisku mówi, co dokładnie się zapisze; po zapisie komunikat przez chwilę pozwala to „Cofnij”.',
-        },
-        {
-            el: '#openImportModalBtn',
-            akcja: 'Kliknij „Importuj wyciąg”',
-            efekt: 'Otworzy się okno wgrywania wyciągu — CSV, HTML lub PDF z ING albo mBanku, CSV z Pekao, Millennium i Revoluta, rozpoznawane automatycznie po zawartości pliku. Wgrane operacje trafiają najpierw do poczekalni w zakładce „Do weryfikacji” — saldo konta jeszcze się nie zmienia.',
+            efekt: 'Saldo konta zmieni się od razu — w odróżnieniu od wyciągu z banku, który najpierw czeka w poczekalni zakładki Import. Linia obok przycisku mówi, co dokładnie się zapisze; po zapisie komunikat przez chwilę pozwala to „Cofnij”.',
         },
         {
             // Nagłówek kolumny, nie całe <tbody>: podświetlenie listy obejmowało całą
@@ -56,55 +51,35 @@ const TOURS = {
         },
     ],
 
-    // Okno importu. Klucz bez odpowiadającej zakładki — patrz TOUR_MODAL_KEYS.
-    // Pierwszy krok istnieje tylko w trybie demo; poza nim silnik go pominie.
-    import: [
+    // Zakładka Import. Pierwszy krok istnieje tylko w trybie demo, filtry tylko przy
+    // niepustej poczekalni — silnik pominie kroki wskazujące niewidoczne elementy.
+    staging: [
         {
             el: '#demo-sample-statement',
             akcja: 'Pobierz przykładowy wyciąg',
-            efekt: 'Gotowy plik w formacie ING, żeby wypróbować import bez sięgania po własny wyciąg z banku. Wgraj go poniżej i wskaż konto „Konto osobiste".',
+            efekt: 'Gotowy plik w formacie ING, żeby wypróbować import bez własnego wyciągu z banku. Plik nie ma numeru rachunku, więc przed wgraniem wskaż w „Ustawieniach ręcznych” konto „Konto osobiste”.',
         },
         {
-            el: '#import-account-select',
-            akcja: 'Zostaw konto nierozpoznane, jeśli nie wiesz',
-            efekt: 'Aplikacja rozpozna je sama po numerze rachunku z wyciągu. Wybieraj ręcznie tylko, gdy plik numeru nie zawiera — wskazanie złego konta rozjeżdża salda.',
+            el: '#import-dropzone',
+            akcja: 'Przeciągnij tu wyciągi ze wszystkich swoich kont naraz',
+            efekt: 'Bank rozpozna się po zawartości pliku, a konto po numerze rachunku z wyciągu; o plik bez numeru (Revolut, wyciąg ING z jednym kontem) aplikacja zapyta na liście wyników. Operacje wszystkich kont trafią do poczekalni poniżej, pogrupowane po kontach — salda jeszcze się nie zmienią.',
         },
         {
-            el: '#csvFileInput',
-            akcja: 'Wskaż pliki z historią',
-            efekt: 'Naraz możesz wgrać wiele plików, także w różnych formatach — CSV, HTML i PDF z ING oraz mBanku, CSV z Pekao, Millennium i Revoluta. Bank i format są rozpoznawane po zawartości, nie po rozszerzeniu.',
-        },
-        {
-            el: '#submitImportBtn',
-            akcja: 'Uruchom import',
-            efekt: 'Operacje trafią do poczekalni w zakładce „Do weryfikacji" — salda kont jeszcze się NIE zmienią. Zmieni je dopiero zatwierdzenie tam.',
-        },
-    ],
-
-    // Filtry i lista pojawiają się dopiero, gdy coś czeka na zatwierdzenie —
-    // przy pustej poczekalni silnik pominie te kroki i zostaną dwa skrajne.
-    staging: [
-        {
-            el: '#staging-heading',
-            akcja: 'Zajrzyj tu po każdym imporcie',
-            efekt: 'Operacje z wyciągu czekają w tej poczekalni i nie ruszają jeszcze sald kont. To bufor między plikiem z banku a Twoją historią.',
+            // Filtr zamiast nagłówka sekcji przelewów: nagłówek buduje JS, a selektory
+            // samouczka muszą istnieć w base.html (weryfikacja w /samouczek).
+            el: '#sf-transfer',
+            akcja: 'Sprawdź przelewy między swoimi kontami',
+            efekt: 'Każdy przelew to jeden wiersz „skąd → dokąd”, a kolumna „Druga strona” mówi, czy saldo drugiego konta też się zmieni — czerwone „Brak” znaczy, że trzeba zaimportować jego wyciąg. Gdy aplikacja wzięła zwykłą operację za przelew, kliknij przy niej „To nie przelew”.',
         },
         {
             el: '#sf-duplicate',
-            akcja: 'Kliknij filtr „Możliwy duplikat"',
-            efekt: 'Zostaną same operacje, dla których na tym samym koncie istnieje już wpis o identycznej kwocie w oknie ±4 dni. Sprawdź je przed zatwierdzeniem — to zwykle skutek dwukrotnego wgrania tego samego wyciągu.',
-        },
-        {
-            // Nagłówek tej jednej kolumny, nie całe <tbody> — podświetlenie listy
-            // obejmowało cały ekran i nie wskazywało, gdzie właściwie patrzeć.
-            el: '#th-stg-mapping',
-            akcja: 'Popraw kategorię i kontrahenta w wierszach',
-            efekt: 'Aplikacja podpowiada je z reguł dopasowania kontrahentów, ale to Twoja ostatnia okazja na korektę — po zatwierdzeniu poprawiasz już gotową operację w historii.',
+            akcja: 'Kliknij filtr „Możliwe duplikaty”',
+            efekt: 'Zostaną operacje, dla których na tym samym koncie jest już wpis o tej samej kwocie w oknie ±4 dni; „Porównaj z historią” pokaże go obok, bez wychodzenia z importu. „Zatwierdź gotowe” pominie je, dopóki nie rozstrzygniesz.',
         },
         {
             el: '#approve-all-btn',
-            akcja: 'Zatwierdź operacje',
-            efekt: 'Dopiero teraz wpisy trafiają do historii i zmieniają salda kont. To jedyny moment w całym imporcie, w którym Twoje pieniądze „się ruszają".',
+            akcja: 'Kliknij „Zatwierdź gotowe”',
+            efekt: 'Dopiero teraz operacje trafiają do historii i zmieniają salda kont. Wiersze do uzupełnienia i możliwe duplikaty czekają dalej w poczekalni.',
         },
     ],
 
@@ -231,16 +206,8 @@ window.maybeOfferTour = function() {
     }
 };
 
-// Zakładki mają swój samouczek pod kluczem równym nazwie zakładki; `import` to
-// jedyny klucz bez zakładki — dotyczy okna importu, które przykrywa całą stronę.
-const TOUR_MODAL_KEYS = { import: 'import-modal' };
-
+// Zakładki mają swój samouczek pod kluczem równym nazwie zakładki.
 function aktywnyTour() {
-    const otwartyModal = Object.entries(TOUR_MODAL_KEYS).find(
-        ([, modalId]) => !document.getElementById(modalId).classList.contains('hidden')
-    );
-    if (otwartyModal) return otwartyModal[0];
-
     // Aktywna zakładka czytana z DOM — switchTab() nie trzyma jej w zmiennej.
     return Object.keys(TOURS).find(name => {
         const tab = document.getElementById(`tab-${name}`);
@@ -253,8 +220,8 @@ function aktywnyTour() {
 // danych (lista poczekalni przed pierwszym importem). Krok wskazujący coś takiego
 // driver.js pokazałby jako dymek zawieszony w pustce.
 //
-// getClientRects() zamiast offsetParent — offsetParent jest null także dla elementów
-// position:fixed, czyli dla wszystkiego w oknach modalnych, które są przecież widoczne.
+// getClientRects() zamiast offsetParent — offsetParent jest null także dla widocznych
+// elementów position:fixed.
 function krokWidoczny(krok) {
     const el = document.querySelector(krok.el);
     return !!el && el.getClientRects().length > 0;

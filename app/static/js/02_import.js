@@ -97,7 +97,7 @@ async function wgrajPlik(file, bank, konto, wiersz) {
         const r = await resp.json();
         if (resp.ok) {
             status.className = `text-xs font-medium text-right ${r.overlap_warning ? 'text-amber-600' : 'text-emerald-600'}`;
-            status.textContent = opisWynikuImportu(r);
+            status.textContent = opisWynikuImportu(r, konto);
             if (r.overlap_warning) status.title = r.overlap_warning;
             return true;
         }
@@ -114,8 +114,9 @@ async function wgrajPlik(file, bank, konto, wiersz) {
 }
 
 // „→ Moje ING i Wakacje · 13 operacji, 2 z kont spoza aplikacji pominięte"
-function opisWynikuImportu(r) {
+function opisWynikuImportu(r, konto) {
     const konta = r.resolved_account ? [r.resolved_account.name]
+        : konto ? [nazwaKonta(konto)]
         : (r.csv_accounts || []).filter(a => a.matched).map(a => a.account_name);
     let opis = `${r.overlap_warning ? '⚠' : '✓'} ${konta.length ? `→ ${konta.join(' i ')} · ` : ''}${r.count} ${odmiana(r.count, ['operacja', 'operacje', 'operacji'])}`;
     if (r.skipped_count) opis += `, ${r.skipped_count} z kont spoza aplikacji pominięte`;

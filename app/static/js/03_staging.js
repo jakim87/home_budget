@@ -419,8 +419,8 @@ function htmlPrzelewu(nogi) {
                 ${opis.opis ? `<div class="text-xs text-slate-500 mt-0.5">${escapeHtml(opis.opis)}</div>` : ''}</div>
             </div>
         </td>
-        <td data-label="Kwota" class="p-3 align-top text-right whitespace-nowrap">
-            <div class="font-bold text-slate-700">${escapeHtml(kwotaPrzelewu(nogi))}</div>
+        <td data-label="Kwota" class="p-3 align-top text-right">
+            <div class="font-bold text-slate-700 whitespace-nowrap">${escapeHtml(kwotaPrzelewu(nogi))}</div>
             <div class="text-xs text-slate-500 mt-0.5">${escapeHtml(podKwota)}</div>
         </td>
         <td data-label="Akcja" class="p-3 align-top text-center">

@@ -6,7 +6,7 @@
 function feedbackContext() {
     // Kontekst zbierany automatycznie, żeby nie wypytywać zgłaszającego „a gdzie
     // to było". Nazwa zakładki brana z widocznej etykiety, a nie z identyfikatora —
-    // zgłoszenie czyta człowiek, więc ma tam stać „Do weryfikacji", nie „staging".
+    // zgłoszenie czyta człowiek, więc ma tam stać „Import", nie „staging".
     const zakladka = document.querySelector('.tab-active')?.textContent
         .replace(/\s+/g, ' ').trim() || 'nieznana';
     const wersja = document.getElementById('openFeedbackBtn')?.dataset.appVersion || '?';

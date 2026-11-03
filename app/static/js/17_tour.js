@@ -5,7 +5,7 @@
 const TOURS = {
     dashboard: [
         {
-            el: '#dashboard-net-worth',
+            el: '#dashboard-net-worth-card',
             akcja: 'Spójrz na Majątek netto',
             efekt: 'To suma sald wszystkich aktywnych kont, a obok porównanie z końcem poprzedniego miesiąca i tego samego miesiąca rok temu. Dashboard zawsze liczy wszystkie konta — „Widok konta” w nagłówku go nie zawęża.',
         },
@@ -286,6 +286,14 @@ function startTour() {
         nextBtnText: 'Dalej',
         prevBtnText: 'Wstecz',
         doneBtnText: 'Gotowe',
+        // Na telefonie driver.js wyśrodkowuje element, a wtedy dymek nie mieści się ani
+        // nad nim, ani pod nim i ląduje na podświetleniu. Element przy górnej krawędzi
+        // zostawia dymkowi miejsce pod spodem. 20 px zapasu na obwódkę podświetlenia.
+        onHighlightStarted: el => {
+            if (!el || !window.matchMedia('(max-width: 639px)').matches) return;
+            el.scrollIntoView({ block: 'start' });
+            window.scrollBy(0, -20);
+        },
         steps: kroki.map(k => ({
             element: k.el,
             popover: { title: k.akcja, description: k.efekt },

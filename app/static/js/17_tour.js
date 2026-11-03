@@ -71,8 +71,8 @@ const TOURS = {
         },
         {
             el: '#csvFileInput',
-            akcja: 'Wskaż pliki z historią',
-            efekt: 'Naraz możesz wgrać wiele plików, także w różnych formatach — CSV, HTML i PDF z ING oraz mBanku, CSV z Pekao, Millennium i Revoluta. Bank i format są rozpoznawane po zawartości, nie po rozszerzeniu.',
+            akcja: 'Zaznacz naraz wyciągi ze wszystkich swoich kont',
+            efekt: 'Bank rozpozna się po zawartości pliku, a konto po numerze rachunku — plik bez numeru (Revolut, wyciąg ING z jednym kontem) wgraj osobno, z kontem wskazanym powyżej. Gdy obie strony przelewu między Twoimi kontami trafią do poczekalni razem, aplikacja sama je sparuje.',
         },
         {
             el: '#submitImportBtn',

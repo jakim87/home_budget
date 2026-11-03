@@ -5,8 +5,23 @@
 // duplikaty. Te decyzje zapadają w czystych funkcjach — tu sprawdzamy, że łączą
 // tylko to, co serwer sparował, i że nic nie ginie przy podziale.
 
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { zaladujModuly } from './helpers.js';
+
+// Elementy, których dotyka renderStaging(). Osobny test pilnuje, żeby lista
+// nie rozjechała się z base.html.
+const ID_STRONY = [
+    'staging-list', 'staging-empty', 'staging-badge', 'staging-filters', 'staging-summary', 'approve-all-btn',
+    'sf-all', 'sf-ready', 'sf-todo', 'sf-duplicate', 'sf-transfer',
+    'sf-count-all', 'sf-count-ready', 'sf-count-todo', 'sf-count-dup', 'sf-count-transfer',
+];
+
+function zbudujDom() {
+    document.body.innerHTML = `<div id="toast-container"></div>` +
+        ID_STRONY.map(id => (id.startsWith('sf-count') ? `<span id="${id}"></span>` : `<div id="${id}"></div>`)).join('');
+    document.getElementById('approve-all-btn').outerHTML = '<button id="approve-all-btn"></button>';
+}
 
 /** Wiersz poczekalni w kształcie z GET /api/staging/pending. */
 function stg({ id, account_id = 1, amount = -100, date = '2026-09-30', title = 'Operacja',
@@ -24,6 +39,11 @@ function noga({ id, account_id, amount, pair = 'staging', pair_id = null, cont =
 
 beforeAll(() => {
     zaladujModuly('01_state.js', '04_helpers.js', '03_staging.js');
+    // Opcje list wyboru buduje 07_categories.js, który przy ładowaniu wymaga
+    // formularzy z innych zakładek — tu wystarczą proste odpowiedniki.
+    globalThis.getDestAccountOptionsHtml = () => '';
+    globalThis.getContractorOptionsHtml = () => '';
+    globalThis.getCategoryOptionsHtml = () => '';
 });
 
 beforeEach(() => {
@@ -196,5 +216,59 @@ describe('oknoDuplikatu', () => {
         expect(okno.do).toBe('2026-09-30');
         expect(okno.wiersze.map(h => h.id)).toEqual([2, 3, 5]);
         expect(okno.kandydaci).toEqual([5, 2]);
+    });
+});
+
+describe('renderStaging', () => {
+    const para = () => [
+        noga({ id: 1, account_id: 1, amount: -800, pair_id: 2, title: 'Wakacje' }),
+        noga({ id: 2, account_id: 2, amount: 800, pair_id: 1, cont: 22, title: 'Wakacje' }),
+    ];
+    const wiersze = () => [...document.querySelectorAll('#staging-list tbody > tr')];
+    const tekst = () => document.getElementById('staging-list').textContent;
+
+    beforeEach(() => {
+        zbudujDom();
+        stagingFilter = 'all';
+        globalThis.showToast = vi.fn();
+    });
+
+    it('para to jeden wiersz z „Zatwierdź obie", a licznik w menu liczy obie operacje', () => {
+        pendingStaging = [...para(), stg({ id: 3 })];
+        renderStaging();
+        expect(wiersze()).toHaveLength(2);
+        expect(tekst()).toContain('Zatwierdź obie');
+        expect(document.getElementById('staging-badge').innerText).toBe(3);
+        expect(document.getElementById('sf-count-all').textContent).toBe('2');
+        expect(document.getElementById('staging-summary').textContent).toBe('Na zatwierdzenie czekają 3 operacje z 2 kont.');
+    });
+
+    it('„To nie przelew" przenosi operację do grupy jej konta, bez kontrahenta „Moje konto"', () => {
+        pendingStaging = [noga({ id: 1, account_id: 1, amount: -50, pair: 'mirror', title: 'Kino' })];
+        renderStaging();
+        toNiePrzelew(1);
+        expect(tekst()).not.toContain('Przelewy między Twoimi kontami');
+        expect(tekst()).toContain('Moje ING');
+        expect(tekst()).toContain('Uzupełnij kontrahenta i kategorię');
+        expect(pendingStaging[0].proposed_contractor_id).toBe('');
+    });
+
+    it('możliwy duplikat nie liczy się do „Zatwierdź gotowe"', () => {
+        pendingStaging = [stg({ id: 1 }), stg({ id: 2, duplicate_candidates: [{ id: 9, origin: 'manual', days_diff: 0 }] })];
+        renderStaging();
+        expect(document.getElementById('approve-all-btn').textContent).toBe('Zatwierdź gotowe (1)');
+    });
+
+    it('tytuł z banku trafia na stronę jako tekst, nie HTML', () => {
+        pendingStaging = [stg({ id: 1, title: '<img src=x onerror=alert(1)>' })];
+        renderStaging();
+        expect(document.querySelector('#staging-list img')).toBeNull();
+    });
+});
+
+describe('zgodność z base.html', () => {
+    it('każdy element, którego dotyka renderStaging, istnieje w szablonie', () => {
+        const szablon = readFileSync('app/templates/base.html', 'utf-8');
+        expect(ID_STRONY.filter(id => !szablon.includes(`id="${id}"`))).toEqual([]);
     });
 });

@@ -181,7 +181,8 @@ function updateAccountSelects() {
     accounts.forEach(a => html += `<option value="${a.id}">${escapeHtml(a.name)} ${a.bank_name ? `(${escapeHtml(a.bank_name)})` : ''} ${a.is_default ? '(Główne)' : ''}</option>`);
 
     fillAccountSelect('tx-account', html, preferredFormAccountId());
-    fillAccountSelect('import-account-select', html, defaultAcc ? defaultAcc.id : null);
+    // Import: domyślnie konto rozpoznane po numerze rachunku z wyciągu, nie konto główne.
+    fillAccountSelect('import-account-select', html.replace('Wybierz konto...', 'Rozpoznaj po numerze rachunku'), null);
     fillAccountSelect('rec-account', html, defaultAcc ? defaultAcc.id : null);
     fillAccountSelect('planned-account', html, defaultAcc ? defaultAcc.id : null);
 

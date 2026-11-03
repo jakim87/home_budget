@@ -32,6 +32,13 @@ function formatKwota(v) {
     return Number(v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
 }
 
+// Polska odmiana po liczebniku: 1 operacja, 2–4 operacje, 5+ operacji (12–14 jak 5+).
+function odmiana(n, [jeden, kilka, wiele]) {
+    if (n === 1) return jeden;
+    const j = n % 10, d = n % 100;
+    return j >= 2 && j <= 4 && (d < 10 || d >= 20) ? kilka : wiele;
+}
+
 // Kurs NBP: ile PLN za 1 jednostkę waluty. Z `ym` ('RRRR-MM') — kurs na koniec
 // tego miesiąca, bez — najnowszy. null = brak kursu (nie zero: konto bez kursu
 // ma wypaść z sumy jawnie, a nie zaniżać jej po cichu).

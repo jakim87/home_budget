@@ -142,7 +142,6 @@ async function saveInlineEdit(id) {
     const dateVal = document.getElementById(`edit-date-${id}`).value;
     const descVal = document.getElementById(`edit-desc-${id}`).value.trim();
     const rawAmount = parseFloat(document.getElementById(`edit-amount-${id}`).value);
-    const categoryVal = document.getElementById(`edit-cat-${id}`).value;
     const contractorVal = document.getElementById(`edit-cont-${id}`).value;
     if (!dateVal || isNaN(rawAmount) || rawAmount <= 0) {
         showToast('Wypełnij poprawnie wszystkie pola edycji.', 'error');
@@ -152,12 +151,18 @@ async function saveInlineEdit(id) {
     const tx = transactions.find(t => t.id === id);
     if (!tx) return;
 
+    // Kategorii systemowej nie ma w selekcie, a jej typ nie mówi o znaku — bez
+    // tego zapis zmieniał uzgodnienie na pierwszą kategorię z listy i na wydatek.
+    const systemowa = jestKategoriaSystemowa(tx.category);
+    const categoryVal = systemowa ? tx.category : document.getElementById(`edit-cat-${id}`).value;
+    const znak = systemowa ? (tx.amount < 0 ? -1 : 1) : getSignFromCategoryName(categoryVal);
+
     const commentVal = document.getElementById(`edit-comment-${id}`)?.value.trim() || '';
 
     const updatedTx = {
         date: dateVal,
         desc: descVal,
-        amount: getSignFromCategoryName(categoryVal) * Math.abs(rawAmount),
+        amount: znak * Math.abs(rawAmount),
         category: categoryVal,
         contractor_id: contractorVal ? parseInt(contractorVal) : null,
         comment: commentVal || null
@@ -363,6 +368,8 @@ function renderTransactions() {
                         ${isSplit ?
                             `<span class="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded">Edycja podziału w oknie</span>
                              <input type="hidden" id="edit-cat-${t.id}" value="${escapeHtml(t.category)}">`
+                            : jestKategoriaSystemowa(t.category) ?
+                            `<span class="text-sm text-slate-500">${escapeHtml(t.category)}</span>`
                             :
                             `<select id="edit-cat-${t.id}" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                                 ${getCategoryOptionsHtml(t.category, false)}

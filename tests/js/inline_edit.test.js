@@ -74,3 +74,18 @@ describe('edycja uzgodnienia salda', () => {
         expect(wyslane.amount).toBe(-150);
     });
 });
+
+describe('edycja transakcji z podzialem (#249)', () => {
+    it('zachowuje kategorie i znak, nawet gdy autouzupelnianie zmienilo pole', async () => {
+        transactions = [{ id: 10, date: '2026-10-01', amount: 40, desc: 'Wyplata',
+                          category: 'Pensja', account_id: 1,
+                          splits: [{ category: 'Pensja', amount: 40 }] }];
+        // Pole z kategoria "Jedzenie" udaje to, co zostawial handleAutoFill.
+        zbudujDom(10, { zSelectem: true });
+
+        await saveInlineEdit(10);
+
+        expect(wyslane.category).toBe('Pensja');
+        expect(wyslane.amount).toBe(150);
+    });
+});

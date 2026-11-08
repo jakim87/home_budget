@@ -259,12 +259,17 @@ window.deleteAccount = async function(id) {
     const a = accounts.find(acc => acc.id === id);
     if (!a) return;
     const maTransakcje = transactions.some(t => t.account_id == id);
+    // Archiwizacja wyłącza harmonogram konta (delete_or_archive_account) — mówimy o tym przed decyzją.
+    const maHarmonogram = recurringTransactions.some(r => r.account_id == id)
+        || plannedTransactions.some(p => p.account_id == id);
     const msg = maTransakcje
         ? `Zarchiwizować konto „${a.name}"?
 
 `
-          + `Nic nie zostanie usunięte: konto i wszystkie jego transakcje zostają w aplikacji. `
+          + `Konto i wszystkie jego transakcje zostają w aplikacji. `
           + `Konto trafi do sekcji „Konta nieaktywne", skąd nadal podejrzysz jego historię.`
+          + (maHarmonogram ? '\n\nHarmonogram tego konta przestanie działać: transakcje cykliczne '
+                             + 'zostaną wyłączone, a oczekujące zaplanowane — usunięte.' : '')
         : `Konto „${a.name}" nie ma żadnych transakcji.
 
 `

@@ -41,32 +41,37 @@ def _calculate_next_run_date_for_recurring(rec_tx: RecurringTransaction, current
     return next_date
 
 
-def _calculate_first_occurrence_date(start_date: date, frequency: Frequency, interval: int) -> date:
+def _dzien_miesiaca(d: date, dzien: int) -> date:
+    """Wybrany dzień w miesiącu daty `d`; 31. w krótszym miesiącu to jego ostatni dzień."""
+    return d.replace(day=min(dzien, monthrange(d.year, d.month)[1]))
+
+
+def _pierwszy_wybrany_dzien(rec_tx: RecurringTransaction, od: date) -> date:
+    """Pierwszy dzień >= `od` zgodny z dniem tygodnia albo miesiąca z harmonogramu."""
+    if rec_tx.frequency == Frequency.WEEKLY and rec_tx.day_of_week is not None:
+        return od + timedelta(days=(rec_tx.day_of_week - od.weekday()) % 7)
+    if rec_tx.frequency in (Frequency.MONTHLY, Frequency.YEARLY) and rec_tx.day_of_month is not None:
+        termin = _dzien_miesiaca(od, rec_tx.day_of_month)
+        if termin < od:
+            krok = relativedelta(months=1 if rec_tx.frequency == Frequency.MONTHLY else 12)
+            termin = _dzien_miesiaca(od + krok, rec_tx.day_of_month)
+        return termin
+    return od
+
+
+def _calculate_first_occurrence_date(rec_tx: RecurringTransaction) -> date:
+    """Pierwszy termin: pierwszy wybrany dzień od daty startu, a gdy ten już minął —
+    najbliższy kolejny termin od dziś.
+
+    Formularz podaje start = dziś i osobno dzień miesiąca. Bez wyrównania do wybranego
+    dnia pierwsza operacja lądowała w dniu startu — np. drugi czynsz w tym samym
+    miesiącu. Dalej idzie _calculate_next_run_date_for_recurring, który przy każdym
+    kroku wraca na wybrany dzień, więc 31. nie zsuwa się na 28. po przejściu przez luty.
     """
-    Calculates the first run date for a recurring transaction.
-    If the start_date is in the future, it returns start_date.
-    If the start_date is in the past, it calculates the first upcoming
-    run date that is on or after today.
-    """
-    next_run = start_date
-    today = date.today()
-
-    if next_run >= today:
-        return next_run
-
-    while next_run < today:
-        if frequency == Frequency.DAILY:
-            next_run += timedelta(days=interval)
-        elif frequency == Frequency.WEEKLY:
-            next_run += timedelta(weeks=interval)
-        elif frequency == Frequency.MONTHLY:
-            next_run += relativedelta(months=interval)
-        elif frequency == Frequency.YEARLY:
-            next_run += relativedelta(years=interval)
-        else:
-            return today
-
-    return next_run
+    termin = _pierwszy_wybrany_dzien(rec_tx, rec_tx.start_date)
+    while termin < date.today():
+        termin = _calculate_next_run_date_for_recurring(rec_tx, termin)
+    return termin
 
 _PREVIEW_MAX_YEARS = 10
 
@@ -147,12 +152,6 @@ def create_recurring_transaction(user_token, data):
     """Creates a new recurring transaction definition with improved clarity."""
     try:
         _validate_refs(user_token, data['account_id'], data.get('contractor_id'), data.get('category_id'))
-        next_run_date = _calculate_first_occurrence_date(
-            start_date=data['start_date'],
-            frequency=data['frequency'],
-            interval=data.get('interval', 1)
-        )
-
         rec_tx = RecurringTransaction(
             user_token=user_token,
             account_id=data['account_id'],
@@ -166,9 +165,9 @@ def create_recurring_transaction(user_token, data):
             day_of_month=data.get('day_of_month'),
             start_date=data['start_date'],
             end_date=data.get('end_date'),
-            next_run_date=next_run_date,
             is_active=data.get('is_active', True)
         )
+        rec_tx.next_run_date = _calculate_first_occurrence_date(rec_tx)
         db.session.add(rec_tx)
         db.session.commit()
         return rec_tx
@@ -219,11 +218,7 @@ def update_recurring_transaction(user_token, rec_tx_id, data):
             rec_tx.day_of_month = data['day_of_month']
 
         if recalculate_date:
-            rec_tx.next_run_date = _calculate_first_occurrence_date(
-                start_date=rec_tx.start_date,
-                frequency=rec_tx.frequency,
-                interval=rec_tx.interval
-            )
+            rec_tx.next_run_date = _calculate_first_occurrence_date(rec_tx)
 
         db.session.commit()
         return rec_tx

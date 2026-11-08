@@ -145,10 +145,13 @@ def create_transaction(
                 raise ValueError(f"Kontrahent o ID {contractor_id} nie istnieje lub brak uprawnień.")
 
         # Kategoria musi być widoczna dla użytkownika (własna lub globalna) — bez tego
-        # można było podpiąć cudzą prywatną kategorię (patrz #127).
+        # można było podpiąć cudzą prywatną kategorię (patrz #127). Harmonogram księguje
+        # też z kategorią usuniętą po jego założeniu: inaczej każda noc kończyła się
+        # błędem tylko w logu, a operacja po cichu przestawała powstawać.
         category_obj = None
         if category_id:
-            category_obj = find_category_owned(user_token, category_id)
+            category_obj = find_category_owned(
+                user_token, category_id, include_inactive=bool(source_recurring_id or source_planned_id))
             if not category_obj:
                 raise ValueError(f"Kategoria o ID {category_id} nie istnieje lub brak uprawnień.")
 
@@ -483,33 +486,34 @@ def reconcile_account_balance(
     Uzgadnia saldo konta. Tworzy transakcję korygującą, jeśli istnieje różnica
     między nowym saldem a saldem, jakie system pokazuje na dzień uzgodnienia.
 
-    transaction_date domyślnie to dziś (uzgodnienie "na teraz"). Data wsteczna
-    znaczy "tyle było na KONIEC tego dnia" — operacje z samego dnia X wchodzą
-    więc do salda odniesienia, a odejmowane jest wyłącznie to, co po nim.
+    transaction_date domyślnie to dziś (uzgodnienie "na teraz"). Data znaczy "tyle
+    było na KONIEC tego dnia" — operacje z samego dnia X wchodzą więc do salda
+    odniesienia, a odejmowane jest wyłącznie to, co po nim. Przy dzisiejszej dacie
+    to operacje wpisane z datą w przyszłości.
     """
     if transaction_date and transaction_date > date.today():
         raise ValueError("Nie można uzgodnić salda z datą z przyszłości.")
+    dzien = transaction_date or date.today()
 
     try:
         account = db.session.query(Account).filter_by(id=account_id, user_token=user_token).first()
         if not account:
             raise ValueError(f"Konto o ID {account_id} nie istnieje lub brak uprawnień.")
 
-        current_balance = Decimal(account.balance)
-        if transaction_date and transaction_date < date.today():
-            # Account.balance jest sumą WSZYSTKICH transakcji konta, bez względu na
-            # ich datę (create_transaction dolicza kwotę niezależnie od daty operacji).
-            # Saldo na koniec dnia X to zatem bieżące saldo pomniejszone o wszystko
-            # zaksięgowane PO tym dniu — bez tego kroku różnica byłaby liczona wobec
-            # dzisiejszego salda i korekta wyszłaby o te późniejsze operacje za duża.
-            later_sum = db.session.query(
-                db.func.coalesce(db.func.sum(Transaction.amount), 0)
-            ).filter(
-                Transaction.account_id == account_id,
-                Transaction.user_token == user_token,
-                Transaction.date > transaction_date,
-            ).scalar()
-            current_balance -= Decimal(str(later_sum))
+        # Account.balance jest sumą WSZYSTKICH transakcji konta, bez względu na ich
+        # datę (create_transaction dolicza kwotę niezależnie od daty operacji). Saldo
+        # na koniec dnia to zatem bieżące saldo pomniejszone o wszystko zaksięgowane
+        # PO tym dniu — także dziś, bo czynsz wpisany z datą za tydzień jest już w saldzie,
+        # a w banku jeszcze nie. Tak samo liczy okno uzgadniania (saldoSystemuNaDzien
+        # w 08_accounts.js): użytkownik potwierdza kwotę, którą tam zobaczył.
+        later_sum = db.session.query(
+            db.func.coalesce(db.func.sum(Transaction.amount), 0)
+        ).filter(
+            Transaction.account_id == account_id,
+            Transaction.user_token == user_token,
+            Transaction.date > dzien,
+        ).scalar()
+        current_balance = Decimal(account.balance) - Decimal(str(later_sum))
 
         difference = new_balance - current_balance
 
@@ -526,7 +530,7 @@ def reconcile_account_balance(
             account_id=account_id,
             amount=difference,
             title="Uzgadnianie salda",
-            transaction_date=transaction_date or date.today(),
+            transaction_date=dzien,
             category_id=reconciliation_category.id,
             contractor="-",
             comment=comment or None,
@@ -540,7 +544,7 @@ def reconcile_account_balance(
         # z jego korekty tę samą różnicę: obie daty pokazują wtedy to, co wpisał
         # użytkownik, a saldo bieżące wraca do stanu sprzed operacji.
         nastepne = find_next_reconciliation(
-            user_token, account_id, transaction_date or date.today(), reconciliation_category.id
+            user_token, account_id, dzien, reconciliation_category.id
         )
         if nastepne:
             nowa_kwota = Decimal(nastepne.amount) - difference
@@ -1089,6 +1093,12 @@ def save_transactions_to_staging(
         staging_records = []
         skipped_duplicates = 0
         for tx_data in parsed_transactions:
+            # Kolumny mają 255 znaków, a parsery PDF sklejają w kontrahenta cały opis operacji —
+            # za długi wiersz PostgreSQL odrzucał, wywracając import całego pliku. Przycinamy
+            # PRZED kluczem duplikatu, żeby ponowne wgranie porównywało to, co leży w bazie.
+            tx_data['title'] = tx_data['title'][:TransactionStaging.title.type.length]
+            if tx_data.get('contractor'):
+                tx_data['contractor'] = tx_data['contractor'][:TransactionStaging.contractor.type.length]
             key = (tx_data['date'], tx_data['amount'], tx_data['title'], tx_data.get('account_id'))
             file_keys[key] += 1
             if user_token and file_keys[key] <= existing_keys[key]:

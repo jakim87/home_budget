@@ -197,6 +197,44 @@ def test_konto_z_harmonogramem_bez_transakcji_archiwizowane(logged_in_client, te
     assert db.session.get(Account, acc.id).is_active is False
 
 
+def test_archiwizacja_konta_wylacza_jego_harmonogram(logged_in_client, test_user):
+    """Na zarchiwizowanym koncie harmonogram co noc kończyłby się błędem w logu, a w tabeli
+    dalej wyglądał na zaplanowany. Cykliczne gasną, oczekujące zaplanowane znikają;
+    harmonogram innego konta i wykonane zaplanowane (historia) zostają."""
+    from app.models import PlannedTransaction, RecurringTransaction, Frequency
+    from datetime import date
+    zamykane = create_account(test_user.token, {'name': 'Zamykane', 'bank_name': 'X'})
+    inne = create_account(test_user.token, {'name': 'Zostaje', 'bank_name': 'X'})
+
+    def cykliczna(konto):
+        r = RecurringTransaction(
+            user_token=test_user.token, account_id=konto.id, title='Czynsz', amount=Decimal('-100.00'),
+            frequency=Frequency.MONTHLY, day_of_month=1, interval=1,
+            start_date=date(2026, 1, 1), next_run_date=date(2026, 12, 1))
+        db.session.add(r)
+        return r
+
+    def zaplanowana(status):
+        p = PlannedTransaction(
+            user_token=test_user.token, account_id=zamykane.id, title='OC', amount=Decimal('-450.00'),
+            execution_date=date(2026, 12, 1), status=status)
+        db.session.add(p)
+        return p
+
+    obiekty = [cykliczna(zamykane), cykliczna(inne), zaplanowana('pending'), zaplanowana('processed')]
+    db.session.commit()
+    cykl_zamykane, cykl_inne, oczekujaca, wykonana = [o.id for o in obiekty]
+
+    resp = logged_in_client.delete(f'/api/accounts/{zamykane.id}')
+
+    assert resp.get_json()['result'] == 'archived'
+    db.session.expire_all()
+    assert db.session.get(RecurringTransaction, cykl_zamykane).is_active is False
+    assert db.session.get(RecurringTransaction, cykl_inne).is_active is True
+    assert db.session.get(PlannedTransaction, oczekujaca) is None
+    assert db.session.get(PlannedTransaction, wykonana) is not None
+
+
 def test_lista_powiazan_konta_obejmuje_kazdy_klucz_obcy(app):
     """Kolumna wskazująca na konto, a nieobecna w _POWIAZANIA_KONTA, sprawi, że
     serwer uzna konto za puste i spróbuje je usunąć — PostgreSQL odrzuci to błędem.

@@ -156,7 +156,11 @@ async function saveInlineEdit(id) {
     // Przy podziale kategorii w wierszu nie widać, więc też jej nie zmieniamy (#249).
     const stala = jestKategoriaSystemowa(tx.category) || tx.splits?.length > 0;
     const categoryVal = stala ? tx.category : document.getElementById(`edit-cat-${id}`).value;
-    const znak = stala ? (tx.amount < 0 ? -1 : 1) : getSignFromCategoryName(categoryVal);
+    // Znak z kategorii tylko przy zmianie jej TYPU (wydatek -> przychód). Zwrot (+)
+    // w kategorii wydatkowej i wpływ przelewu bez pary zachowują znak przy poprawce opisu.
+    const typKategorii = nazwa => categories.find(c => c.name === nazwa)?.type;
+    const zachowajZnak = stala || typKategorii(categoryVal) === typKategorii(tx.category);
+    const znak = zachowajZnak ? (tx.amount < 0 ? -1 : 1) : getSignFromCategoryName(categoryVal);
 
     const commentVal = document.getElementById(`edit-comment-${id}`)?.value.trim() || '';
 

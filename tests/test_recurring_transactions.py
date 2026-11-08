@@ -1,10 +1,12 @@
 import pytest
-from datetime import date
+from calendar import monthrange
+from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from app import db
 from app.models import User, Account, Category, RecurringTransaction, Transaction, Frequency
 from app.services.recurring_service import (
     _calculate_next_run_date_for_recurring,
+    create_recurring_transaction,
     process_recurring_transactions,
 )
 from werkzeug.security import generate_password_hash
@@ -186,6 +188,59 @@ def test_weekly_aligns_to_day_of_week(app, setup_for_recurring):
     assert next_date == date(2024, 6, 10)  # kolejny poniedziałek
     assert next_date.weekday() == 0
 
+
+def _zaloz_harmonogram(user_token, account_id, category_id, **pola):
+    return create_recurring_transaction(user_token, {
+        'account_id': account_id, 'category_id': category_id, 'title': 'Czynsz',
+        'amount': Decimal('-1000.00'), 'interval': 1, **pola,
+    })
+
+
+def test_pierwszy_termin_w_wybranym_dniu_miesiaca(app, setup_for_recurring):
+    """Pierwszy termin to pierwszy wybrany dzień od daty startu, nie sama data startu.
+
+    Formularz podaje start = dziś i dzień = 10 — harmonogram założony 25. księgował
+    czynsz tego samego dnia, a potem znowu 10., czyli dwa czynsze w jednym miesiącu."""
+    user_token, account_id, category_id = setup_for_recurring
+    rok = date.today().year + 1
+
+    rec = _zaloz_harmonogram(user_token, account_id, category_id, frequency=Frequency.MONTHLY,
+                             day_of_month=10, start_date=date(rok, 1, 25))
+    assert rec.next_run_date == date(rok, 2, 10)
+
+    rec = _zaloz_harmonogram(user_token, account_id, category_id, frequency=Frequency.MONTHLY,
+                             day_of_month=10, start_date=date(rok, 1, 5))
+    assert rec.next_run_date == date(rok, 1, 10)
+
+    rec = _zaloz_harmonogram(user_token, account_id, category_id, frequency=Frequency.YEARLY,
+                             day_of_month=10, start_date=date(rok, 3, 25))
+    assert rec.next_run_date == date(rok + 1, 3, 10)
+
+
+def test_pierwszy_termin_w_wybranym_dniu_tygodnia(app, setup_for_recurring):
+    user_token, account_id, category_id = setup_for_recurring
+    start = date(date.today().year + 1, 1, 1)
+
+    rec = _zaloz_harmonogram(user_token, account_id, category_id, frequency=Frequency.WEEKLY,
+                             day_of_week=(start.weekday() + 3) % 7, start_date=start)
+
+    assert rec.next_run_date == start + timedelta(days=3)
+
+
+def test_pierwszy_termin_ze_startem_w_przeszlosci_nie_dryfuje(app, setup_for_recurring):
+    """Start w przeszłości: pierwszy termin to najbliższy wybrany dzień od dziś. Liczony
+    od 31 stycznia nie może zsunąć się na 28. po przejściu przez luty."""
+    user_token, account_id, category_id = setup_for_recurring
+    dzis = date.today()
+
+    termin = _zaloz_harmonogram(user_token, account_id, category_id, frequency=Frequency.MONTHLY,
+                                day_of_month=31, start_date=date(dzis.year - 1, 1, 31)).next_run_date
+
+    assert termin >= dzis
+    assert termin.day == monthrange(termin.year, termin.month)[1]
+    # Wcześniejszy termin (koniec poprzedniego miesiąca) już minął — żaden nie przepadł.
+    assert termin.replace(day=1) - timedelta(days=1) < dzis
+
 def test_api_update_recurring_rejects_invalid_payload(logged_in_client, app, setup_for_recurring):
     """Błędne dane w PUT to 400 (jak w POST), nie 500.
 
@@ -208,6 +263,35 @@ def test_api_update_recurring_rejects_invalid_payload(logged_in_client, app, set
     assert response.status_code == 400
     db.session.expire_all()
     assert db.session.get(RecurringTransaction, rec_tx_id).day_of_month == 5
+
+
+def test_harmonogram_ksieguje_z_usunieta_kategoria(app, setup_for_recurring):
+    """Usunięcie kategorii nie może po cichu zatrzymać harmonogramu: create_transaction
+    odrzucał nieaktywną kategorię, więc co noc był tylko błąd w logu, a termin stał.
+    Ręcznego wpisu z usuniętą kategorią nadal nie da się dodać."""
+    from app.services.budget_service import create_transaction
+    from app.services.category_service import soft_delete_category
+    user_token, account_id, _ = setup_for_recurring
+    kategoria = Category(name="Subskrypcje", type="expense", user_token=user_token)
+    db.session.add(kategoria)
+    db.session.commit()
+    dzis = date.today()
+    rec = RecurringTransaction(
+        user_token=user_token, account_id=account_id, category_id=kategoria.id, title="Netflix",
+        amount=Decimal("-43.00"), frequency=Frequency.MONTHLY, day_of_month=dzis.day,
+        start_date=dzis, next_run_date=dzis,
+    )
+    db.session.add(rec)
+    db.session.commit()
+    rec_id, kategoria_id = rec.id, kategoria.id
+    soft_delete_category(user_token, "Subskrypcje")
+
+    assert process_recurring_transactions() == 1
+    assert db.session.query(Transaction).filter_by(
+        source_recurring_id=rec_id, category_id=kategoria_id).count() == 1
+    assert db.session.get(RecurringTransaction, rec_id).next_run_date > dzis
+    with pytest.raises(ValueError):
+        create_transaction(user_token, account_id, Decimal("-43.00"), "Ręcznie", dzis, kategoria_id)
 
 
 def test_process_deactivates_recurring_after_end_date(app, setup_for_recurring):

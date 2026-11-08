@@ -134,9 +134,11 @@ def extract_statement_ibans(raw: bytes, bank: Optional[str], fmt: Optional[str])
     if bank == 'millennium' and fmt == 'csv':
         try:
             rows = _millennium_rows(decode_statement_bytes(raw))
-            return [next(filter(None, map(_millennium_iban, rows)))]
-        except (UnicodeDecodeError, StopIteration, KeyError):
+            ibans = set(filter(None, map(_millennium_iban, rows)))
+        except (UnicodeDecodeError, KeyError):
             return []
+        # Plik z kilkoma rachunkami parser rozdziela sam, wiersz po wierszu — jak ING.
+        return list(ibans) if len(ibans) == 1 else []
     if bank != 'mbank':
         return []
     if fmt == 'pdf':
@@ -635,19 +637,31 @@ def _millennium_iban(row: dict) -> Optional[str]:
 
 
 def parse_millennium_csv(content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
-    """Parsuje 'Listę transakcji' Millennium w CSV (jednokontowe, UTF-8, przecinek).
+    """Parsuje 'Listę transakcji' Millennium w CSV (UTF-8, przecinek).
+
+    Plik może obejmować kilka rachunków (kolumna 'Numer rachunku/karty'). Wtedy
+    każdy wiersz trafia na konto o numerze z tego wiersza, a wiersze rachunku bez
+    konta w aplikacji są pomijane — jak w wielokontowym ING. Przy jednym rachunku
+    wszystko idzie na main_account_id (jego zgodność z numerem sprawdził już
+    resolve_statement_account); na nie idą też wiersze z numerem karty.
 
     Pola wielowierszowe (nazwa + adres kontrahenta, opis) bank skleja niełamliwą
     spacją. Brak kategorii z banku.
     """
-    if main_account_id is None:
-        raise BrakKontaError("Wyciąg Millennium dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+    rows = list(_millennium_rows(content))
+    file_ibans = list(dict.fromkeys(filter(None, map(_millennium_iban, rows))))
+    csv_accounts: list[dict] = []
+    iban_to_account_id: dict[str, Optional[int]] = {}
+    if len(file_ibans) > 1:
+        csv_accounts, iban_to_account_id, _, _ = build_ing_account_maps(
+            [(iban, _normalize_acc_num(iban)) for iban in file_ibans], user_token
+        )
 
     transactions: list[dict] = []
     skipped_count = 0
     ibans_set = set()
 
-    for row in _millennium_rows(content):
+    for row in rows:
         # Obcięty wiersz: DictReader daje None — kolumny kwot są za wszystkimi
         # pozostałymi, więc jeśli kwota jest, to reszta wiersza też.
         amount = _clean_amount(row['Obciążenia'] or row['Uznania'] or '')
@@ -659,6 +673,15 @@ def parse_millennium_csv(content: str, user_token: str, main_account_id: Optiona
         iban = _millennium_iban(row)
         if iban:
             ibans_set.add(iban)
+        if iban and iban_to_account_id:
+            account_id = iban_to_account_id[iban]
+            if account_id is None:
+                skipped_count += 1
+                continue
+        elif main_account_id is None:
+            raise BrakKontaError("Wyciąg Millennium dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+        else:
+            account_id = main_account_id
         contractor = row['Odbiorca/Zleceniodawca'].split('\xa0')[0].strip() or None
         title = row['Opis'].replace('\xa0', ' ').strip() or row['Rodzaj transakcji'].strip()
 
@@ -668,7 +691,7 @@ def parse_millennium_csv(content: str, user_token: str, main_account_id: Optiona
             'title': title,
             'amount': amount,
             'counterparty_account': row['Na konto/Z konta'].replace(' ', '') or None,
-            'account_id': main_account_id,
+            'account_id': account_id,
             'bank_category': None,
         })
 
@@ -679,7 +702,7 @@ def parse_millennium_csv(content: str, user_token: str, main_account_id: Optiona
     )
     return {
         'transactions': transactions,
-        'csv_accounts': [],
+        'csv_accounts': csv_accounts,
         'skipped_count': skipped_count,
         'period_start': min(dates, default=None),
         'period_end': max(dates, default=None),

@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.4.0](https://github.com/jakim87/home_budget/compare/v1.3.0...v1.4.0) (2026-11-08)
+
+
+### Funkcje
+
+* import pokazuje przy każdym pliku konta, zakres dat i duplikaty ([#252](https://github.com/jakim87/home_budget/issues/252)) ([96b249c](https://github.com/jakim87/home_budget/commit/96b249c0e3cfa517a26d9a93eec85ed978776a93))
+* odrzucanie z poczekalni pojedynczego wiersza, całego pliku albo konta ([#250](https://github.com/jakim87/home_budget/issues/250)) ([5eea527](https://github.com/jakim87/home_budget/commit/5eea5271444f872857e782affcd11265e1e193c5))
+
+
+### Poprawki
+
+* edycja opisu transakcji z podziałem nie zmienia już jej kategorii ([#254](https://github.com/jakim87/home_budget/issues/254)) ([891569c](https://github.com/jakim87/home_budget/commit/891569c2d551936e3e5ae4330f55a0a7d59eebf1))
+* import Millennium rozdziela operacje z kilku rachunków na właściwe konta ([#246](https://github.com/jakim87/home_budget/issues/246)) ([d9cd5e3](https://github.com/jakim87/home_budget/commit/d9cd5e39ce21fe475651a439fe9ca1fb2d60aa14))
+* import Millennium z kilku rachunków nie księguje operacji kartą na konto spoza wyciągu ([#255](https://github.com/jakim87/home_budget/issues/255)) ([7d55d18](https://github.com/jakim87/home_budget/commit/7d55d1891bb0da20843b70a7b4ae55201216c40d))
+* import zestawienia operacji mBanku w HTML bierze kwotę zamiast salda ([#248](https://github.com/jakim87/home_budget/issues/248)) ([41da4dd](https://github.com/jakim87/home_budget/commit/41da4dd5d74f77c5a8d21fdb977879991bc4ce54))
+* ręczny wybór mBank HTML dla zestawienia operacji bierze kwotę zamiast salda ([#251](https://github.com/jakim87/home_budget/issues/251)) ([fd83aa8](https://github.com/jakim87/home_budget/commit/fd83aa870cf4d6f746087ee23a080c6803230107))
+
 ## [1.3.0](https://github.com/jakim87/home_budget/compare/v1.2.1...v1.3.0) (2026-11-03)
 
 

@@ -610,6 +610,64 @@ def test_import_auto_millennium_csv_resolves_account_from_rows(logged_in_client,
     assert all(r.account_id == iban_account.id for r in rows)
 
 
+MILLENNIUM_CSV_DWA_RACHUNKI = (
+    '"Numer rachunku/karty","Data transakcji","Data rozliczenia","Rodzaj transakcji","Na konto/Z konta","Odbiorca/Zleceniodawca","Opis","Obciążenia","Uznania","Saldo","Waluta"\n'
+    '"PL22 3344 5566 7788 9900 1122 3344","2026-09-02","2026-09-02","PRZELEW WEWNĘTRZNY PRZYCHODZĄCY","55 6666 7777 8888 9999 0000 1111","JAN TESTOWY","Kieszonkowe","","800.00","1800.00","PLN"\n'
+    '"PL22 3344 5566 7788 9900 1122 3344","2026-08-31","2026-08-31","OBCIĄŻENIE","","","PODATEK OD ODSETEK","-2.77","","1000.00","PLN"\n'
+    '"PL55 6666 7777 8888 9999 0000 1111","2026-09-02","2026-09-02","PRZELEW WEWNĘTRZNY WYCHODZĄCY","22 3344 5566 7788 9900 1122 3344","JAN TESTOWY","Kieszonkowe","-800.00","","200.00","PLN"\n'
+    '"PL55 6666 7777 8888 9999 0000 1111","2026-08-20","2026-08-20","PRZELEW PRZYCHODZĄCY","","PRACODAWCA","Pensja","","1000.00","1000.00","PLN"\n'
+).encode('utf-8-sig')
+
+
+@pytest.fixture
+def drugie_konto_millennium(app, test_user):
+    account = Account(name="Millennium drugie", bank_name="Millennium", user_token=test_user.token,
+                      account_number="55 6666 7777 8888 9999 0000 1111")
+    db.session.add(account)
+    db.session.commit()
+    return account
+
+
+def _konta_w_poczekalni():
+    return {r.amount: r.account_id for r in db.session.query(TransactionStaging).all()}
+
+
+def test_import_auto_millennium_csv_dwa_rachunki(logged_in_client, app, iban_account, drugie_konto_millennium):
+    """Plik Millennium z dwoma rachunkami: każdy wiersz na konto o numerze z tego wiersza."""
+    resp = _upload_auto_no_account(logged_in_client, MILLENNIUM_CSV_DWA_RACHUNKI, filename="m.csv")
+    assert resp.status_code == 201
+    body = resp.get_json()
+    assert body['count'] == 4
+    assert {a['account_id'] for a in body['csv_accounts'] if a['matched']} == {
+        iban_account.id, drugie_konto_millennium.id}
+    assert _konta_w_poczekalni() == {
+        Decimal("800.00"): iban_account.id,
+        Decimal("-2.77"): iban_account.id,
+        Decimal("-800.00"): drugie_konto_millennium.id,
+        Decimal("1000.00"): drugie_konto_millennium.id,
+    }
+
+
+def test_import_millennium_csv_dwa_rachunki_wybrane_konto_nie_przejmuje_wierszy(
+        logged_in_client, app, iban_account, drugie_konto_millennium):
+    """Ręcznie wybrane konto nie zabiera wierszy rachunku, który ma w aplikacji własne konto."""
+    resp = _upload(logged_in_client, iban_account.id, MILLENNIUM_CSV_DWA_RACHUNKI,
+                   filename="m.csv", bank="millennium")
+    assert resp.status_code == 201
+    assert _konta_w_poczekalni()[Decimal("-800.00")] == drugie_konto_millennium.id
+    assert _konta_w_poczekalni()[Decimal("-2.77")] == iban_account.id
+
+
+def test_import_auto_millennium_csv_dwa_rachunki_nieznany_pominiety(logged_in_client, app, iban_account):
+    """Rachunek z pliku bez konta w aplikacji: jego wiersze pominięte, nie dopisane do innego konta."""
+    resp = _upload_auto_no_account(logged_in_client, MILLENNIUM_CSV_DWA_RACHUNKI, filename="m.csv")
+    assert resp.status_code == 201
+    body = resp.get_json()
+    assert body['count'] == 2
+    assert body['skipped_count'] == 2
+    assert set(_konta_w_poczekalni().values()) == {iban_account.id}
+
+
 def test_import_auto_millennium_csv_rejects_wrong_account(logged_in_client, app, import_account, iban_account):
     """Wybrane konto ma inny numer niż wyciąg Millennium → 400, nic nie trafia do poczekalni."""
     resp = _upload(logged_in_client, import_account.id, MILLENNIUM_CSV, filename="m.csv", bank="auto")

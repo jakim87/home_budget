@@ -11,7 +11,9 @@ from app import db
 from app.models import User, Account
 from app.services.statement_parsers import (
     detect_bank_and_format,
+    extract_statement_ibans,
     parse_mbank_html,
+    parse_mbank_zestawienie_html,
     parse_mbank_pdf,
     parse_millennium_csv,
     parse_pekao_csv,
@@ -58,6 +60,41 @@ MBANK_HTML_SAMPLE = '''﻿<HTML xmlns:ns1="http://www.bre.pl">
         <td class="data">Zakupy</td>
         <td class="data"><nobr>-125,50 PLN</nobr></td>
       </tr>
+    </table>
+  </BODY>
+</HTML>
+'''
+
+# „Elektroniczne zestawienie operacji" — inny eksport HTML mBanku (spotkany na
+# rachunku celowym): dwie kolumny dat, bez kategorii i rachunku, a za kwotą saldo.
+# Numer rachunku w nagłówku zapisany ze spacjami.
+MBANK_ZESTAWIENIE_HTML_SAMPLE = '''﻿<HTML xmlns:ns1="http://www.bre.pl">
+  <BODY>
+    <b>Elektroniczne zestawienie operacji</b> za okres od 2026-06-01 do 2026-06-30
+    <table>
+      <tr><td>Rodzaj rachunku</td><td>CEL</td></tr>
+      <tr><td>Numer rachunku</td><td>11 1111 1111 1111 1111 1111 1111 </td></tr>
+    </table>
+    <table>
+      <tr><td>Saldo początkowe:</td><td>1 000,00 PLN</td></tr>
+    </table>
+    <table>
+      <tr class="head"><td>Data księgowania</td><td>Data operacji</td><td>Opis operacji</td><td>Kwota</td><td>Saldo po operacji</td></tr>
+      <tr>
+        <td class="data" align="center">2026-06-03</td>
+        <td class="data" align="center">2026-06-03</td>
+        <td class="data">PRZELEW NA TWOJE CELE<br>CEL</td>
+        <td class="data" align="right"><nobr>1 440,00</nobr></td>
+        <td class="data" align="right"><nobr>2 440,00</nobr></td>
+      </tr>
+      <tr>
+        <td class="data" align="center">2026-06-30</td>
+        <td class="data" align="center">2026-07-01</td>
+        <td class="data">PODATEK OD ODSETEK KAPITAŁOWYCH</td>
+        <td class="data" align="right"><nobr>-1,32</nobr></td>
+        <td class="data" align="right"><nobr>2 438,68</nobr></td>
+      </tr>
+      <tr><td>Saldo końcowe:</td><td>2 438,68 PLN</td></tr>
     </table>
   </BODY>
 </HTML>
@@ -251,6 +288,63 @@ def test_parse_mbank_html_date_range_extracted(app, mf_user):
     assert result.get('period_end') == date(2026, 6, 30)
 
 
+# --- mBank HTML „Elektroniczne zestawienie operacji" -------------------------
+
+def test_detect_mbank_zestawienie_html_osobno_od_listy_operacji():
+    raw = MBANK_ZESTAWIENIE_HTML_SAMPLE.encode('utf-8')
+    assert detect_bank_and_format(raw, 'cel.html') == ('mbank', 'html-zest')
+
+
+def test_zestawienie_numer_rachunku_ze_spacjami_rozpoznany():
+    raw = MBANK_ZESTAWIENIE_HTML_SAMPLE.encode('utf-8')
+    assert extract_statement_ibans(raw, 'mbank', 'html-zest') == ['11111111111111111111111111']
+
+
+def test_parse_mbank_zestawienie_html_kwota_nie_saldo(app, mf_user):
+    """Kwota z kolumny 'Kwota', nie z 'Saldo po operacji'; data = data operacji."""
+    user_token, acc_id = mf_user
+    with app.app_context():
+        result = parse_mbank_zestawienie_html(MBANK_ZESTAWIENIE_HTML_SAMPLE, user_token, main_account_id=acc_id)
+
+    txs = result['transactions']
+    assert [t['amount'] for t in txs] == [Decimal("1440.00"), Decimal("-1.32")]
+    assert [t['date'] for t in txs] == [date(2026, 6, 3), date(2026, 7, 1)]
+    assert [t['title'] for t in txs] == ["PRZELEW NA TWOJE CELE", "PODATEK OD ODSETEK KAPITAŁOWYCH"]
+    assert txs[0]['contractor'] == "CEL"
+    assert all(t['account_id'] == acc_id and t['bank_category'] is None for t in txs)
+    assert result['skipped_count'] == 0
+    assert result['statement_ibans'] == ['11111111111111111111111111']
+    assert (result['period_start'], result['period_end']) == (date(2026, 6, 1), date(2026, 6, 30))
+
+
+def test_parse_mbank_zestawienie_html_requires_account(app, mf_user):
+    user_token, _ = mf_user
+    with app.app_context():
+        with pytest.raises(ValueError):
+            parse_mbank_zestawienie_html(MBANK_ZESTAWIENIE_HTML_SAMPLE, user_token, main_account_id=None)
+
+
+def test_import_auto_zestawienie_trafia_na_konto_po_numerze(logged_in_client, test_user_token, app):
+    """Plik bez wskazanego konta: konto rozpoznane po numerze ze spacjami."""
+    import io
+    from app.models import TransactionStaging
+    with app.app_context():
+        acc = Account(user_token=test_user_token, name="Cel", bank_name="mBank",
+                      account_number="11111111111111111111111111")
+        db.session.add(acc)
+        db.session.commit()
+        acc_id = acc.id
+
+    resp = logged_in_client.post('/api/import/auto', data={
+        'file': (io.BytesIO(MBANK_ZESTAWIENIE_HTML_SAMPLE.encode('utf-8')), 'cel.html'),
+    }, content_type='multipart/form-data')
+
+    assert resp.status_code == 201, resp.get_json()
+    with app.app_context():
+        kwoty = sorted(s.amount for s in TransactionStaging.query.filter_by(account_id=acc_id))
+    assert kwoty == [Decimal("-1.32"), Decimal("1440.00")]
+
+
 # --- Parser mBank PDF -------------------------------------------------------
 
 def test_parse_mbank_pdf_basic(app, mf_user):
@@ -433,13 +527,14 @@ MILLENNIUM_PDF_LINES = [
     (ING_CSV_SAMPLE.encode('utf-8'), ('ing', 'csv')),
     (MBANK_CSV_SAMPLE.encode('utf-8'), ('mbank', 'csv')),
     (MBANK_HTML_SAMPLE.encode('utf-8'), ('mbank', 'html')),
+    (MBANK_ZESTAWIENIE_HTML_SAMPLE.encode('utf-8'), ('mbank', 'html-zest')),
     (PEKAO_CSV_SAMPLE.encode('utf-8'), ('pekao', 'csv')),
     (MILLENNIUM_CSV_SAMPLE.encode('utf-8-sig'), ('millennium', 'csv')),
     (b'\xef\xbb\xbf<html><body><table><tr><td>Bank Millennium SA</td></tr></table></body></html>',
      ('millennium', 'html')),
     ('Rodzaj,Produkt,Data rozpoczęcia,Data zrealizowania,Opis,Kwota,Opłata,Waluta,State,Saldo\n'.encode('utf-8'),
      ('revolut', 'csv')),
-], ids=['ing-csv', 'mbank-csv', 'mbank-html', 'pekao-csv', 'millennium-csv', 'millennium-html', 'revolut-csv'])
+], ids=['ing-csv', 'mbank-csv', 'mbank-html', 'mbank-html-zest', 'pekao-csv', 'millennium-csv', 'millennium-html', 'revolut-csv'])
 def test_detekcja_kazdy_bank_rozpoznany_jako_swoj(raw, oczekiwane):
     """Każda próbka musi trafić do swojego banku. Nowy bank = nowy wiersz tutaj;
     kolizja znaczników (jak 'Data transakcji' u ING i Millennium) wyjdzie w teście."""

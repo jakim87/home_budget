@@ -13,9 +13,8 @@ import pytest
 from app import db
 from app.models import Account, Category, Contractor, TransactionStaging
 from app.services import budget_plan_service
-from app.services.budget_service import (
-    approve_staging_record, create_transaction, parse_mbank_csv,
-)
+from app.services.budget_service import approve_staging_record, create_transaction
+from app.services.statement_parsers import parse_mbank_csv
 from app.services.import_history_service import record_statement_import
 from app.services.transaction_service import bulk_update_category
 

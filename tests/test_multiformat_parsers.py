@@ -345,6 +345,28 @@ def test_import_auto_zestawienie_trafia_na_konto_po_numerze(logged_in_client, te
     assert kwoty == [Decimal("-1.32"), Decimal("1440.00")]
 
 
+def test_import_reczny_mbank_html_zestawienie_czyta_kwote_nie_saldo(logged_in_client, test_user_token, app):
+    """Ręcznie wybrane 'mBank (HTML)' dla pliku zestawienia nie może trafić do
+    parsera „Listy operacji" — ten wziąłby saldo po operacji za kwotę."""
+    import io
+    from app.models import TransactionStaging
+    with app.app_context():
+        acc = Account(user_token=test_user_token, name="Cel", bank_name="mBank",
+                      account_number="11111111111111111111111111")
+        db.session.add(acc)
+        db.session.commit()
+        acc_id = acc.id
+
+    resp = logged_in_client.post('/api/import/mbank/html', data={
+        'file': (io.BytesIO(MBANK_ZESTAWIENIE_HTML_SAMPLE.encode('utf-8')), 'cel.html'),
+    }, content_type='multipart/form-data')
+
+    assert resp.status_code == 201, resp.get_json()
+    with app.app_context():
+        kwoty = sorted(s.amount for s in TransactionStaging.query.filter_by(account_id=acc_id))
+    assert kwoty == [Decimal("-1.32"), Decimal("1440.00")]
+
+
 # --- Parser mBank PDF -------------------------------------------------------
 
 def test_parse_mbank_pdf_basic(app, mf_user):

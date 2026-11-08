@@ -150,7 +150,7 @@ Bank i format rozpoznaje `detect_bank_and_format()` (`statement_parsers.py`) **p
 | Bank Millennium | ✅ | — | — |
 | Revolut | ✅ | — | — |
 
-mBank ma dwa eksporty HTML o różnym układzie kolumn: „Lista operacji” (`'html'`, `parse_mbank_html`; kolumny Data operacji | Opis | Rachunek | Kategoria | Kwota) i „Elektroniczne zestawienie operacji” (`'html-zest'`, `parse_mbank_zestawienie_html`; Data księgowania | Data operacji | Opis | Kwota | Saldo po operacji — bez kategorii, numer rachunku w nagłówku ze spacjami). Drugi pojawił się na rachunku celowym w listopadzie 2026; zwykły parser wziąłby w nim saldo za kwotę, dlatego detekcja rozróżnia je po nagłówku.
+mBank ma dwa eksporty HTML o różnym układzie kolumn: „Lista operacji” (`'html'`, `parse_mbank_html`; kolumny Data operacji | Opis | Rachunek | Kategoria | Kwota) i „Elektroniczne zestawienie operacji” (`'html-zest'`, `parse_mbank_zestawienie_html`; Data księgowania | Data operacji | Opis | Kwota | Saldo po operacji — bez kategorii, numer rachunku w nagłówku ze spacjami). Drugi pojawił się na rachunku celowym w listopadzie 2026; zwykły parser wziąłby w nim saldo za kwotę, dlatego detekcja rozróżnia je po nagłówku. Ręczny wybór zna tylko jedno „mBank (HTML)” — `import_manual` rozstrzyga wariant po zawartości.
 
 Pekao CSV nie ma numeru rachunku w nagłówku — `extract_statement_ibans` bierze go z pierwszego wiersza (rachunek źródłowy przy wydatku, docelowy przy wpływie). TXT z Pekao niesie te same dane minus adres kontrahenta, więc świadomie nie jest obsługiwany.
 

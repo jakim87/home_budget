@@ -172,15 +172,19 @@ def import_manual(bank, fmt='csv'):
     user_token = current_user.token
     bank, fmt = bank.lower(), fmt.lower()
 
-    entry = STATEMENT_PARSERS.get((bank, fmt))
-    if entry is None:
+    if (bank, fmt) not in STATEMENT_PARSERS:
         dostepne = ', '.join(f'{b}/{f}' for b, f in STATEMENT_PARSERS)
         return jsonify({'error': f"Nieobsługiwany wyciąg: '{bank}/{fmt}'. Dostępne: {dostepne}."}), 400
-    parser, input_mode = entry
 
     raw, err = _read_upload()
     if err:
         return err
+
+    # mBank ma dwa eksporty HTML o różnych kolumnach, a lista wyboru zna jeden
+    # „mBank (HTML)" — wariant rozstrzyga zawartość, inaczej saldo trafiłoby za kwotę.
+    if (bank, fmt) == ('mbank', 'html') and detect_bank_and_format(raw) == ('mbank', 'html-zest'):
+        fmt = 'html-zest'
+    parser, input_mode = STATEMENT_PARSERS[(bank, fmt)]
 
     if input_mode == 'text':
         try:

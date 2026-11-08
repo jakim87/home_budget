@@ -280,11 +280,12 @@ function htmlTabeli(naglowki, wiersze) {
     </div>`;
 }
 
-function htmlGrupy(tytul, podpis, opis, tabela) {
+function htmlGrupy(tytul, podpis, opis, tabela, akcja = '') {
     return `<div class="space-y-2">
         <div class="flex flex-wrap items-baseline gap-x-3">
             <h3 class="font-semibold text-slate-800">${tytul}</h3>
             <span class="text-xs text-slate-500">${podpis}</span>
+            ${akcja ? `<span class="ml-auto">${akcja}</span>` : ''}
         </div>
         ${opis ? `<p class="text-xs text-slate-500">${opis}</p>` : ''}
         ${tabela}
@@ -330,7 +331,7 @@ function renderStaging() {
             : 'text-xs px-3 py-1 rounded-full font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200';
     });
 
-    let html = '';
+    let html = htmlPlikow(plikiPoczekalni(pendingStaging));
     const widocznePrzelewy = posortujPozycje(przelewy.filter(nogi => pasujeDoFiltra(nogi, true)));
     if (widocznePrzelewy.length) {
         html += htmlGrupy('Przelewy między Twoimi kontami',
@@ -349,15 +350,41 @@ function renderStaging() {
         const konto = accounts.find(a => a.id == kontoId);
         const podpis = [konto && konto.bank_name, konto && skrotNumeru(konto.account_number),
                         `${widoczne.length} ${odmiana(widoczne.length, ['operacja', 'operacje', 'operacji'])}`].filter(Boolean).join(' · ');
+        const wszystkie = pendingStaging.filter(t => t.account_id == kontoId).length;
+        const akcja = kontoId == null ? '' : `<button type="button" onclick="odrzucKonto(${Number(kontoId)})" class="${KLASY_LINKU}">Odrzuć z tego konta (${wszystkie})</button>`;
         html += htmlGrupy(escapeHtml(kontoId == null ? 'Konto nieznane' : nazwaKonta(kontoId)), escapeHtml(podpis), '',
             htmlTabeli(
                 naglowekSort('date', 'Data', 'w-[11%]') + naglowekSort('title', 'Z wyciągu') +
                 '<th class="p-3 font-semibold w-[20%]">Kontrahent</th><th class="p-3 font-semibold w-[18%]">Kategoria</th>' +
                 naglowekSort('amount', 'Kwota', 'w-[12%] text-right') + '<th class="p-3 w-[11%]"></th>',
-                widoczne.map(([t]) => htmlOperacji(t)).join('')));
+                widoczne.map(([t]) => htmlOperacji(t)).join('')), akcja);
     });
 
     list.innerHTML = html || '<p class="p-8 text-center text-sm text-slate-500">Nic nie pasuje do wybranego filtru.</p>';
+}
+
+// Pliki, z których pochodzą wiersze poczekalni: [{id, nazwa, liczba}]. Wiersze
+// sprzed zapamiętywania pliku (import_batch_id null) nie tworzą pozycji.
+function plikiPoczekalni(lista) {
+    const pliki = new Map();
+    lista.forEach(t => {
+        if (!t.import_batch_id) return;
+        const p = pliki.get(t.import_batch_id) || { id: t.import_batch_id, nazwa: t.import_filename || 'wyciąg', liczba: 0 };
+        p.liczba++;
+        pliki.set(p.id, p);
+    });
+    return [...pliki.values()];
+}
+
+// Pasek tylko przy więcej niż jednym źródle — przy jednym pliku „Odrzuć plik” to „Odrzuć wszystkie”.
+function htmlPlikow(pliki) {
+    const zrodla = pliki.length + (pendingStaging.some(t => !t.import_batch_id) ? 1 : 0);
+    if (zrodla < 2) return '';
+    return `<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+        <span class="font-medium text-slate-700">Wgrane pliki:</span>
+        ${pliki.map(p => `<span>${escapeHtml(p.nazwa)} · ${p.liczba} ${odmiana(p.liczba, ['operacja', 'operacje', 'operacji'])}
+            <button type="button" onclick="odrzucPlik('${escapeHtml(p.id)}')" class="${KLASY_LINKU} ml-1">Odrzuć plik</button></span>`).join('')}
+    </div>`;
 }
 
 // 2 pierwsze + 4 ostatnie cyfry — jak _abbrev_account po stronie serwera.
@@ -426,6 +453,7 @@ function htmlPrzelewu(nogi) {
         <td data-label="Akcja" class="p-3 align-top text-center">
             <button onclick="${para ? `zatwierdzObie(${t.id}, ${nogi[1].id})` : `approveStaging(${t.id})`}" ${status === 'todo' ? 'disabled title="Wybierz konto po drugiej stronie"' : ''}
                 class="px-3 py-2 text-sm font-medium rounded-lg shadow-sm whitespace-nowrap w-full ${status === 'todo' ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-sky-600 hover:bg-sky-700 text-white'}">${para ? 'Zatwierdź obie' : 'Zatwierdź'}</button>
+            ${para ? '' : `<button type="button" onclick="odrzucWiersz(${t.id})" class="${KLASY_LINKU} mt-2">Odrzuć</button>`}
         </td>
     </tr>`;
 }
@@ -487,6 +515,7 @@ function htmlOperacji(t) {
         <td data-label="Akcja" class="p-3 align-top text-center">
             <button onclick="approveStaging(${t.id})" ${status === 'todo' ? 'disabled title="Uzupełnij kontrahenta i kategorię, aby zatwierdzić"' : ''}
                 class="px-3 py-2 text-sm font-medium rounded-lg shadow-sm whitespace-nowrap w-full ${status === 'todo' ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}">Zatwierdź</button>
+            <button type="button" onclick="odrzucWiersz(${t.id})" class="${KLASY_LINKU} mt-2">Odrzuć</button>
         </td>
     </tr>`;
     return status === 'dup' && otwarty ? wiersz + htmlPodgladuDuplikatu(t) : wiersz;
@@ -640,6 +669,66 @@ window.dismissStagingDuplicate = async function(id) {
         console.error(error);
         showToast('Błąd połączenia z API.', 'error');
     }
+}
+
+// Odrzuca jeden wiersz bez księgowania. Przy przelewach w poczekalni pobieramy ją
+// od nowa: stan drugiej strony (para, lustro, brak) liczy serwer, a odrzucenie
+// ostatniego wiersza konta może zmienić go także innym przelewom (#181).
+window.odrzucWiersz = async function(id) {
+    const t = pendingStaging.find(x => x.id === id);
+    if (!t) return;
+    if (!confirm(`Odrzucić operację „${t.title}” z ${t.date}? Nie trafi do historii konta. Tej operacji nie można cofnąć.`)) return;
+
+    try {
+        const response = await fetch(`/api/staging/${id}`, { method: 'DELETE' });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            showToast(err.error || 'Błąd odrzucania operacji.', 'error');
+            return;
+        }
+        showToast('Operacja odrzucona.', 'info');
+        pendingStaging = pendingStaging.filter(x => x.id !== id);
+        stagingPodglad.delete(id);
+        if (pendingStaging.some(x => x.transfer_pair)) await fetchPendingStaging();
+        else renderStaging();
+    } catch (error) {
+        console.error(error);
+        showToast('Błąd połączenia z API.', 'error');
+    }
+}
+
+// Odrzucenie grupy wierszy; poczekalnię pobieramy od nowa, bo stany par liczy serwer.
+async function odrzucGrupe(url) {
+    try {
+        const response = await fetch(url, { method: 'DELETE' });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            showToast(result.error || 'Błąd odrzucania operacji.', 'error');
+            return;
+        }
+        showToast(result.message, 'info');
+        stagingPodglad.clear();
+        await fetchPendingStaging();
+    } catch (error) {
+        console.error(error);
+        showToast('Błąd połączenia z API.', 'error');
+    }
+}
+
+window.odrzucPlik = function(batchId) {
+    const plik = plikiPoczekalni(pendingStaging).find(p => p.id === batchId);
+    if (!plik) return;
+    // Wiersz pominięty przy wgraniu jako duplikat należy do pliku, który go wniósł pierwszy.
+    if (!confirm(`Odrzucić ${plik.liczba} ${odmiana(plik.liczba, ['oczekującą operację', 'oczekujące operacje', 'oczekujących operacji'])} z pliku „${plik.nazwa}”?
+
+Operacje, które ten plik dzieli z później wgranym wyciągiem tego samego konta, też znikną — wgraj wtedy tamten wyciąg ponownie. Tej operacji nie można cofnąć.`)) return;
+    odrzucGrupe(`/api/staging/batch/${encodeURIComponent(batchId)}`);
+}
+
+window.odrzucKonto = function(kontoId) {
+    const n = pendingStaging.filter(t => t.account_id === kontoId).length;
+    if (!confirm(`Odrzucić ${n} ${odmiana(n, ['oczekującą operację', 'oczekujące operacje', 'oczekujących operacji'])} konta „${nazwaKonta(kontoId)}”, także nogi przelewów? Tej operacji nie można cofnąć.`)) return;
+    odrzucGrupe(`/api/staging/account/${kontoId}`);
 }
 
 // Zatwierdza jeden wiersz według stanu z tej sesji (listy wyboru zapisują go w

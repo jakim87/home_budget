@@ -266,6 +266,37 @@ describe('renderStaging', () => {
     });
 });
 
+describe('pliki poczekalni', () => {
+    it('liczy wiersze per plik i pomija wiersze bez pliku', () => {
+        const lista = [
+            stg({ id: 1, import_batch_id: 'a', import_filename: 'ing.csv' }),
+            stg({ id: 2, import_batch_id: 'a', import_filename: 'ing.csv' }),
+            stg({ id: 3, import_batch_id: 'b', import_filename: 'mbank.html' }),
+            stg({ id: 4 }),
+        ];
+        expect(plikiPoczekalni(lista)).toEqual([
+            { id: 'a', nazwa: 'ing.csv', liczba: 2 },
+            { id: 'b', nazwa: 'mbank.html', liczba: 1 },
+        ]);
+    });
+
+    it('pasek plików pojawia się dopiero przy dwóch źródłach', () => {
+        pendingStaging = [stg({ id: 1, import_batch_id: 'a', import_filename: 'ing.csv' })];
+        renderStaging();
+        expect(document.getElementById('staging-list').textContent).not.toContain('Odrzuć plik');
+
+        pendingStaging.push(stg({ id: 2 }));
+        renderStaging();
+        expect(document.getElementById('staging-list').textContent).toContain('Odrzuć plik');
+    });
+
+    it('nazwa pliku trafia na stronę jako tekst, nie HTML', () => {
+        pendingStaging = [stg({ id: 1, import_batch_id: 'a', import_filename: '<img src=x>' }), stg({ id: 2 })];
+        renderStaging();
+        expect(document.querySelector('#staging-list img')).toBeNull();
+    });
+});
+
 describe('zgodność z base.html', () => {
     it('każdy element, którego dotyka renderStaging, istnieje w szablonie', () => {
         const szablon = readFileSync('app/templates/base.html', 'utf-8');

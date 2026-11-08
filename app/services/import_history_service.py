@@ -44,6 +44,34 @@ def record_statement_import(
     return entry
 
 
+def podsumuj_plik(transactions: list[dict], saved_records: list, skipped_count: int) -> dict:
+    """Podsumowanie jednego wgranego pliku dla listy wyników importu.
+
+    Konta i zakresy dat liczone jak w `record_batch` (z wierszy pliku), liczba
+    operacji per konto — z wierszy faktycznie zapisanych w poczekalni.
+    """
+    per_account: dict[Optional[int], list[date]] = {}
+    for tx in transactions:
+        dates = per_account.setdefault(tx.get('account_id'), [])
+        if tx.get('date'):
+            dates.append(tx['date'])
+    return {
+        'rows_in_file': len(transactions) + skipped_count,
+        'saved': len(saved_records),
+        'duplicates': len(transactions) - len(saved_records),
+        'skipped_foreign': skipped_count,
+        'accounts': [
+            {
+                'account_id': account_id,
+                'from': min(dates).isoformat() if dates else None,
+                'to': max(dates).isoformat() if dates else None,
+                'count': sum(1 for r in saved_records if r.account_id == account_id),
+            }
+            for account_id, dates in per_account.items()
+        ],
+    }
+
+
 def record_batch(
     user_token: str,
     transactions: list[dict],

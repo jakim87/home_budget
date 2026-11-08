@@ -145,6 +145,39 @@ def test_ponowny_import_liczy_tylko_zapisane_wiersze(logged_in_client, app, acc)
     assert liczby == [2, 0]
 
 
+def test_odpowiedz_importu_niesie_podsumowanie_pliku(logged_in_client, app, acc):
+    """Lista wyników pokazuje konta, zakres dat i duplikaty — serwer je podaje."""
+    pierwszy = _upload(logged_in_client, MBANK_HTML.encode('utf-8')).get_json()['summary']
+    assert pierwszy == {
+        'rows_in_file': 2, 'saved': 2, 'duplicates': 0, 'skipped_foreign': 0,
+        'bank': 'mbank', 'format': 'html',
+        'accounts': [{'account_id': acc.id, 'from': '2026-06-10', 'to': '2026-06-20', 'count': 2}],
+    }
+
+    drugi = _upload(logged_in_client, MBANK_HTML.encode('utf-8')).get_json()['summary']
+    assert (drugi['saved'], drugi['duplicates']) == (0, 2)
+    assert drugi['accounts'][0]['count'] == 0
+    assert db.session.query(StatementImport).count() == 2
+
+
+def test_podsumowanie_pliku_wielokontowego():
+    """Każde konto z pliku osobno: własny zakres dat i liczba zapisanych wierszy."""
+    from types import SimpleNamespace
+    from app.services.import_history_service import podsumuj_plik
+    wiersze = [
+        {'account_id': 1, 'date': date(2026, 10, 1)},
+        {'account_id': 1, 'date': date(2026, 10, 31)},
+        {'account_id': 2, 'date': date(2026, 10, 3)},
+    ]
+    zapisane = [SimpleNamespace(account_id=1), SimpleNamespace(account_id=2)]
+    s = podsumuj_plik(wiersze, zapisane, skipped_count=4)
+    assert (s['rows_in_file'], s['saved'], s['duplicates'], s['skipped_foreign']) == (7, 2, 1, 4)
+    assert s['accounts'] == [
+        {'account_id': 1, 'from': '2026-10-01', 'to': '2026-10-31', 'count': 1},
+        {'account_id': 2, 'from': '2026-10-03', 'to': '2026-10-03', 'count': 1},
+    ]
+
+
 def test_blad_zapisu_historii_nie_zostawia_poczekalni(logged_in_client, app, acc, monkeypatch):
     """Poczekalnia i historia to jeden zapis: albo oba, albo nic."""
     from app.blueprints import import_bp

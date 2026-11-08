@@ -153,9 +153,10 @@ async function saveInlineEdit(id) {
 
     // Kategorii systemowej nie ma w selekcie, a jej typ nie mówi o znaku — bez
     // tego zapis zmieniał uzgodnienie na pierwszą kategorię z listy i na wydatek.
-    const systemowa = jestKategoriaSystemowa(tx.category);
-    const categoryVal = systemowa ? tx.category : document.getElementById(`edit-cat-${id}`).value;
-    const znak = systemowa ? (tx.amount < 0 ? -1 : 1) : getSignFromCategoryName(categoryVal);
+    // Przy podziale kategorii w wierszu nie widać, więc też jej nie zmieniamy (#249).
+    const stala = jestKategoriaSystemowa(tx.category) || tx.splits?.length > 0;
+    const categoryVal = stala ? tx.category : document.getElementById(`edit-cat-${id}`).value;
+    const znak = stala ? (tx.amount < 0 ? -1 : 1) : getSignFromCategoryName(categoryVal);
 
     const commentVal = document.getElementById(`edit-comment-${id}`)?.value.trim() || '';
 
@@ -366,8 +367,7 @@ function renderTransactions() {
                     </td>
                     <td class="p-2 border-b border-blue-100">
                         ${isSplit ?
-                            `<span class="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded">Edycja podziału w oknie</span>
-                             <input type="hidden" id="edit-cat-${t.id}" value="${escapeHtml(t.category)}">`
+                            `<span class="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded">Edycja podziału w oknie</span>`
                             : jestKategoriaSystemowa(t.category) ?
                             `<span class="text-sm text-slate-500">${escapeHtml(t.category)}</span>`
                             :

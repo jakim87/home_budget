@@ -54,15 +54,17 @@ async function importujPliki(wybrane) {
 
     importTrwa = true;
     pickFilesBtn.disabled = true;
-    importResults.innerHTML = '';
+    importResults.innerHTML = '<div id="import-paczka" class="px-3 py-2 bg-slate-50 text-xs"></div>';
     importResults.classList.remove('hidden');
+    paczkaImportu = files.map(f => ({ nazwa: f.name, ok: null }));
+    kontaBezWyciaguPaczki = [];
     let ok = 0;
     for (let i = 0; i < files.length; i++) {
         importProgress.textContent = `Importowanie… ${i + 1}/${files.length}`;
         importProgress.classList.remove('hidden');
         const wiersz = document.createElement('div');
         importResults.appendChild(wiersz);
-        if (await wgrajPlik(files[i], bank, konto, wiersz)) ok++;
+        if (await wgrajPlik(files[i], bank, konto, wiersz, paczkaImportu[i])) ok++;
     }
     importProgress.classList.add('hidden');
     pickFilesBtn.disabled = false;
@@ -74,7 +76,13 @@ async function importujPliki(wybrane) {
         : `Zaimportowano ${ok}, błędy: ${bledy} — szczegóły na liście.`,
         bledy === 0 ? 'success' : 'error');
     if (ok) odswiezPoImporcie();
+    await odswiezKontaBezWyciagu();
 }
+
+// Wyniki bieżącej paczki (po jednym na plik, w kolejności wgrywania) — z nich
+// powstaje podsumowanie nad listą. „Wgraj ponownie" uzupełnia wpis swojego pliku.
+let paczkaImportu = [];
+let kontaBezWyciaguPaczki = [];
 
 function odswiezPoImporcie() {
     fetchPendingStaging();
@@ -84,48 +92,143 @@ function odswiezPoImporcie() {
 }
 
 // Wgrywa jeden plik i opisuje wynik w `wiersz`. Zwraca true przy sukcesie.
-async function wgrajPlik(file, bank, konto, wiersz) {
-    wiersz.className = 'flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2';
-    wiersz.innerHTML = `<span class="truncate text-slate-700 font-medium">${escapeHtml(file.name)}</span><span class="text-slate-400">…</span>`;
-    const status = wiersz.lastElementChild;
+async function wgrajPlik(file, bank, konto, wiersz, wynik) {
+    wiersz.className = 'px-3 py-2';
+    wiersz.innerHTML = `<div class="flex items-center justify-between gap-3"><span class="truncate text-slate-700 font-medium">${escapeHtml(file.name)}</span><span class="text-slate-400">…</span></div>`;
 
     const fd = new FormData();
     fd.append('file', file);
     if (konto) fd.append('account_id', konto);
+    let r;
     try {
         const resp = await fetch(`/api/import/${bank}`, { method: 'POST', body: fd });
-        const r = await resp.json();
-        if (resp.ok) {
-            status.className = `text-xs font-medium text-right ${r.overlap_warning ? 'text-amber-600' : 'text-emerald-600'}`;
-            status.textContent = opisWynikuImportu(r, konto);
-            if (r.overlap_warning) status.title = r.overlap_warning;
-            return true;
-        }
-        status.className = 'text-rose-600 text-xs font-medium text-right';
-        status.textContent = `✗ ${r.error || 'błąd'}`;
-        // Plik bez numeru rachunku: przy kilku plikach naraz to jedyne miejsce,
-        // w którym da się wskazać jego konto.
-        if (r.needs_account) dodajWyborKonta(file, bank, wiersz);
+        r = { ...(await resp.json()), ok: resp.ok };
     } catch (_) {
-        status.className = 'text-rose-600 text-xs font-medium';
-        status.textContent = '✗ błąd połączenia';
+        r = { ok: false, error: 'błąd połączenia' };
     }
-    return false;
+    Object.assign(wynik, { ok: r.ok, summary: r.summary || null });
+    wiersz.innerHTML = kartaPlikuHtml(file.name, r, godzinaTeraz());
+    // Plik bez numeru rachunku: przy kilku plikach naraz to jedyne miejsce,
+    // w którym da się wskazać jego konto.
+    if (!r.ok && r.needs_account) dodajWyborKonta(file, bank, wiersz, wynik);
+    renderPodsumowaniePaczki();
+    return r.ok;
 }
 
-// „→ Moje ING i Wakacje · 13 operacji, 2 z kont spoza aplikacji pominięte"
-function opisWynikuImportu(r, konto) {
-    const konta = r.resolved_account ? [r.resolved_account.name]
-        : konto ? [nazwaKonta(konto)]
-        : (r.csv_accounts || []).filter(a => a.matched).map(a => a.account_name);
-    let opis = `${r.overlap_warning ? '⚠' : '✓'} ${konta.length ? `→ ${konta.join(' i ')} · ` : ''}${r.count} ${odmiana(r.count, ['operacja', 'operacje', 'operacji'])}`;
-    if (r.skipped_count) opis += `, ${r.skipped_count} z kont spoza aplikacji pominięte`;
-    return opis;
+function godzinaTeraz() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function dodajWyborKonta(file, bank, wiersz) {
+const NAZWY_BANKOW = { ing: 'ING', mbank: 'mBank', pekao: 'Pekao', millennium: 'Millennium', revolut: 'Revolut' };
+
+// „2026-10-01" → „01.10.2026"
+function dataPL(iso) {
+    return iso ? iso.split('-').reverse().join('.') : '';
+}
+
+// „01.10–31.10.2026"; ten sam dzień raz, różne lata w pełnej postaci.
+function zakresPL(od, doDnia) {
+    if (!od) return 'brak dat';
+    if (od === doDnia) return dataPL(od);
+    return od.slice(0, 4) === doDnia.slice(0, 4)
+        ? `${dataPL(od).slice(0, 5)}–${dataPL(doDnia)}`
+        : `${dataPL(od)}–${dataPL(doDnia)}`;
+}
+
+// Karta jednego pliku: nazwa, bank/format, godzina, konta jedno pod drugim,
+// liczby z pliku i ostrzeżenie o nakładaniu się okresów.
+function kartaPlikuHtml(nazwa, r, czas) {
+    const s = r.summary;
+    const etykieta = [s ? `${NAZWY_BANKOW[s.bank] || s.bank} · ${String(s.format).toUpperCase()}` : '', czas]
+        .filter(Boolean).join(' · ');
+    const naglowek = `<div class="flex items-center justify-between gap-3">
+        <span class="truncate font-medium text-slate-700" title="${escapeHtml(nazwa)}"><span class="${r.ok ? 'text-emerald-600' : 'text-rose-600'}">${r.ok ? '✓' : '✗'}</span> ${escapeHtml(nazwa)}</span>
+        <span class="shrink-0 text-[11px] text-slate-500">${escapeHtml(etykieta)}</span>
+    </div>`;
+    if (!r.ok || !s) {
+        return naglowek + (r.ok ? '' : `<div class="text-xs text-rose-600 mt-1">${escapeHtml(r.error || 'błąd')}</div>`);
+    }
+
+    const konta = s.accounts.map(a => `<div class="flex items-baseline gap-3 text-xs">
+            <span class="flex-1 min-w-0 truncate text-slate-700">${escapeHtml(a.account_id ? nazwaKonta(a.account_id) : 'Konto nieznane')}</span>
+            <span class="shrink-0 text-slate-500">${zakresPL(a.from, a.to)}</span>
+            <span class="shrink-0 w-24 text-right text-slate-500">${a.count} ${odmiana(a.count, ['operacja', 'operacje', 'operacji'])}</span>
+        </div>`).join('');
+    const liczby = [`w pliku ${s.rows_in_file}`, `nowych ${s.saved}`];
+    if (s.duplicates) liczby.push(`duplikaty ${s.duplicates}`);
+    if (s.skipped_foreign) liczby.push(`spoza aplikacji ${s.skipped_foreign}`);
+    const ostrzezenie = r.overlap_warning
+        ? `<div class="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-1">⚠ ${escapeHtml(r.overlap_warning)}</div>` : '';
+    return naglowek + `<div class="mt-1 space-y-0.5">${konta}</div>
+        <div class="text-[11px] text-slate-500 mt-1">${liczby.join(' · ')}</div>${ostrzezenie}`;
+}
+
+// Liczby nad listą wyników: ile plików weszło, ile kont, jaki łączny zakres.
+function podsumujPaczke(wyniki) {
+    const udane = wyniki.filter(w => w.ok && w.summary);
+    const konta = new Set();
+    let od = null, doDnia = null, nowe = 0;
+    for (const w of udane) {
+        nowe += w.summary.saved;
+        for (const a of w.summary.accounts) {
+            if (a.account_id) konta.add(a.account_id);
+            if (a.from && (!od || a.from < od)) od = a.from;
+            if (a.to && (!doDnia || a.to > doDnia)) doDnia = a.to;
+        }
+    }
+    return { pliki: wyniki.length, wgrane: udane.length, bledy: wyniki.filter(w => w.ok === false).length,
+             konta, od, doDnia, nowe };
+}
+
+// Konta, które zwykle dostają wyciągi (mają wpis w historii importów), a nie było
+// ich w tej paczce. Tylko informacja — brak wyciągu niczego nie blokuje.
+function kontaBezWyciagu(historia, kontaWPaczce) {
+    const ostatni = new Map();
+    for (const h of historia) {
+        if (!h.account_id || kontaWPaczce.has(h.account_id)) continue;
+        if (!accounts.some(a => a.id === h.account_id)) continue;
+        const prev = ostatni.get(h.account_id) || '';
+        if (!ostatni.has(h.account_id) || (h.period_end || '') > prev) ostatni.set(h.account_id, h.period_end);
+    }
+    return [...ostatni]
+        .map(([id, doDnia]) => ({ account_id: id, nazwa: nazwaKonta(id), doDnia }))
+        .sort((a, b) => a.nazwa.localeCompare(b.nazwa, 'pl'));
+}
+
+async function odswiezKontaBezWyciagu() {
+    try {
+        const resp = await fetch('/api/import/history');
+        if (resp.ok) kontaBezWyciaguPaczki = kontaBezWyciagu(await resp.json(), podsumujPaczke(paczkaImportu).konta);
+    } catch (_) {
+        // To tylko podpowiedź — bez historii po prostu jej nie pokazujemy.
+    }
+    renderPodsumowaniePaczki();
+}
+
+function renderPodsumowaniePaczki() {
+    const box = document.getElementById('import-paczka');
+    if (!box) return;
+    const p = podsumujPaczke(paczkaImportu);
+    const czesci = [`Wgrano ${p.wgrane} z ${p.pliki} ${odmiana(p.pliki, ['wyciągu', 'wyciągów', 'wyciągów'])}`];
+    if (p.konta.size) czesci.push(`${p.konta.size} ${odmiana(p.konta.size, ['konto', 'konta', 'kont'])}`);
+    if (p.od) czesci.push(zakresPL(p.od, p.doDnia));
+    czesci.push(`${p.nowe} ${odmiana(p.nowe, ['nowa operacja', 'nowe operacje', 'nowych operacji'])}`);
+    let html = `<div class="font-medium text-slate-700">${czesci.join(' · ')}</div>`;
+    if (p.bledy) {
+        html += `<div class="text-rose-600 mt-0.5">Nie wszystkie wyciągi są wgrane: ${p.bledy} ${odmiana(p.bledy, ['plik wymaga', 'pliki wymagają', 'plików wymaga'])} poprawki (szczegóły poniżej). Pozostałe są już w poczekalni.</div>`;
+    }
+    if (kontaBezWyciaguPaczki.length) {
+        const lista = kontaBezWyciaguPaczki.map(k =>
+            `${escapeHtml(k.nazwa)}${k.doDnia ? ` (ostatni do ${dataPL(k.doDnia)})` : ''}`).join(', ');
+        html += `<div class="text-slate-500 mt-0.5">Brak wyciągu w tej paczce: ${lista}. Możesz go wgrać później — nie blokuje to zatwierdzania pozostałych.</div>`;
+    }
+    box.innerHTML = html;
+}
+
+function dodajWyborKonta(file, bank, wiersz, wynik) {
     const box = document.createElement('div');
-    box.className = 'w-full flex flex-wrap items-center gap-2';
+    box.className = 'w-full flex flex-wrap items-center gap-2 mt-1';
     box.innerHTML = `
         <label class="text-xs text-slate-600">Konto tego pliku:
             <select class="ml-1 p-1 border border-slate-300 rounded text-xs bg-white">
@@ -140,7 +243,10 @@ function dodajWyborKonta(file, bank, wiersz) {
             showToast('Wybierz konto, na które ma trafić ten plik.', 'error');
             return;
         }
-        if (await wgrajPlik(file, bank, select.value, wiersz)) odswiezPoImporcie();
+        if (await wgrajPlik(file, bank, select.value, wiersz, wynik)) {
+            odswiezPoImporcie();
+            await odswiezKontaBezWyciagu();
+        }
     });
     wiersz.appendChild(box);
 }

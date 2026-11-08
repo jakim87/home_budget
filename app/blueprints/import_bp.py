@@ -7,7 +7,7 @@ from app.services.account_service import resolve_statement_account
 from app.services.demo_service import build_sample_statement_csv
 from app.services.budget_service import BrakKontaError, parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging, dismiss_staging_as_duplicate, dismiss_staging_record, dismiss_staging_batch, dismiss_staging_account
 from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_zestawienie_html, parse_mbank_pdf, parse_ing_pdf, parse_pekao_csv, parse_millennium_csv, parse_revolut_csv
-from app.services.import_history_service import list_import_history, record_batch
+from app.services.import_history_service import list_import_history, podsumuj_plik, record_batch
 from app import limiter
 
 import_bp = Blueprint('import', __name__)
@@ -83,6 +83,11 @@ def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None,
         resp: dict = {
             'message': f'Udało się zaimportować {len(saved_records)} transakcji do weryfikacji.',
             'count': len(saved_records),
+            'summary': {
+                **podsumuj_plik(transactions, saved_records, skipped_count),
+                'bank': meta.get('bank'),
+                'format': meta.get('format'),
+            },
         }
         if result['csv_accounts']:
             resp['csv_accounts'] = result['csv_accounts']

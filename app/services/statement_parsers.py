@@ -729,7 +729,8 @@ def parse_millennium_csv(content: str, user_token: str, main_account_id: Optiona
     każdy wiersz trafia na konto o numerze z tego wiersza, a wiersze rachunku bez
     konta w aplikacji są pomijane — jak w wielokontowym ING. Przy jednym rachunku
     wszystko idzie na main_account_id (jego zgodność z numerem sprawdził już
-    resolve_statement_account); na nie idą też wiersze z numerem karty.
+    resolve_statement_account); na nie idą też wiersze z numerem karty — przy
+    kilku rachunkach tylko wtedy, gdy wybrane konto jest jednym z nich.
 
     Pola wielowierszowe (nazwa + adres kontrahenta, opis) bank skleja niełamliwą
     spacją. Brak kategorii z banku.
@@ -742,6 +743,11 @@ def parse_millennium_csv(content: str, user_token: str, main_account_id: Optiona
         csv_accounts, iban_to_account_id, _, _ = build_ing_account_maps(
             [(iban, _normalize_acc_num(iban)) for iban in file_ibans], user_token
         )
+        # Wiersze kart idą na wybrane konto, a resolve_statement_account nie miał
+        # przy kilku rachunkach z czym go porównać — sprawdzamy tutaj (#181).
+        if main_account_id is not None and main_account_id not in iban_to_account_id.values():
+            raise ValueError("Wybrane konto nie jest żadnym z rachunków w tym wyciągu Millennium. "
+                             "Wybierz konto, do którego należy karta, albo pozostaw wybór automatyczny.")
 
     transactions: list[dict] = []
     skipped_count = 0
@@ -765,6 +771,9 @@ def parse_millennium_csv(content: str, user_token: str, main_account_id: Optiona
                 skipped_count += 1
                 continue
         elif main_account_id is None:
+            if iban_to_account_id:
+                raise BrakKontaError("Wyciąg Millennium zawiera operacje kartą bez numeru rachunku — "
+                                     "wybierz konto, do którego należy karta.")
             raise BrakKontaError("Wyciąg Millennium dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
         else:
             account_id = main_account_id

@@ -34,6 +34,9 @@ docs/konkurencja.md
 # Prywatne notatki o wdrożeniu na serwer (infrastruktura, hardening) — repo jest publiczne
 docs/wdrozenie/
 
+# Plany zmian UI (robocze, z wnioskami z prawdziwych danych) — repo jest publiczne
+docs/plany/
+
 # Logi aplikacji
 logs/
 

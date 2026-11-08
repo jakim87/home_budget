@@ -668,6 +668,41 @@ def test_import_auto_millennium_csv_dwa_rachunki_nieznany_pominiety(logged_in_cl
     assert set(_konta_w_poczekalni().values()) == {iban_account.id}
 
 
+MILLENNIUM_CSV_DWA_RACHUNKI_Z_KARTA = MILLENNIUM_CSV_DWA_RACHUNKI + (
+    '"4874 0000 0000 1234","2026-08-25","2026-08-26","TRANSAKCJA KARTĄ","","SKLEP TESTOWY","Zakupy","-55.00","","","PLN"\n'
+).encode('utf-8')
+
+
+def test_import_auto_millennium_dwa_rachunki_karta_bez_konta(logged_in_client, app, iban_account, drugie_konto_millennium):
+    """Wiersza karty nie da się przypisać po numerze rachunku → pytamy o konto, nic nie trafia do poczekalni."""
+    resp = _upload_auto_no_account(logged_in_client, MILLENNIUM_CSV_DWA_RACHUNKI_Z_KARTA, filename="m.csv")
+    assert resp.status_code == 400
+    body = resp.get_json()
+    assert body['needs_account'] is True
+    assert 'kart' in body['error']
+    assert db.session.query(TransactionStaging).count() == 0
+
+
+def test_import_millennium_dwa_rachunki_konto_spoza_pliku_odrzucone(
+        logged_in_client, app, import_account, iban_account, drugie_konto_millennium):
+    """Wybrane konto, którego rachunku nie ma w pliku, nie może dostać wierszy karty (#181)."""
+    resp = _upload(logged_in_client, import_account.id, MILLENNIUM_CSV_DWA_RACHUNKI_Z_KARTA,
+                   filename="m.csv", bank="auto")
+    assert resp.status_code == 400
+    assert db.session.query(TransactionStaging).count() == 0
+
+
+def test_import_millennium_dwa_rachunki_karta_na_wybrane_konto_z_pliku(
+        logged_in_client, app, iban_account, drugie_konto_millennium):
+    """Wybrane konto z pliku dostaje wiersz karty; reszta nadal po numerze rachunku."""
+    resp = _upload(logged_in_client, iban_account.id, MILLENNIUM_CSV_DWA_RACHUNKI_Z_KARTA,
+                   filename="m.csv", bank="auto")
+    assert resp.status_code == 201
+    konta = _konta_w_poczekalni()
+    assert konta[Decimal("-55.00")] == iban_account.id
+    assert konta[Decimal("-800.00")] == drugie_konto_millennium.id
+
+
 def test_import_auto_millennium_csv_rejects_wrong_account(logged_in_client, app, import_account, iban_account):
     """Wybrane konto ma inny numer niż wyciąg Millennium → 400, nic nie trafia do poczekalni."""
     resp = _upload(logged_in_client, import_account.id, MILLENNIUM_CSV, filename="m.csv", bank="auto")

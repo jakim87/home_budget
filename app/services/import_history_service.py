@@ -102,6 +102,8 @@ def record_batch(
                 batch_id=batch_id,
                 commit=False,
             )
+        for rec in saved_records or []:
+            rec.import_batch_id = batch_id
         db.session.commit()
         logger.info(
             "Zapisano historię importu (user_token=%s, batch=%s, kont=%d)",

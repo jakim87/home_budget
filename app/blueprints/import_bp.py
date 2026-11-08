@@ -5,7 +5,7 @@ from app.models import Contractor
 from app.schemas import StagingApproveSchema
 from app.services.account_service import resolve_statement_account
 from app.services.demo_service import build_sample_statement_csv
-from app.services.budget_service import BrakKontaError, parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging, dismiss_staging_as_duplicate
+from app.services.budget_service import BrakKontaError, parse_ing_csv, parse_mbank_csv, save_transactions_to_staging, approve_staging_record, reanalyze_all_staging, clear_pending_staging, accept_staging_contractor, list_pending_staging, dismiss_staging_as_duplicate, dismiss_staging_record, dismiss_staging_batch, dismiss_staging_account
 from app.services.statement_parsers import detect_bank_and_format, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_pdf, parse_ing_pdf, parse_pekao_csv, parse_millennium_csv, parse_revolut_csv
 from app.services.import_history_service import list_import_history, record_batch
 from app import limiter
@@ -254,6 +254,37 @@ def clear_pending_staging_transactions():
         return jsonify({'message': f'Odrzucono {deleted_count} transakcji.'}), 200
     except ValueError:
         return jsonify({'error': 'Wystąpił błąd podczas odrzucania transakcji.'}), 500
+
+@import_bp.route('/api/staging/<int:stg_id>', methods=['DELETE'])
+@login_required
+def dismiss_staging_row(stg_id):
+    """Odrzuca jeden wiersz poczekalni (bez zaksięgowania)."""
+    try:
+        dismiss_staging_record(current_user.token, stg_id)
+        return jsonify({'message': 'Wiersz odrzucony.'}), 200
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+
+@import_bp.route('/api/staging/batch/<batch_id>', methods=['DELETE'])
+@login_required
+def dismiss_staging_file(batch_id):
+    """Odrzuca oczekujące wiersze jednego wgranego pliku."""
+    try:
+        count = dismiss_staging_batch(current_user.token, batch_id)
+        return jsonify({'message': f'Odrzucono {count} transakcji z pliku.', 'count': count}), 200
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+
+
+@import_bp.route('/api/staging/account/<int:account_id>', methods=['DELETE'])
+@login_required
+def dismiss_staging_of_account(account_id):
+    """Odrzuca oczekujące wiersze jednego konta."""
+    try:
+        count = dismiss_staging_account(current_user.token, account_id)
+        return jsonify({'message': f'Odrzucono {count} transakcji z konta.', 'count': count}), 200
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
 
 @import_bp.route('/api/staging/<int:stg_id>/accept-contractor', methods=['POST'])
 @login_required

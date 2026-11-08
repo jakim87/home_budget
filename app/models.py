@@ -269,6 +269,10 @@ class TransactionStaging(db.Model):
     # Kategoria nadana przez bank (Pekao, mBank) — surowa nazwa, bo reanalyze_all_staging
     # musi móc ją ponownie dopasować, gdy użytkownik doda kategorię o tej nazwie.
     bank_category: Mapped[Optional[str]] = mapped_column(String(100))
+    # Plik, który wniósł wiersz (StatementImport.batch_id) — po nim „Odrzuć plik".
+    # Bez FK: batch_id nie jest unikalny (plik wielokontowy = kilka wpisów historii).
+    # NULL = wiersz sprzed kolumny.
+    import_batch_id: Mapped[Optional[str]] = mapped_column(String(36), index=True)
 
 
 class Feedback(db.Model):

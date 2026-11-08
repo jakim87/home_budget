@@ -164,6 +164,34 @@ def test_intruder_cannot_dismiss_staging_as_duplicate(intruder_client, owner_dat
     assert db.session.get(TransactionStaging, stg.id) is not None
 
 
+def test_intruder_cannot_dismiss_staging_row(intruder_client, owner_data):
+    """Cudzego wiersza poczekalni nie da się odrzucić po ID."""
+    stg = owner_data['stg']
+    resp = intruder_client.delete(f'/api/staging/{stg.id}')
+    assert resp.status_code == 404
+    db.session.expire_all()
+    assert db.session.get(TransactionStaging, stg.id) is not None
+
+
+def test_intruder_cannot_dismiss_staging_batch(intruder_client, owner_data):
+    """Znajomość batch_id cudzego pliku nie wystarcza, żeby odrzucić jego wiersze."""
+    stg = owner_data['stg']
+    stg.import_batch_id = 'plik-ofiary'
+    db.session.commit()
+    resp = intruder_client.delete('/api/staging/batch/plik-ofiary')
+    assert resp.status_code == 404
+    db.session.expire_all()
+    assert db.session.get(TransactionStaging, stg.id) is not None
+
+
+def test_intruder_cannot_dismiss_staging_of_foreign_account(intruder_client, owner_data):
+    stg = owner_data['stg']
+    resp = intruder_client.delete(f"/api/staging/account/{owner_data['account'].id}")
+    assert resp.status_code == 404
+    db.session.expire_all()
+    assert db.session.get(TransactionStaging, stg.id) is not None
+
+
 def test_intruder_cannot_dismiss_own_staging_against_foreign_transaction(intruder_client, owner_data, other_user):
     """Intruz na WŁASNYM wierszu stagingu wskazuje CUDZĄ transakcję — odmowa, wiersz zostaje."""
     my_acc = Account(name="Konto Intruza", bank_name="Bank", balance=Decimal("0.00"), user_token=other_user.token)

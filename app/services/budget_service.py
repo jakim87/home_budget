@@ -1380,6 +1380,10 @@ def list_pending_staging(user_token: str) -> list[dict]:
     active_accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
     accounts_by_id = {a.id: a for a in active_accounts}
     duplicates = _duplicate_candidates(user_token, [tx for tx, _, _ in rows])
+    batch_ids = {tx.import_batch_id for tx, _, _ in rows if tx.import_batch_id}
+    pliki = dict(db.session.query(StatementImport.batch_id, StatementImport.filename).filter(
+        StatementImport.user_token == user_token, StatementImport.batch_id.in_(batch_ids),
+    ).distinct()) if batch_ids else {}
 
     data = []
     # Nogi przelewów w kolejności wyświetlania — stan pary ustalamy dla całej listy
@@ -1400,6 +1404,8 @@ def list_pending_staging(user_token: str) -> list[dict]:
             'proposed_contractor_name': cont.name if cont else '',
             'suggested_contractor_name': tx.suggested_contractor_name or '',
             'duplicate_candidates': duplicates.get(tx.id, []),
+            'import_batch_id': tx.import_batch_id,
+            'import_filename': pliki.get(tx.import_batch_id),
         }
 
         if cat and cat.type == 'transfer' and cont and cont.name.startswith("Moje konto: "):
@@ -1461,34 +1467,96 @@ def reanalyze_all_staging(user_token: str) -> int:
         raise
 
 
+def _usun_wpisy_importu_bez_ksiegowan(user_token: str, konta: set) -> None:
+    """Kasuje wpis historii importu kont, z których nic nie zostało zaksięgowane z wyciągu.
+
+    Wpis jest sygnałem „konto dostaje własne wyciągi" i wyłącza lustra przelewów —
+    po wyciągu wgranym omyłkowo na złe konto i odrzuconym wyłączałby je temu kontu
+    na stałe (#181). Konto z wierszem wciąż czekającym w poczekalni zostaje: jego
+    wyciąg nie jest jeszcze odrzucony. origin='unknown' (dane sprzed kolumny) mógł
+    być importem, więc też zostawia wpis. Bez commita — domyka go wołający.
+    """
+    if not konta:
+        return
+    z_importem = {aid for (aid,) in db.session.query(Transaction.account_id).filter(
+        Transaction.user_token == user_token, Transaction.account_id.in_(konta),
+        Transaction.origin.in_(('import', 'unknown')),
+    ).distinct()}
+    w_poczekalni = {aid for (aid,) in db.session.query(TransactionStaging.account_id).filter(
+        TransactionStaging.user_token == user_token, TransactionStaging.account_id.in_(konta),
+        TransactionStaging.status == 'pending',
+    ).distinct()}
+    bez_importu = konta - z_importem - w_poczekalni
+    if bez_importu:
+        db.session.query(StatementImport).filter(
+            StatementImport.user_token == user_token, StatementImport.account_id.in_(bez_importu)
+        ).delete(synchronize_session=False)
+
+
 def clear_pending_staging(user_token: str) -> int:
     """Usuwa wszystkie oczekujące rekordy stagingu dla użytkownika.
 
-    Razem z nimi znika wpis historii importu tych kont, z których nic nigdy nie
-    zostało zaksięgowane z wyciągu. Wpis jest sygnałem „konto dostaje własne
-    wyciągi" i wyłącza lustra przelewów — po wyciągu wgranym omyłkowo na złe konto
-    i odrzuconym w całości wyłączałby je temu kontu na stałe (#181).
-    origin='unknown' (dane sprzed kolumny) mógł być importem, więc też zostawia wpis.
+    Razem z nimi znika wpis historii importu kont, z których nic nigdy nie zostało
+    zaksięgowane z wyciągu (patrz _usun_wpisy_importu_bez_ksiegowan, #181).
     """
     try:
         pending = db.session.query(TransactionStaging).filter_by(user_token=user_token, status='pending')
         konta = {aid for (aid,) in pending.with_entities(TransactionStaging.account_id).distinct() if aid}
         deleted = pending.delete()
-        if konta:
-            z_importem = {aid for (aid,) in db.session.query(Transaction.account_id).filter(
-                Transaction.user_token == user_token, Transaction.account_id.in_(konta),
-                Transaction.origin.in_(('import', 'unknown')),
-            ).distinct()}
-            bez_importu = konta - z_importem
-            if bez_importu:
-                db.session.query(StatementImport).filter(
-                    StatementImport.user_token == user_token, StatementImport.account_id.in_(bez_importu)
-                ).delete(synchronize_session=False)
+        _usun_wpisy_importu_bez_ksiegowan(user_token, konta)
         db.session.commit()
         return deleted
     except Exception:
         db.session.rollback()
         raise
+
+
+def _odrzuc_oczekujace(user_token: str, warunek) -> int:
+    """Kasuje oczekujące wiersze poczekalni spełniające warunek; zwraca ich liczbę.
+
+    Wiersze nigdy nie wpływały na saldo, więc nic poza nimi się nie zmienia — poza
+    wpisem historii kont, które zostały bez wyciągu (#181, jak „Odrzuć wszystkie").
+    Para przelewu nie wymaga sprzątania: stan drugiej nogi (transfer_pair) liczy
+    list_pending_staging przy każdym odczycie.
+    """
+    try:
+        wiersze = db.session.query(TransactionStaging).filter(
+            TransactionStaging.user_token == user_token, TransactionStaging.status == 'pending', warunek,
+        )
+        konta = {aid for (aid,) in wiersze.with_entities(TransactionStaging.account_id).distinct() if aid}
+        deleted = wiersze.delete(synchronize_session=False)
+        if not deleted:
+            raise ValueError('Nie znaleziono oczekujących transakcji.')
+        _usun_wpisy_importu_bez_ksiegowan(user_token, konta)
+        db.session.commit()
+        return deleted
+    except Exception:
+        db.session.rollback()
+        raise
+
+
+def dismiss_staging_record(user_token: str, stg_id: int) -> None:
+    """Odrzuca jeden oczekujący wiersz poczekalni."""
+    _odrzuc_oczekujace(user_token, TransactionStaging.id == stg_id)
+    logger.info("Odrzucono staging #%s — user_token=%s", stg_id, user_token)
+
+
+def dismiss_staging_batch(user_token: str, batch_id: str) -> int:
+    """Odrzuca oczekujące wiersze wniesione przez jeden wgrany plik.
+
+    Wiersz pominięty przy wgraniu jako duplikat należy do pliku, który go wniósł
+    pierwszy — odrzucenie tamtego pliku zabiera go, choć późniejszy plik też go miał.
+    """
+    count = _odrzuc_oczekujace(user_token, TransactionStaging.import_batch_id == batch_id)
+    logger.info("Odrzucono plik %s (%d wierszy) — user_token=%s", batch_id, count, user_token)
+    return count
+
+
+def dismiss_staging_account(user_token: str, account_id: int) -> int:
+    """Odrzuca oczekujące wiersze jednego konta (np. część pliku wielokontowego na złym koncie)."""
+    count = _odrzuc_oczekujace(user_token, TransactionStaging.account_id == account_id)
+    logger.info("Odrzucono poczekalnię konta #%s (%d wierszy) — user_token=%s", account_id, count, user_token)
+    return count
 
 
 def accept_staging_contractor(user_token: str, stg_id: int, name: str) -> dict:

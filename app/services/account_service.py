@@ -171,7 +171,12 @@ _POWIAZANIA_KONTA = (
 
 def delete_or_archive_account(user_token, a_id):
     """Konto bez żadnych powiązań usuwa trwale, pozostałe archiwizuje (is_active=False).
-    Zwraca 'deleted' albo 'archived'."""
+    Zwraca 'deleted' albo 'archived'.
+
+    Zarchiwizowane konto nie przyjmie już operacji, więc jego harmonogram przestaje
+    działać: cykliczne są wyłączane, oczekujące zaplanowane usuwane. Inaczej nocne
+    przetwarzanie co noc kończyłoby się błędem tylko w logu, a w tabeli operacji
+    harmonogram dalej wyglądałby na zaplanowany."""
     try:
         acc = db.session.query(Account).filter_by(id=a_id, user_token=user_token).first()
         if not acc:
@@ -182,6 +187,12 @@ def delete_or_archive_account(user_token, a_id):
         )
         if ma_powiazania:
             acc.is_active = False
+            db.session.query(RecurringTransaction).filter_by(
+                user_token=user_token, account_id=acc.id, is_active=True
+            ).update({'is_active': False})
+            db.session.query(PlannedTransaction).filter_by(
+                user_token=user_token, account_id=acc.id, status='pending'
+            ).delete()
             wynik = 'archived'
         else:
             db.session.delete(acc)

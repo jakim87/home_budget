@@ -283,7 +283,9 @@ gdzie next_run_date <= dziś
   3. Przelicz next_run_date na kolejny termin
 ```
 
-**Obliczanie pierwszego terminu:** jeśli data początkowa jest w przeszłości, system wyznacza najbliższy przyszły termin zgodny z harmonogramem — nie wykonuje zaległych iteracji.
+**Obliczanie pierwszego terminu:** pierwszym terminem jest pierwszy wybrany dzień (tygodnia albo miesiąca) od daty początkowej — nie sama data początkowa. Harmonogram „10. dnia miesiąca” założony 25. wykona się pierwszy raz 10. następnego miesiąca. Jeśli ten dzień jest już w przeszłości, system wyznacza najbliższy przyszły termin zgodny z harmonogramem — nie wykonuje zaległych iteracji.
+
+**Usunięta kategoria i zarchiwizowane konto.** Harmonogram księguje z kategorią, którą miał przy zakładaniu, także gdy później ją usunięto. Archiwizacja konta wyłącza jego transakcje cykliczne i usuwa oczekujące zaplanowane — na zamkniętym koncie nie mogłyby się wykonać, a nocne przetwarzanie stawałoby co noc z błędem widocznym tylko w logu.
 
 ---
 
@@ -319,7 +321,7 @@ Przetworzone transakcje zaplanowane pozostają w tabeli `planned_transactions` z
 - Jeśli różnica ≠ 0: tworzy transakcję korygującą z kategorią systemową `Uzgadnianie salda`, datowaną na wskazany dzień
 - Jeśli różnica = 0: żadna transakcja nie jest tworzona
 
-**Uzgodnienie z datą wsteczną.** `Account.balance` jest sumą wszystkich transakcji konta bez względu na ich datę, więc saldem odniesienia nie może być saldo bieżące — jest nim `saldo_bieżące − suma operacji zaksięgowanych PO wskazanym dniu`. Data znaczy „tyle było na **koniec** tego dnia": operacje z samego dnia X wchodzą do odniesienia, odejmowane jest tylko to, co po nim. Daty z przyszłości są odrzucane (400).
+**Uzgodnienie z datą wsteczną.** `Account.balance` jest sumą wszystkich transakcji konta bez względu na ich datę, więc saldem odniesienia nie może być saldo bieżące — jest nim `saldo_bieżące − suma operacji zaksięgowanych PO wskazanym dniu`. Data znaczy „tyle było na **koniec** tego dnia": operacje z samego dnia X wchodzą do odniesienia, odejmowane jest tylko to, co po nim. Dotyczy to także dzisiejszej daty — operacja wpisana z datą w przyszłości (np. czynsz za tydzień) nie wchodzi do salda odniesienia. Tak samo liczy okno uzgadniania (`saldoSystemuNaDzien` w `08_accounts.js`), więc kwota, którą użytkownik tam widzi i potwierdza, nie tworzy korekty. Daty z przyszłości są odrzucane (400).
 
 **Uzgodnienie przed innym uzgodnieniem.** Dwa uzgodnienia nie są ze sobą sprzeczne — mierzą różne dni i oba mogą być prawdziwe. Sprzeczna bywa tylko kwota korekty: jeśli okazuje się, że brakującej kwoty zabrakło już przed lipcem, to korekta z sierpnia (która wtedy łatała tę samą dziurę) była o tyle samo za duża.
 

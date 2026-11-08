@@ -108,3 +108,23 @@ def test_delete_planned_transaction(logged_in_client, app, test_user, planned_se
     resp = logged_in_client.delete(f'/api/planned-transactions/{pt_id}')
     assert resp.status_code == 200
     assert db.session.get(PlannedTransaction, pt_id) is None
+
+
+def test_zaplanowana_ksieguje_sie_z_usunieta_kategoria(app, test_user, planned_setup):
+    """Jak przy cyklicznych: usunięta kategoria nie może zostawić zaplanowanej na zawsze
+    w 'pending' z błędem tylko w logu."""
+    from app.services.category_service import soft_delete_category
+    from app.services.planned_transaction_service import process_planned_transactions
+    account, _ = planned_setup
+    kategoria = Category(name="Wakacje", type="expense", user_token=test_user.token)
+    db.session.add(kategoria)
+    db.session.commit()
+    pt = PlannedTransaction(user_token=test_user.token, account_id=account.id, category_id=kategoria.id,
+                            title="Zaliczka", amount=Decimal("-500.00"), execution_date=date.today())
+    db.session.add(pt)
+    db.session.commit()
+    pt_id = pt.id
+    soft_delete_category(test_user.token, "Wakacje")
+
+    assert process_planned_transactions() == 1
+    assert db.session.get(PlannedTransaction, pt_id).status == 'processed'

@@ -188,7 +188,9 @@ Przelew wewnętrzny między kontami w **różnych walutach** nigdy nie dostaje l
 
 **Financial Precision**: Always use `Decimal(str(value))` — never float — for monetary amounts.
 
-**Recurring/Planned**: `RecurringTransaction` (schedule-based) and `PlannedTransaction` (one-off with `execution_date`) are processed by `flask process-scheduled`.
+**Recurring/Planned**: `RecurringTransaction` (schedule-based) and `PlannedTransaction` (one-off with `execution_date`) are processed by `flask process-scheduled`. Pierwszy termin cyklicznej to pierwszy wybrany dzień od `start_date` (`_calculate_first_occurrence_date`), nie sama data startu — formularz podaje start = dziś i osobno dzień miesiąca. Księgowanie z harmonogramu przyjmuje kategorię usuniętą po jego założeniu (`find_owned(..., include_inactive=True)`), a archiwizacja konta wyłącza jego cykliczne i kasuje oczekujące zaplanowane: bez tego nocne przetwarzanie stawało co noc z błędem widocznym tylko w logu.
+
+**Uzgadnianie salda**: saldo odniesienia to stan na koniec wybranego dnia, także dzisiejszego — `reconcile_account_balance` odejmuje operacje z późniejszą datą (np. czynsz wpisany z datą za tydzień). Okno uzgadniania liczy to samo w `saldoSystemuNaDzien` (`08_accounts.js`); oba miejsca muszą się zgadzać, bo użytkownik potwierdza kwotę, którą zobaczył w oknie.
 
 **Dashboard** (`13_dashboard.js`): zakładka otwierana domyślnie. Dane obliczane po stronie klienta z już załadowanego `transactions` + `accounts` (brak dodatkowego endpointa). **Zawsze cały majątek** — Dashboard nie ma filtra kont, a „Widok konta” go nie zawęża (startuje ustawiony na konto główne, więc inaczej Majątek netto pokazywałby jedno konto). Elementy:
 - Majątek netto z porównaniem do końca poprzedniego miesiąca i tego samego miesiąca rok wcześniej (`zmianyMajatku()`; procent tylko od dodatniej bazy, brak punktu = „brak danych”, nie zero).

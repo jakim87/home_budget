@@ -146,6 +146,29 @@ def test_reconcile_wstecz_liczy_saldo_na_koniec_dnia(app):
         assert db.session.get(Account, account.id).balance == Decimal("970.00")
 
 
+def test_reconcile_na_dzis_pomija_operacje_z_przyszla_data(app):
+    """Uzgodnienie na dziś to stan na koniec DZISIAJ — bez operacji wpisanych z datą
+    w przyszłości. Tak samo liczy okno uzgadniania (saldoSystemuNaDzien w 08_accounts.js):
+    wpisanie salda, które okno pokazało jako zgodne, nie może tworzyć korekty."""
+    with app.app_context():
+        user, account = _user_z_kontem("1000.00")
+        create_transaction(
+            user_token=user.token, account_id=account.id, amount=Decimal("-2350.00"),
+            title="Czynsz", transaction_date=date.today() + timedelta(days=2),
+        )
+
+        # Okno pokazuje 1000 (saldo -1350 bez czynszu z przyszłości) — bank też ma 1000.
+        for dzien in (date.today(), None):
+            assert reconcile_account_balance(
+                user.token, account.id, Decimal("1000.00"), transaction_date=dzien
+            ) is None
+
+        # Prawdziwa różnica liczy się od salda na koniec dnia, nie od salda z czynszem.
+        korekta = reconcile_account_balance(user.token, account.id, Decimal("900.00"))
+        assert korekta.amount == Decimal("-100.00")
+        assert db.session.get(Account, account.id).balance == Decimal("-1450.00")
+
+
 def test_reconcile_odrzuca_date_z_przyszlosci(app):
     """Nie da się uzgodnić salda, którego jeszcze nie było."""
     with app.app_context():

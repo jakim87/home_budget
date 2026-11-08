@@ -168,6 +168,24 @@ def test_reimport_same_parsed_rows_skips_duplicates(app, test_user, import_accou
     assert db.session.query(TransactionStaging).count() == 1
 
 
+def test_dlugi_opis_z_wyciagu_przyciety_do_kolumny(app, test_user, import_account):
+    """Parser PDF ING skleja w kontrahenta cały opis operacji (adres, rachunek, bank,
+    kilka linii tytułu), co potrafi przekroczyć 255 znaków kolumny. PostgreSQL odrzucał
+    wtedy wiersz i cały plik kończył się błędem 500 — SQLite długości nie pilnuje, więc
+    tu sprawdzamy ją wprost. Ponowne wgranie pliku nadal ma rozpoznać duplikat."""
+    def wiersz_z_pliku():
+        return {'date': date(2024, 3, 1), 'title': 'T' * 300, 'amount': Decimal("-15.00"),
+                'contractor': 'K' * 300, 'account_id': import_account.id}
+
+    pierwszy = save_transactions_to_staging([wiersz_z_pliku()], user_token=test_user.token)
+    drugi = save_transactions_to_staging([wiersz_z_pliku()], user_token=test_user.token)
+
+    zapisany = db.session.query(TransactionStaging).one()
+    assert len(zapisany.title) == TransactionStaging.title.type.length
+    assert len(zapisany.contractor) == TransactionStaging.contractor.type.length
+    assert (len(pierwszy), len(drugi)) == (1, 0)
+
+
 def test_reimport_same_csv_via_api_adds_nothing(logged_in_client, app, import_account):
     """API: drugi upload tego samego pliku → 0 nowych wierszy stagingu."""
     resp1 = _upload(logged_in_client, import_account.id, CSV_PL.encode('utf-8'))

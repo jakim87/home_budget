@@ -29,21 +29,22 @@ def find_by_name(user_token, name):
     )
 
 
-def find_owned(user_token, category_id):
+def find_owned(user_token, category_id, include_inactive=False):
     """Aktywna kategoria o danym ID widoczna dla użytkownika (własna lub globalna), albo None.
 
     Jedyne miejsce, w którym kategoria jest rozwiązywana po ID — używane wszędzie tam,
     gdzie category_id przychodzi z żądania jako liczba (transakcje, harmonogramy),
     żeby nie dało się podpiąć cudzej prywatnej kategorii (patrz #127).
+
+    include_inactive=True dopuszcza kategorię usuniętą (miękko) — wyłącznie dla
+    księgowania z harmonogramu, którego kategorię sprawdzono przy zakładaniu.
     """
     if category_id is None:
         return None
-    return (
-        db.session.query(Category)
-        .filter_by(id=category_id, is_active=True)
-        .filter(visible_to(user_token))
-        .first()
-    )
+    zapytanie = db.session.query(Category).filter_by(id=category_id).filter(visible_to(user_token))
+    if not include_inactive:
+        zapytanie = zapytanie.filter_by(is_active=True)
+    return zapytanie.first()
 
 
 def list_active(user_token):

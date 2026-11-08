@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.4.1](https://github.com/jakim87/home_budget/compare/v1.4.0...v1.4.1) (2026-11-08)
+
+
+### Poprawki
+
+* **demo:** odtwarzanie konta demo nie przejmuje zwykłego konta o tej samej nazwie ([9fdaadc](https://github.com/jakim87/home_budget/commit/9fdaadc71affac746f129f39cd08571810af69e2))
+* import wyciągu z bardzo długim opisem operacji nie kończy się już błędem serwera ([e2503df](https://github.com/jakim87/home_budget/commit/e2503df733e57e350a370a128fb0b4547d8c90ab))
+* logi serwera nie zawierają kwot ani nazw kont i kategorii ([ce98b08](https://github.com/jakim87/home_budget/commit/ce98b0878c4039ba04ab9c2e4d0d35c87c75a48e))
+* pierwsza transakcja cykliczna księguje się w wybranym dniu miesiąca lub tygodnia, a nie w dniu założenia ([e2503df](https://github.com/jakim87/home_budget/commit/e2503df733e57e350a370a128fb0b4547d8c90ab))
+* podwójne „Zatwierdź” w poczekalni nie księguje operacji dwa razy ([ce98b08](https://github.com/jakim87/home_budget/commit/ce98b0878c4039ba04ab9c2e4d0d35c87c75a48e))
+* poprawka opisu zwrotu w tabeli operacji nie zamienia go już w wydatek ([e2503df](https://github.com/jakim87/home_budget/commit/e2503df733e57e350a370a128fb0b4547d8c90ab))
+* równoległe zapisy (podwójny Enter, dwie karty, nocny harmonogram) nie gubią już kwot na saldzie konta ([ce98b08](https://github.com/jakim87/home_budget/commit/ce98b0878c4039ba04ab9c2e4d0d35c87c75a48e))
+* transakcje cykliczne i zaplanowane nie zatrzymują się po usunięciu kategorii, a archiwizacja konta wyłącza jego harmonogram ([e2503df](https://github.com/jakim87/home_budget/commit/e2503df733e57e350a370a128fb0b4547d8c90ab))
+* uzgodnienie salda na dziś działa także zaraz po północy ([9fdaadc](https://github.com/jakim87/home_budget/commit/9fdaadc71affac746f129f39cd08571810af69e2))
+* uzgodnienie salda na dziś nie tworzy fałszywej korekty, gdy na koncie są operacje z przyszłą datą ([e2503df](https://github.com/jakim87/home_budget/commit/e2503df733e57e350a370a128fb0b4547d8c90ab))
+
+
+### Wydajność
+
+* szybsze wczytywanie transakcji dzięki indeksom ([ce98b08](https://github.com/jakim87/home_budget/commit/ce98b0878c4039ba04ab9c2e4d0d35c87c75a48e))
+
 ## [1.4.0](https://github.com/jakim87/home_budget/compare/v1.3.0...v1.4.0) (2026-11-08)
 
 

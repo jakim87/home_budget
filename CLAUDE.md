@@ -150,6 +150,8 @@ Bank i format rozpoznaje `detect_bank_and_format()` (`statement_parsers.py`) **p
 | Bank Millennium | ✅ | — | — |
 | Revolut | ✅ | — | — |
 
+mBank ma dwa eksporty HTML o różnym układzie kolumn: „Lista operacji” (`'html'`, `parse_mbank_html`; kolumny Data operacji | Opis | Rachunek | Kategoria | Kwota) i „Elektroniczne zestawienie operacji” (`'html-zest'`, `parse_mbank_zestawienie_html`; Data księgowania | Data operacji | Opis | Kwota | Saldo po operacji — bez kategorii, numer rachunku w nagłówku ze spacjami). Drugi pojawił się na rachunku celowym w listopadzie 2026; zwykły parser wziąłby w nim saldo za kwotę, dlatego detekcja rozróżnia je po nagłówku.
+
 Pekao CSV nie ma numeru rachunku w nagłówku — `extract_statement_ibans` bierze go z pierwszego wiersza (rachunek źródłowy przy wydatku, docelowy przy wpływie). TXT z Pekao niesie te same dane minus adres kontrahenta, więc świadomie nie jest obsługiwany.
 
 Millennium: obsługiwany tylko CSV — HTML i „XLS” (to ten sam HTML) oraz PDF niosą te same dane w gorszej postaci; detekcja rozpoznaje je, żeby zwrócić „format nieobsługiwany” zamiast wpuścić plik do parsera ING. Nagłówek CSV i PDF Millennium zawiera znaczniki ING (`Data transakcji`, `Lista transakcji`), dlatego Millennium sprawdzany jest przed ING; kolizje pilnuje `test_detekcja_kazdy_bank_rozpoznany_jako_swoj` — nowy bank = nowy wiersz w tym teście. Pola wielowierszowe Millennium sklejone są ` ` (w kontrahencie po nim jest adres).

@@ -174,6 +174,10 @@ def seed_demo(username: str, password: str) -> dict:
 
     Zakłada użytkownika, jeśli go nie ma. Hasło ustawia przy KAŻDYM uruchomieniu —
     konto jest publiczne, więc cały jego stan ma wracać do znanego punktu.
+
+    Istniejącego użytkownika przejmuje tylko wtedy, gdy założyło go seed_demo (adres
+    @example.invalid). Inaczej ktoś, kto zarejestrował tę nazwę przed włączeniem
+    demo, dostałby publiczne hasło i stracił dane przy pierwszym nocnym odtworzeniu.
     """
     try:
         user = db.session.query(User).filter_by(username=username).first()
@@ -185,6 +189,11 @@ def seed_demo(username: str, password: str) -> dict:
             )
             db.session.add(user)
             db.session.flush()  # nadaje token UUID — właściciela wszystkich danych niżej
+        elif not user.email.endswith('@example.invalid'):
+            raise ValueError(
+                f"Użytkownik '{username}' nie jest kontem demo (adres spoza @example.invalid) — "
+                "odtworzenie skasowałoby jego dane. Ustaw inną nazwę w DEMO_USERNAME."
+            )
         else:
             user.password_hash = generate_password_hash(password)
 

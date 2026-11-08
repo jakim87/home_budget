@@ -1,9 +1,10 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
 import pytest
 
 from app.models import User, Account, Category, Transaction
+from app.services import budget_service
 from app.services.budget_service import create_transaction, reconcile_account_balance
 from app import db
 
@@ -176,9 +177,28 @@ def test_reconcile_odrzuca_date_z_przyszlosci(app):
         with pytest.raises(ValueError, match="przyszłości"):
             reconcile_account_balance(
                 user.token, account.id, Decimal("1500.00"),
-                transaction_date=date.today() + timedelta(days=1),
+                transaction_date=budget_service._dzis_u_uzytkownika() + timedelta(days=1),
             )
         assert db.session.get(Account, account.id).balance == Decimal("1000.00")
+
+
+def test_reconcile_po_polnocy_w_polsce_przyjmuje_dzisiejsza_date(app, monkeypatch):
+    """Serwer chodzi na UTC, a okno uzgadniania wysyła datę polską. O 0:30 w Polsce
+    (23:30 UTC) „dziś” z okna było dla serwera jutrem i uzgodnienie kończyło się 400."""
+    class _Teraz(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.combine(date.today(), time(23, 30), tzinfo=timezone.utc).astimezone(tz)
+
+    monkeypatch.setattr(budget_service, 'datetime', _Teraz)
+    jutro_w_utc = date.today() + timedelta(days=1)
+    with app.app_context():
+        user, account = _user_z_kontem("1000.00")
+
+        tx = reconcile_account_balance(user.token, account.id, Decimal("1100.00"), transaction_date=jutro_w_utc)
+
+        assert tx.date == jutro_w_utc
+        assert db.session.get(Account, account.id).balance == Decimal("1100.00")
 
 
 def test_api_reconcile_przekazuje_date_do_serwisu(logged_in_client, test_user_token):

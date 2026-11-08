@@ -4,7 +4,7 @@ import pytest
 from app import db
 from app.models import User, Account
 
-from app.services.budget_service import parse_mbank_csv
+from app.services.statement_parsers import parse_mbank_csv
 
 # Próbka ZANONIMIZOWANA — zmyślone nazwiska, numery kont i kwoty.
 # Zachowuje realną strukturę eksportu mBank (śmieciowy nagłówek, kolumny

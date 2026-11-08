@@ -1,7 +1,7 @@
 """Planowanie budżetu miesięcznego: plan per kategoria zestawiony z wykonaniem (#96).
 
 Nazwa modułu celowo różni się od `budget_service` — tamten trzyma CRUD transakcji
-i parsery wyciągów, mimo mylącej nazwy nie ma nic wspólnego z planowaniem.
+i poczekalnię importu, mimo mylącej nazwy nie ma nic wspólnego z planowaniem.
 
 Dwie rzeczy różnią ten moduł od Raportów i trzeba je czytać razem z `docs/`:
 
@@ -213,13 +213,6 @@ def lista_budzetu(user_token: str, year: int, month: int) -> dict:
 
 
 # --- sugestie ---
-
-def zaproponuj_plan(user_token: str, year: int, month: int, category_id: int) -> dict:
-    """Podpowiedź kwoty dla jednej kategorii, oparta o jej własną historię."""
-    _sprawdz_okres(year, month)
-    _kategoria_planowalna(user_token, category_id)
-    return _sugestie(user_token, year, month, [category_id])[category_id]
-
 
 def _sugestie(user_token: str, year: int, month: int, category_ids: list) -> dict:
     """Podpowiedzi dla wielu kategorii z jednego przebiegu po historii.

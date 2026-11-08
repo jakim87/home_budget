@@ -107,9 +107,9 @@ app/
 ├── schemas.py         # Marshmallow serializers (request/response validation)
 ├── cli.py             # Flask CLI commands
 ├── services/          # Business logic — decoupled from HTTP/Flask
-│   ├── budget_service.py           # Core CRUD, parsery CSV (ING/mBank), uzgadnianie salda
+│   ├── budget_service.py           # Core CRUD, przelewy, poczekalnia importu, uzgadnianie salda
 │   ├── budget_plan_service.py      # Plan miesieczny vs wykonanie (zakladka Budzet)
-│   ├── statement_parsers.py        # detect_bank_and_format + parsery PDF/HTML
+│   ├── statement_parsers.py        # detect_bank_and_format + wszystkie parsery (CSV/PDF/HTML)
 │   ├── import_history_service.py   # Historia importów (model StatementImport)
 │   ├── init_service.py             # Payload dla GET /api/init (cały stan frontu)
 │   ├── transaction_service.py      # Edycja i usuwanie transakcji (pojedyncze i zbiorcze)
@@ -138,9 +138,9 @@ app/
 1. Parse → save to `TransactionStaging` with auto-categorization (contractor matching, internal transfer detection)
 2. User reviews pending staging rows → approves → moves to `Transaction`, updates account balance
 
-Oba etapy żyją w zakładce **Import** (identyfikator wewnętrzny `staging`; `02_import.js` + `03_staging.js`, ukryta na telefonie jak Raporty, „Widok konta” na niej ukryty). Wgrywanie jest na stronie, bez okna: przycisk, cały folder albo przeciągnięcie plików. „Ustawienia ręczne” (bank, konto) działają tylko przy jednym pliku — przy kilku konto rozpoznaje się wyłącznie po numerze rachunku. Parser pliku bez numeru, gdy konta nie wskazano, rzuca `BrakKontaError` (podklasa `ValueError` z `budget_service.py`), a blueprint dokłada do odpowiedzi 400 `needs_account` — lista wyników pokazuje wtedy przy pliku wybór konta i „Wgraj ponownie”.
+Oba etapy żyją w zakładce **Import** (identyfikator wewnętrzny `staging`; `02_import.js` + `03_staging.js`, ukryta na telefonie jak Raporty, „Widok konta” na niej ukryty). Wgrywanie jest na stronie, bez okna: przycisk, cały folder albo przeciągnięcie plików. „Ustawienia ręczne” (bank, konto) działają tylko przy jednym pliku — przy kilku konto rozpoznaje się wyłącznie po numerze rachunku. Parser pliku bez numeru, gdy konta nie wskazano, rzuca `BrakKontaError` (podklasa `ValueError` z `statement_parsers.py`), a blueprint dokłada do odpowiedzi 400 `needs_account` — lista wyników pokazuje wtedy przy pliku wybór konta i „Wgraj ponownie”.
 
-Bank i format rozpoznaje `detect_bank_and_format()` (`statement_parsers.py`) **po zawartości pliku, nie po rozszerzeniu**. Mapa `STATEMENT_PARSERS` w `import_bp.py:25` wiąże parę `(bank, format)` z parserem i trybem wejścia (`'text'` po zdekodowaniu / `'bytes'` surowo):
+Bank i format rozpoznaje `detect_bank_and_format()` (`statement_parsers.py`) **po zawartości pliku, nie po rozszerzeniu**. Mapa `STATEMENT_PARSERS` w `import_bp.py:26` wiąże parę `(bank, format)` z parserem i trybem wejścia (`'text'` po zdekodowaniu / `'bytes'` surowo):
 
 | Bank | CSV | PDF | HTML |
 | ---- | --- | --- | ---- |

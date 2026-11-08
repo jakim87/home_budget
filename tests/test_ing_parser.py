@@ -3,7 +3,7 @@ import pytest
 from app import db
 from app.models import User, Account
 
-from app.services.budget_service import parse_ing_csv
+from app.services.statement_parsers import parse_ing_csv
 
 @pytest.fixture
 def parser_user(app):

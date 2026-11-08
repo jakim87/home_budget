@@ -13,7 +13,7 @@ from app.models import (
     Account, Category, Contractor, RecurringTransaction, StatementImport, Transaction,
     TransactionStaging, User,
 )
-from app.services.budget_service import parse_ing_csv
+from app.services.statement_parsers import parse_ing_csv
 from app.services.demo_service import (
     DEMO_ACCOUNTS,
     DEMO_CONTRACTORS,
@@ -73,6 +73,25 @@ def test_seed_demo_jest_idempotentne(app):
 
     assert pierwsze == drugie
     assert db.session.query(User).filter_by(username='demo').count() == 1
+
+
+def test_seed_demo_nie_przejmuje_zwyklego_konta(app):
+    """Na nowej instancji ktoś mógł zarejestrować „demo”, zanim administrator włączył
+    demo — odtworzenie ustawiłoby mu publiczne hasło i skasowało jego dane."""
+    import pytest
+    user = User(username='demo', email='jan@example.com', password_hash='hash-jana')
+    db.session.add(user)
+    db.session.commit()
+    konto = Account(name='Moje', bank_name='X', balance=Decimal('100.00'), user_token=user.token)
+    db.session.add(konto)
+    db.session.commit()
+    user_id, konto_id = user.id, konto.id
+
+    with pytest.raises(ValueError, match='nie jest kontem demo'):
+        seed_demo('demo', 'demo-do-ogladania')
+
+    assert db.session.get(User, user_id).password_hash == 'hash-jana'
+    assert db.session.get(Account, konto_id) is not None
 
 
 def test_salda_kont_zgadzaja_sie_z_transakcjami(app):

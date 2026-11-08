@@ -493,7 +493,7 @@ def test_parse_pekao_csv_requires_account(app, mf_user):
 
 def test_bank_category_z_mbank_csv_i_html(app, mf_user):
     """#192: kategoria banku przekazana dalej jako podpowiedź."""
-    from app.services.budget_service import parse_mbank_csv
+    from app.services.statement_parsers import parse_mbank_csv
     user_token, acc_id = mf_user
     with app.app_context():
         csv_txs = parse_mbank_csv(MBANK_CSV_SAMPLE, user_token, main_account_id=acc_id)['transactions']

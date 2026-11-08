@@ -32,8 +32,25 @@ document.getElementById('tx-account').addEventListener('change', function() {
     }
 });
 
+// Podwójny Enter albo klik zapisałby transakcję dwa razy — przycisk i formularz
+// czekają, aż pierwsze żądanie się skończy.
+let zapisTransakcjiTrwa = false;
+
 document.getElementById('transaction-form').addEventListener('submit', async function(e) {
     e.preventDefault();
+    if (zapisTransakcjiTrwa) return;
+    zapisTransakcjiTrwa = true;
+    const przycisk = document.getElementById('submit-btn');
+    if (przycisk) przycisk.disabled = true;
+    try {
+        await zapiszTransakcjeZFormularza();
+    } finally {
+        zapisTransakcjiTrwa = false;
+        if (przycisk) przycisk.disabled = false;
+    }
+});
+
+async function zapiszTransakcjeZFormularza() {
     const dateInput = document.getElementById('tx-date').value;
     const rawAmount = parseFloat(document.getElementById('tx-amount').value);
     const categoryInput = document.getElementById('tx-category').value;
@@ -113,7 +130,7 @@ document.getElementById('transaction-form').addEventListener('submit', async fun
         console.error(error);
         showToast('Błąd połączenia z serwerem.', 'error');
     }
-});
+}
 
 window.toggleComment = function(uid, event) {
     // Wywołanie z klawiatury: reagujemy tylko na Enter i Spację, jak natywny <button>.

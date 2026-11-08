@@ -101,6 +101,20 @@ def sprawdz_podzialy(amount: Decimal, splits) -> None:
         raise ValueError("Suma podziałów przekracza kwotę transakcji.")
 
 
+def zablokuj_konto(user_token: str, account_id: int, **filtry) -> Optional[Account]:
+    """Wczytuje konto do zmiany salda: SELECT ... FOR UPDATE.
+
+    Saldo zmienia się odczytem w Pythonie i zapisem nowej wartości (inkrementacja
+    wyrażeniem SQL odpada — before_flush w models.py czyta balance jako Decimal),
+    więc bez blokady dwa równoległe żądania na tym samym koncie liczą od tego samego
+    salda i jedna kwota ginie. populate_existing: konto mogło trafić do sesji wcześniej,
+    bez blokady — bez odświeżenia liczylibyśmy od wartości sprzed czekania na blokadę.
+    """
+    return (db.session.query(Account)
+            .filter_by(id=account_id, user_token=user_token, **filtry)
+            .with_for_update().populate_existing().first())
+
+
 def create_transaction(
     user_token: str,
     account_id: int,
@@ -131,7 +145,7 @@ def create_transaction(
         if not isinstance(amount, Decimal):
             amount = Decimal(str(amount))
 
-        account = db.session.query(Account).filter_by(id=account_id, user_token=user_token, is_active=True).first()
+        account = zablokuj_konto(user_token, account_id, is_active=True)
         if not account:
             raise ValueError(f"Konto o ID {account_id} nie istnieje, jest nieaktywne lub brak uprawnień.")
 
@@ -245,9 +259,11 @@ def _resolve_destination_account(
         return matches[0]
     if len(matches) > 1:
         # Niejednoznaczna nazwa konta — nie zgadujemy, na które konto trafiają pieniądze.
+        # W logu ID kontrahenta, nie nazwa konta (A10).
         logger.warning(
-            "Przelew wewnętrzny: nazwa konta '%s' jest niejednoznaczna (%d dopasowań, user_token=%s) — pomijam lustro.",
-            dest_account_name, len(matches), user_token
+            "Przelew wewnętrzny: kontrahent #%s wskazuje niejednoznaczną nazwę konta (%d dopasowań, "
+            "user_token=%s) — pomijam lustro.",
+            contractor_obj.id, len(matches), user_token
         )
     return None
 
@@ -415,8 +431,8 @@ def handle_internal_transfer(
         noga.linked_transaction_id = new_transaction.id
         new_transaction.linked_transaction_id = noga.id
         logger.info(
-            "Przelew wewnętrzny: noga z wyciągu zastąpiła lustro #%s na koncie '%s' "
-            "(transaction_id=%s, user_token=%s)", lustro.id, account.name, new_transaction.id, user_token
+            "Przelew wewnętrzny: noga z wyciągu zastąpiła lustro #%s na koncie #%s "
+            "(transaction_id=%s, user_token=%s)", lustro.id, account.id, new_transaction.id, user_token
         )
         return
 
@@ -424,13 +440,14 @@ def handle_internal_transfer(
     # lustra; transakcja zostaje niepowiązana jako "do zmapowania".
     if account_has_statement_imports(user_token, dest_account.id):
         logger.info(
-            "Przelew wewnętrzny: konto docelowe '%s' ma własne wyciągi — pomijam lustro, "
+            "Przelew wewnętrzny: konto docelowe #%s ma własne wyciągi — pomijam lustro, "
             "druga noga przyjdzie z importu (transaction_id=%s, user_token=%s)",
-            dest_account.name, new_transaction.id, user_token
+            dest_account.id, new_transaction.id, user_token
         )
         return
 
     # 3. Konto docelowe bez własnych wyciągów — lustro jest jedynym źródłem drugiej strony.
+    dest_account = zablokuj_konto(user_token, dest_account.id)
     mirror_tx = Transaction(
         user_token=user_token, account_id=dest_account.id, amount=counter_amount,
         title=title, date=transaction_date, category_id=category_id,
@@ -496,7 +513,7 @@ def reconcile_account_balance(
     dzien = transaction_date or date.today()
 
     try:
-        account = db.session.query(Account).filter_by(id=account_id, user_token=user_token).first()
+        account = zablokuj_konto(user_token, account_id)
         if not account:
             raise ValueError(f"Konto o ID {account_id} nie istnieje lub brak uprawnień.")
 
@@ -897,7 +914,7 @@ def parse_mbank_csv(file_content: str, user_token: str, main_account_id: Optiona
         try:
             amount = Decimal(amount_clean)
         except InvalidOperation:
-            logger.warning("Odrzucono wiersz mBank — nieprawidłowa kwota '%s' (user_token=%s)", amount_str, user_token)
+            logger.warning("Odrzucono wiersz mBank — nieprawidłowa kwota (user_token=%s)", user_token)
             skipped_count += 1
             continue
 
@@ -907,7 +924,7 @@ def parse_mbank_csv(file_content: str, user_token: str, main_account_id: Optiona
             try:
                 tx_date = datetime.strptime(date_str, '%d.%m.%Y').date()
             except ValueError:
-                logger.warning("Odrzucono wiersz mBank — nieznany format daty '%s' (user_token=%s)", date_str, user_token)
+                logger.warning("Odrzucono wiersz mBank — nieznany format daty (user_token=%s)", user_token)
                 skipped_count += 1
                 continue
 
@@ -1600,7 +1617,10 @@ def accept_staging_contractor(user_token: str, stg_id: int, name: str) -> dict:
 
 def approve_staging_record(user_token, stg_id, data):
     try:
-        stg_tx = db.session.query(TransactionStaging).filter_by(id=stg_id, user_token=user_token, status='pending').first()
+        # FOR UPDATE: podwójne „Zatwierdź” — drugie żądanie czeka na pierwsze, a po
+        # jego commicie nie znajduje już wiersza, zamiast zaksięgować go drugi raz.
+        stg_tx = db.session.query(TransactionStaging).filter_by(
+            id=stg_id, user_token=user_token, status='pending').with_for_update().first()
         if not stg_tx:
             raise ValueError('Nie znaleziono oczekującej transakcji.')
 
@@ -1642,8 +1662,8 @@ def approve_staging_record(user_token, stg_id, data):
         db.session.delete(stg_tx)
         db.session.commit()
         logger.info(
-            "Zatwierdzono transakcję ze stagingu #%s -> transaction #%s (user_token=%s, kwota=%s)",
-            stg_id, new_tx.id, user_token, new_tx.amount
+            "Zatwierdzono transakcję ze stagingu #%s -> transaction #%s (user_token=%s)",
+            stg_id, new_tx.id, user_token
         )
         return new_tx
     except Exception as e:

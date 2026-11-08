@@ -188,6 +188,8 @@ Przelew wewnętrzny między kontami w **różnych walutach** nigdy nie dostaje l
 
 **Financial Precision**: Always use `Decimal(str(value))` — never float — for monetary amounts.
 
+**Zmiana salda**: konto, któremu zmieniasz `balance`, wczytuj przez `zablokuj_konto()` (`budget_service.py`; `SELECT … FOR UPDATE` + `populate_existing`) — saldo liczone jest w Pythonie, więc bez blokady równoległe żądania gubią kwoty. Nie zastępuj tego inkrementacją w SQL: `_enforce_account_type_invariants` (before_flush) czyta `balance` jako Decimal. SQLite blokad nie ma — testy sprawdzają tylko, że zapytanie o nią prosi.
+
 **Recurring/Planned**: `RecurringTransaction` (schedule-based) and `PlannedTransaction` (one-off with `execution_date`) are processed by `flask process-scheduled`. Pierwszy termin cyklicznej to pierwszy wybrany dzień od `start_date` (`_calculate_first_occurrence_date`), nie sama data startu — formularz podaje start = dziś i osobno dzień miesiąca. Księgowanie z harmonogramu przyjmuje kategorię usuniętą po jego założeniu (`find_owned(..., include_inactive=True)`), a archiwizacja konta wyłącza jego cykliczne i kasuje oczekujące zaplanowane: bez tego nocne przetwarzanie stawało co noc z błędem widocznym tylko w logu.
 
 **Uzgadnianie salda**: saldo odniesienia to stan na koniec wybranego dnia, także dzisiejszego — `reconcile_account_balance` odejmuje operacje z późniejszą datą (np. czynsz wpisany z datą za tydzień). Okno uzgadniania liczy to samo w `saldoSystemuNaDzien` (`08_accounts.js`); oba miejsca muszą się zgadzać, bo użytkownik potwierdza kwotę, którą zobaczył w oknie.
@@ -329,6 +331,7 @@ Konfiguracja w `app/logging_config.py` (`configure_logging()`, wołane raz w `cr
 - **Logi HTTP**: hooki `before_request`/`after_request` w `app/__init__.py` logują każde żądanie jako `METHOD path -> status (czas ms) user=...`. Globalny `@app.errorhandler(Exception)` zapisuje pełny traceback i zwraca 500. `werkzeug` wyciszony do `WARNING` (bez zdublowanych, kolorowanych ANSI wpisów).
 - **Kto zaglądał**: log aplikacji nie ma IP przy zwykłych żądaniach — ruch gości czyta się z logu nginx. `deploy/analityka/goscie.py` (sam stdlib, wejście na stdin) wypisuje prawdopodobne wizyty ludzi; reguła i jej ograniczenia w docstringu, znaczenie plakietek raportu w `deploy/analityka/README.md`. Nginx trzyma 14 dni. `raport_dobowy.py` w tym samym katalogu wysyła wizyty z ostatniej doby mailem (`budget-report.timer`, 05:00 UTC; `smtplib` przez Gmail, hasło aplikacji w `/etc/budget-report.smtp-password`) — to jedyne miejsce, z którego serwer wysyła pocztę, i jedyne, przez które adresy IP gości opuszczają serwer.
 - **Konwencja w kodzie**: każdy moduł ma `logger = logging.getLogger(__name__)`; serwisy logują `logger.info(...)` na sukces i `logger.error(...)`/`logger.exception(...)` w `except`.
+- **Bez danych finansowych (A10)**: do logu trafiają wyłącznie identyfikatory — nigdy kwoty, tytuły, nazwy kont, kategorii i kontrahentów ani surowe pola wyciągu. Polityka prywatności wymienia w logach tylko żądanie, status, czas, użytkownika i IP; pilnuje tego `tests/test_logi_bez_danych_finansowych.py`.
 
 ## Important Files
 

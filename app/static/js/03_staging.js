@@ -767,9 +767,14 @@ function usunZatwierdzony(id) {
     pendingStaging = pendingStaging.filter(x => x.id !== id);
 }
 
+// Wiersze, których zatwierdzanie trwa — podwójny klik „Zatwierdź” nie wysyła
+// drugiego żądania (serwer i tak by go odrzucił, ale z komunikatem o błędzie).
+const zatwierdzaneTeraz = new Set();
+
 window.approveStaging = async function(id) {
     const t = pendingStaging.find(x => x.id === id);
-    if (!t) return;
+    if (!t || zatwierdzaneTeraz.has(id)) return;
+    zatwierdzaneTeraz.add(id);
     try {
         await zatwierdzWiersz(t);
         showToast('Transakcja zatwierdzona!');
@@ -778,12 +783,26 @@ window.approveStaging = async function(id) {
         fetchInitialData({ skipStagingRefresh: true });
     } catch (err) {
         showToast(err.message, 'error');
+    } finally {
+        zatwierdzaneTeraz.delete(id);
     }
 }
 
 // Para po kolei: druga noga widzi pierwszą jako zaksięgowaną i łączy się z nią.
 // Przy błędzie drugiej zostaje ona na liście jako „druga strona już zaksięgowana".
 window.zatwierdzObie = async function(a, b) {
+    if (zatwierdzaneTeraz.has(a) || zatwierdzaneTeraz.has(b)) return;
+    zatwierdzaneTeraz.add(a);
+    zatwierdzaneTeraz.add(b);
+    try {
+        await zatwierdzPare(a, b);
+    } finally {
+        zatwierdzaneTeraz.delete(a);
+        zatwierdzaneTeraz.delete(b);
+    }
+}
+
+async function zatwierdzPare(a, b) {
     let ok = 0;
     for (const id of [a, b]) {
         const t = pendingStaging.find(x => x.id === id);

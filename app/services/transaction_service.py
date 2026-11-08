@@ -1,8 +1,8 @@
 from app import db
-from app.models import Transaction, TransactionSplit, Account
+from app.models import Transaction, TransactionSplit
 from app.services.category_service import find_by_name as find_category_by_name
 from app.services.contractor_service import find_owned as find_contractor_owned
-from app.services.budget_service import handle_internal_transfer, sprawdz_podzialy
+from app.services.budget_service import handle_internal_transfer, sprawdz_podzialy, zablokuj_konto
 from datetime import date, datetime
 from decimal import Decimal
 from sqlalchemy.orm import joinedload
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def _remove_leg(leg: Transaction) -> None:
     """Cofa wpływ jednej transakcji na saldo konta i usuwa ją z sesji — trwale,
     bez archiwum (#161). NIE commituje — wołający domyka wszystko jednym commitem."""
-    account = db.session.get(Account, leg.account_id)
+    account = zablokuj_konto(leg.user_token, leg.account_id)
     if account:
         balance = account.balance if isinstance(account.balance, Decimal) else Decimal(str(account.balance))
         amount = leg.amount if isinstance(leg.amount, Decimal) else Decimal(str(leg.amount))
@@ -84,7 +84,7 @@ def _przelicz_druga_noge(user_token, tx: Transaction) -> None:
     if not (category and category.type == 'transfer'):
         return
 
-    account = db.session.get(Account, tx.account_id)
+    account = zablokuj_konto(user_token, tx.account_id)
     if not account:
         return
     # preserve_sign=True — znak edytowanej transakcji jest już ustalony; zmiana
@@ -97,7 +97,10 @@ def _przelicz_druga_noge(user_token, tx: Transaction) -> None:
 
 def update_transaction(user_token, tx_id, data):
     try:
-        tx = db.session.query(Transaction).filter_by(id=tx_id, user_token=user_token).first()
+        # FOR UPDATE: dwie równoległe edycje tej samej transakcji liczyłyby różnicę
+        # salda od tej samej starej kwoty.
+        tx = db.session.query(Transaction).filter_by(
+            id=tx_id, user_token=user_token).with_for_update().first()
         if not tx:
             raise ValueError('Transakcja nie istnieje.')
 
@@ -112,7 +115,7 @@ def update_transaction(user_token, tx_id, data):
             # trwale rozjeżdża się z sumą transakcji.
             new_amount = Decimal(str(data['amount']))
             old_amount = tx.amount if isinstance(tx.amount, Decimal) else Decimal(str(tx.amount))
-            account = db.session.get(Account, tx.account_id)
+            account = zablokuj_konto(user_token, tx.account_id)
 
             mirror = None
             if tx.linked_transaction_id:
@@ -132,7 +135,7 @@ def update_transaction(user_token, tx_id, data):
                 if account:
                     balance = account.balance if isinstance(account.balance, Decimal) else Decimal(str(account.balance))
                     account.balance = balance + (tx_new - old_amount)
-                mirror_account = db.session.get(Account, mirror.account_id)
+                mirror_account = zablokuj_konto(user_token, mirror.account_id)
                 tx.amount = tx_new
                 # Konta w różnych walutach: kwoty nóg dzieli kurs i spread, więc
                 # druga noga zostaje nietknięta — przepisanie jej dałoby np. 2001 EUR
@@ -262,8 +265,8 @@ def bulk_update_category(user_token, tx_ids, category_name):
             zmienione += 1
 
         db.session.commit()
-        logger.info("Zbiorcza zmiana kategorii na '%s': %s zmienionych, %s pominietych przelewow",
-                    category.name, zmienione, pominiete)
+        logger.info("Zbiorcza zmiana kategorii na #%s: %s zmienionych, %s pominietych przelewow",
+                    category.id, zmienione, pominiete)
         return {'zmienione': zmienione, 'pominiete_przelewy': pominiete}
     except Exception:
         db.session.rollback()

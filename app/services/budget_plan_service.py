@@ -149,8 +149,8 @@ def ustaw_plan(user_token: str, year: int, month: int, category_id: int, amount)
         else:
             plan.amount = kwota
         db.session.commit()
-        logger.info("Plan budżetu %s-%02d dla kategorii %s = %s",
-                    year, month, kategoria.name, kwota)
+        logger.info("Plan budżetu %s-%02d dla kategorii #%s zapisany (user_token=%s)",
+                    year, month, kategoria.id, user_token)
         return plan
     except Exception:
         db.session.rollback()

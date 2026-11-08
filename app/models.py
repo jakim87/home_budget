@@ -190,10 +190,10 @@ class Transaction(db.Model):
     contractor: Mapped[Optional[str]] = mapped_column(String(255)) # Surowy tekst nadawcy z banku
     
     # Relacje
-    account_id: Mapped[int] = mapped_column(ForeignKey('accounts.id'), nullable=False)
+    account_id: Mapped[int] = mapped_column(ForeignKey('accounts.id'), nullable=False, index=True)
     contractor_id: Mapped[Optional[int]] = mapped_column(ForeignKey('contractors.id')) # Powiązanie ze słownikiem
     category_id: Mapped[Optional[int]] = mapped_column(ForeignKey('categories.id'))
-    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False)
+    user_token: Mapped[str] = mapped_column(String(36), ForeignKey('users.token'), nullable=False, index=True)
     comment: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Powiązanie dwóch stron przelewu wewnętrznego (samoodwołanie).

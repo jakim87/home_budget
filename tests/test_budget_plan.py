@@ -209,13 +209,19 @@ def test_nie_da_sie_zaplanowac_cudzej_kategorii(app, test_user_token, other_user
 
 # --- D7/D8: sugestie ---
 
+def _sugestia(user_token, rok, miesiac, kategoria):
+    """Sugestia jednej kategorii tak, jak dostaje ją zakładka Budżet."""
+    pozycje = bps.lista_budzetu(user_token, rok, miesiac)['pozycje']
+    return next(p['sugestia'] for p in pozycje if p['category_id'] == kategoria.id)
+
+
 def test_sugestia_to_mediana_nie_srednia(app, test_user_token, konto, kategorie):
     """400, 380, 420, 3200, 390, 410 -> mediana 405 (srednia dalaby 866)."""
     kwoty = ["-400.00", "-380.00", "-420.00", "-3200.00", "-390.00", "-410.00"]
     for i, kwota in enumerate(kwoty):
         _tx(test_user_token, konto, kategorie['jedzenie'], kwota, date(2025, 12 - i, 15))
 
-    s = bps.zaproponuj_plan(test_user_token, 2026, 6, kategorie['jedzenie'].id)
+    s = _sugestia(test_user_token, 2026, 6, kategorie['jedzenie'])
 
     assert s['kwota'] == Decimal("405.00")
     assert s['zakres_min'] == Decimal("380.00")
@@ -227,7 +233,7 @@ def test_ponizej_trzech_miesiecy_brak_sugestii_z_powodem(app, test_user_token, k
     _tx(test_user_token, konto, kategorie['jedzenie'], "-400.00", date(2026, 4, 10))
     _tx(test_user_token, konto, kategorie['jedzenie'], "-420.00", date(2026, 5, 10))
 
-    s = bps.zaproponuj_plan(test_user_token, 2026, 6, kategorie['jedzenie'].id)
+    s = _sugestia(test_user_token, 2026, 6, kategorie['jedzenie'])
 
     assert s['kwota'] is None
     assert s['liczba_miesiecy'] == 2
@@ -240,7 +246,7 @@ def test_sugestia_uwzglednia_podzialy(app, test_user_token, konto, kategorie):
         _tx(test_user_token, konto, kategorie['jedzenie'], "-500.00", date(2026, miesiac, 10),
             splity=[(kategorie['remont'], "500.00")])
 
-    s = bps.zaproponuj_plan(test_user_token, 2026, 6, kategorie['remont'].id)
+    s = _sugestia(test_user_token, 2026, 6, kategorie['remont'])
 
     assert s['liczba_miesiecy'] >= 4
     assert s['kwota'] == Decimal("500.00")
@@ -251,7 +257,7 @@ def test_rok_temu_dopiero_od_dwunastu_miesiecy(app, test_user_token, konto, kate
     for i in range(6):
         _tx(test_user_token, konto, kategorie['jedzenie'], "-400.00", date(2026, i + 1, 10))
 
-    assert bps.zaproponuj_plan(test_user_token, 2026, 8, kategorie['jedzenie'].id)['rok_temu'] is None
+    assert _sugestia(test_user_token, 2026, 8, kategorie['jedzenie'])['rok_temu'] is None
 
 
 def test_rok_temu_pokazany_przy_dluzszej_historii(app, test_user_token, konto, kategorie):
@@ -260,7 +266,7 @@ def test_rok_temu_pokazany_przy_dluzszej_historii(app, test_user_token, konto, k
         kwota = "-900.00" if (rok, mies) == (2025, 12) else "-400.00"
         _tx(test_user_token, konto, kategorie['jedzenie'], kwota, date(rok, mies, 10))
 
-    s = bps.zaproponuj_plan(test_user_token, 2026, 12, kategorie['jedzenie'].id)
+    s = _sugestia(test_user_token, 2026, 12, kategorie['jedzenie'])
 
     assert s['rok_temu'] == Decimal("900.00")
 
@@ -274,7 +280,7 @@ def test_sugestia_nie_widzi_cudzych_transakcji(app, test_user_token, other_user,
     for miesiac in (1, 2, 3, 4, 5):
         _tx(other_user.token, obce_konto, kategorie['jedzenie'], "-999.00", date(2026, miesiac, 10))
 
-    s = bps.zaproponuj_plan(test_user_token, 2026, 6, kategorie['jedzenie'].id)
+    s = _sugestia(test_user_token, 2026, 6, kategorie['jedzenie'])
 
     assert s['kwota'] is None
 

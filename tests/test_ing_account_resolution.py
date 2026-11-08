@@ -3,7 +3,7 @@ używana zarówno przez parser CSV jak i PDF (#106). Wydzielona z parse_ing_csv,
 żeby oba formaty rozwiązywały etykiety kont IDENTYCZNIE."""
 from app import db
 from app.models import Account, User
-from app.services.budget_service import build_ing_account_maps, resolve_ing_account_label
+from app.services.statement_parsers import build_ing_account_maps, resolve_ing_account_label
 
 
 def test_build_ing_account_maps_matches_by_iban(app):

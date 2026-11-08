@@ -1,7 +1,6 @@
-"""Detekcja banku/formatu wyciągu oraz parsery formatów innych niż CSV.
+"""Detekcja banku/formatu wyciągu oraz parsery wszystkich obsługiwanych formatów.
 
-Każdy parser zwraca ten sam kształt co parse_ing_csv / parse_mbank_csv
-(budget_service.py): {'transactions': [...], 'csv_accounts': [...],
+Każdy parser zwraca ten sam kształt: {'transactions': [...], 'csv_accounts': [...],
 'skipped_count': int} — dzięki temu dalszy przepływ (save_transactions_to_staging,
 autokategoryzacja, staging) jest wspólny dla wszystkich banków i formatów.
 
@@ -23,15 +22,379 @@ from bs4 import BeautifulSoup
 
 from app import db
 from app.models import Account, Transaction, TransactionStaging
-from app.services.budget_service import (
-    BrakKontaError,
-    _MBANK_ACCOUNT_RE,
-    _normalize_acc_num,
-    build_ing_account_maps,
-    resolve_ing_account_label,
-)
+from app.services.budget_service import _normalize_acc_num
 
 logger = logging.getLogger(__name__)
+
+
+class BrakKontaError(ValueError):
+    """Plik dotyczy jednego konta, nie niesie jego numeru, a konta nie wskazano.
+
+    Osobna klasa, bo strona importu reaguje na nią inaczej niż na resztę błędów:
+    pokazuje przy pliku wybór konta i „Wgraj ponownie" (blueprint dokłada needs_account).
+    """
+
+
+def parse_ing_csv_row(row_data: str, header_map: dict, key_map: dict) -> Optional[dict]:
+    """Parsuje pojedynczy wiersz z pliku CSV z banku ING na podstawie mapy nagłówka."""
+    reader = csv.reader(io.StringIO(row_data), delimiter=';')
+    try:
+        parts = next(reader)
+    except StopIteration:
+        return None
+
+    try:
+        date_str = parts[header_map[key_map['date']]].strip()
+        contractor = parts[header_map[key_map['contractor']]].strip() or None
+        title = parts[header_map[key_map['title']]].strip()
+        counterparty_account = parts[header_map[key_map['counterparty_account']]].strip() or None
+        amount_str = parts[header_map[key_map['amount']]].strip().replace(' ', '').replace('\xa0', '').replace(',', '.')
+    except (KeyError, IndexError) as e:
+        raise ValueError(f"Błąd struktury pliku CSV. Brak oczekiwanej kolumny: {e} lub nieprawidłowy wiersz.")
+
+    if not amount_str:
+        return None
+
+    try:
+        amount = Decimal(amount_str)
+    except InvalidOperation:
+        raise ValueError(f"Nieprawidłowy format kwoty: {amount_str}")
+
+    try:
+        tx_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        try:
+            tx_date = datetime.strptime(date_str, '%d.%m.%Y').date()
+        except ValueError:
+            raise ValueError(f"Nieznany format daty: {date_str}")
+
+    result = {
+        'date': tx_date,
+        'contractor': contractor,
+        'title': title,
+        'amount': amount,
+        'counterparty_account': counterparty_account
+    }
+
+    src_col = key_map.get('source_account')
+    if src_col and src_col in header_map:
+        try:
+            result['source_account'] = parts[header_map[src_col]].strip() or None
+        except IndexError:
+            result['source_account'] = None
+
+    return result
+
+def build_ing_account_maps(
+    account_entries: list[tuple[str, str]], user_token: str
+) -> tuple[list[dict], dict[str, Optional[int]], dict[str, int], set[str]]:
+    """Dopasowuje etykiety kont ING (z sekcji 'Wybrane rachunki' — wspólnej dla
+    CSV i PDF) do kont użytkownika w apce, po numerze rachunku.
+
+    account_entries: lista (etykieta_produktowa, znormalizowany_iban).
+
+    Zwraca (accounts_info, name_to_account_id, db_name_to_account_id, ibans_set):
+    - accounts_info: do wyświetlenia w UI po imporcie (jak dotąd 'csv_accounts').
+    - name_to_account_id: etykieta -> account_id (pierwsze dopasowanie wygrywa
+      przy duplikatach nazw — ING potrafi nazwać kilka różnych kont tą samą
+      generyczną etykietą produktową, np. "Otwarte Konto Oszczędnościowe").
+    - db_name_to_account_id: fallback po WŁASNEJ nazwie konta w apce
+      (case-insensitive) — ING w wierszu transakcji/bloku PDF pokazuje
+      przemianowane konto (np. "Wakacje") inaczej niż w nagłówku.
+    - ibans_set: wszystkie znormalizowane IBAN-y z pliku, do wykrywania
+      przelewów wewnętrznych w obrębie tego samego pliku.
+    """
+    db_accounts = db.session.query(Account).filter_by(user_token=user_token, is_active=True).all()
+    iban_to_account = {_normalize_acc_num(a.account_number): a for a in db_accounts if a.account_number}
+
+    ibans_set: set[str] = {iban for _, iban in account_entries}
+    accounts_info: list[dict] = []
+    name_to_account_id: dict[str, Optional[int]] = {}
+
+    for name, iban in account_entries:
+        db_acc = iban_to_account.get(iban)
+        accounts_info.append({
+            'csv_name': name,
+            'iban': iban,
+            'account_id': db_acc.id if db_acc else None,
+            'account_name': db_acc.name if db_acc else None,
+            'matched': db_acc is not None,
+        })
+        # Przy duplikatach nazw zachowujemy pierwsze dopasowanie; reszta jest
+        # obsługiwana przez fallback po nazwie konta w DB.
+        if name not in name_to_account_id:
+            name_to_account_id[name] = db_acc.id if db_acc else None
+
+    db_name_to_account_id: dict[str, int] = {
+        acc.name.lower(): acc.id
+        for acc in db_accounts
+        if acc.account_number and _normalize_acc_num(acc.account_number) in ibans_set
+    }
+    return accounts_info, name_to_account_id, db_name_to_account_id, ibans_set
+
+
+def resolve_ing_account_label(
+    konto_raw: str,
+    name_to_account_id: dict[str, Optional[int]],
+    db_name_to_account_id: dict[str, int],
+) -> tuple[bool, Optional[int]]:
+    """Rozwiązuje etykietę konta (kolumna 'Konto' w CSV albo blok w PDF) na
+    account_id, tym samym dwuetapowym algorytmem dla obu formatów:
+    1. dopasowanie po nazwie produktowej z 'Wybrane rachunki',
+    2. fallback po własnej nazwie konta w apce (case-insensitive).
+
+    Zwraca (rozpoznane_jako_znane_apce_konto, account_id_lub_None). Pierwszy
+    element == False oznacza podkonto/cel spoza słownika (np. "iPad 3k") —
+    pomijamy, nie zgadujemy. Drugi element None przy pierwszym == True
+    oznacza: etykieta jest w pliku, ale to konto nie istnieje w apce.
+    """
+    konto_clean = re.sub(r'\s*\([^)]*\)\s*$', '', konto_raw).strip()
+
+    for lookup_key in (konto_raw, konto_clean):
+        if lookup_key in name_to_account_id:
+            return True, name_to_account_id[lookup_key]
+
+    fallback_id = db_name_to_account_id.get(konto_clean.lower())
+    if fallback_id is not None:
+        return True, fallback_id
+
+    return False, None
+
+
+def parse_ing_csv(file_content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
+    """
+    Parsuje plik CSV z ING.
+
+    Plik wielokontowy (ma sekcję 'Wybrane rachunki' i kolumnę 'Konto'):
+      — automatycznie wykrywa konto źródłowe każdej transakcji na podstawie kolumny 'Konto'.
+      — transakcje z kont nieznanych aplikacji (brak account_number) są pomijane.
+      — obie nogi przelewu wewnętrznego wchodzą do importu; wiąże je ze sobą
+        zatwierdzanie stagingu (handle_internal_transfer), a nie parser.
+
+    Plik jednokontowy: wszystkie transakcje trafiają na main_account_id.
+
+    Zwraca słownik:
+        transactions  — lista sparsowanych transakcji z ustawionym account_id
+        csv_accounts  — lista kont z nagłówka CSV [{csv_name, iban, account_id, account_name, matched}]
+        skipped_count — liczba transakcji pominiętych z powodu nierozpoznanego konta
+    """
+    lines = file_content.strip().splitlines()
+
+    # 1. Parsuj sekcję "Wybrane rachunki" — nazwy i numery IBAN kont w pliku
+    csv_accounts_entries: list[tuple[str, str]] = []  # (clean_name, normalized_iban)
+    in_accounts_section = False
+    for line in lines:
+        if 'Wybrane rachunki' in line:
+            in_accounts_section = True
+            continue
+        if in_accounts_section:
+            if not line.strip():
+                in_accounts_section = False
+                continue
+            try:
+                parts = next(csv.reader(io.StringIO(line), delimiter=';'))
+                parts = [p.strip().strip('"') for p in parts]
+                # parts[0] = nazwa konta (np. "Smart Saver (PLN)"), parts[2] = IBAN
+                if len(parts) >= 3 and parts[2].strip():
+                    clean_name = re.sub(r'\s*\([^)]*\)\s*$', '', parts[0]).strip()
+                    iban = _normalize_acc_num(parts[2])
+                    if iban:
+                        csv_accounts_entries.append((clean_name, iban))
+            except (StopIteration, IndexError):
+                pass
+
+    # 2. Dopasuj konta z CSV do kont w bazie danych (po numerze IBAN) — wspólne
+    # z parserem PDF, patrz build_ing_account_maps.
+    csv_accounts_info, csv_name_to_account_id, db_name_to_account_id, _ = (
+        build_ing_account_maps(csv_accounts_entries, user_token)
+    )
+
+    # 3. Znajdź nagłówek transakcji i zbierz wiersze danych
+    header_map: dict[str, int] = {}
+    tx_lines: list[str] = []
+    in_tx_section = False
+    for line in lines:
+        if line.startswith('Data transakcji') or line.startswith('"Data transakcji"'):
+            try:
+                headers = next(csv.reader(io.StringIO(line), delimiter=';'))
+                header_map = {header.strip(): i for i, header in enumerate(headers)}
+                in_tx_section = True
+            except StopIteration:
+                pass
+            continue
+        if in_tx_section and line.strip():
+            tx_lines.append(line)
+
+    if not header_map:
+        raise ValueError("Nie znaleziono nagłówka transakcji ('Data transakcji') w pliku CSV.")
+
+    # Tryb wielokontowy: plik zawiera sekcję "Wybrane rachunki" ORAZ kolumnę "Konto"
+    is_multi_account = 'Konto' in header_map and bool(csv_accounts_entries)
+
+    key_map = {
+        'date': 'Data transakcji',
+        'contractor': 'Dane kontrahenta',
+        'title': 'Tytuł',
+        'counterparty_account': 'Nr rachunku',
+        'source_account': 'Konto' if is_multi_account else None,
+        'amount': next((k for k in ['Kwota transakcji (waluta rachunku)', 'Kwota transakcji'] if k in header_map), None)
+    }
+    if not key_map['amount']:
+        raise ValueError("Nie znaleziono kolumny z kwotą transakcji ('Kwota transakcji' lub 'Kwota transakcji (waluta rachunku)').")
+
+    if not is_multi_account and main_account_id is None:
+        raise BrakKontaError("Plik CSV zawiera jedno konto — proszę wybrać konto docelowe przed importem.")
+
+    # 4. Parsuj wiersze transakcji i przypisz właściwe account_id
+    transactions: list[dict] = []
+    skipped_count = 0
+
+    for line in tx_lines:
+        try:
+            parsed_row = parse_ing_csv_row(line, header_map, key_map)
+            if parsed_row is None:
+                continue
+
+            if is_multi_account:
+                konto_raw = parsed_row.pop('source_account', None) or ''
+                in_csv_accounts, matched_id = resolve_ing_account_label(
+                    konto_raw, csv_name_to_account_id, db_name_to_account_id
+                )
+
+                if not in_csv_accounts:
+                    # Podkonto / cel oszczędnościowy (np. "iPad 3k") — pomiń
+                    skipped_count += 1
+                    continue
+                if matched_id is None:
+                    # Konto z CSV nie istnieje w aplikacji — pomiń
+                    skipped_count += 1
+                    continue
+
+                parsed_row['account_id'] = matched_id
+            else:
+                parsed_row['account_id'] = main_account_id
+
+            transactions.append(parsed_row)
+        except (ValueError, StopIteration, IndexError) as e:
+            if line.strip() and line.strip()[0].isdigit():
+                # Logujemy sam powód, NIE treść wiersza — wiersz z wyciągu zawiera
+                # kontrahenta, tytuł, kwotę i numer konta, czyli dane finansowe (A10).
+                logger.warning("Odrzucono wiersz CSV przy imporcie (user_token=%s): %s", user_token, e)
+            continue
+
+    logger.info(
+        "Import CSV zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
+        user_token, len(transactions), skipped_count
+    )
+    return {
+        'transactions': transactions,
+        'csv_accounts': csv_accounts_info,
+        'skipped_count': skipped_count,
+    }
+
+# Numer rachunku kontrahenta w mBanku to ciąg dokładnie 26 cyfr (NRB bez prefiksu PL),
+# zaszyty w blobie opisu operacji. (?<!\d)/(?!\d) zapobiega złapaniu fragmentu dłuższego ciągu.
+_MBANK_ACCOUNT_RE = re.compile(r'(?<!\d)\d{26}(?!\d)')
+
+def parse_mbank_csv(file_content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
+    """
+    Parsuje plik CSV z mBanku (jednokontowy — jeden rachunek na plik).
+
+    Wszystkie transakcje trafiają na main_account_id (wybrane przez użytkownika).
+    Format różni się od ING: śmieciowy nagłówek (dane banku, klient, okres, saldo),
+    kolumny '#Data operacji;#Opis operacji;#Rachunek;#Kategoria;#Kwota', kwota
+    z sufiksem ' PLN' i przecinkiem dziesiętnym, brak osobnej kolumny kontrahenta
+    (opis to jeden blob), numer konta kontrahenta zaszyty w opisie jako ciąg 26 cyfr.
+
+    Zwraca ten sam kształt co parse_ing_csv (transactions/csv_accounts/skipped_count),
+    dzięki czemu dalszy przepływ (save_transactions_to_staging) jest bank-agnostyczny.
+    """
+    if main_account_id is None:
+        raise BrakKontaError("Plik CSV z mBanku dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+
+    lines = file_content.splitlines()
+
+    # Nagłówek transakcji: pierwsza linia zaczynająca się od '#Data operacji'.
+    header_idx = None
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith('#Data operacji'):
+            header_idx = i
+            break
+    if header_idx is None:
+        raise ValueError("Nie znaleziono nagłówka transakcji ('#Data operacji') w pliku CSV z mBanku.")
+
+    header_cells = next(csv.reader(io.StringIO(lines[header_idx]), delimiter=';'))
+    header_map = {cell.strip().lstrip('#').strip(): idx for idx, cell in enumerate(header_cells)}
+    try:
+        date_col = header_map['Data operacji']
+        desc_col = header_map['Opis operacji']
+        amount_col = header_map['Kwota']
+    except KeyError as e:
+        raise ValueError(f"Brak oczekiwanej kolumny w pliku CSV z mBanku: {e}")
+    category_col = header_map.get('Kategoria')
+
+    transactions: list[dict] = []
+    skipped_count = 0
+
+    for line in lines[header_idx + 1:]:
+        if not line.strip():
+            continue
+        try:
+            parts = next(csv.reader(io.StringIO(line), delimiter=';'))
+        except StopIteration:
+            continue
+        # Wiersz transakcji zaczyna się od daty (cyfra) — pomijamy stopki/śmieci.
+        if date_col >= len(parts) or not parts[date_col].strip()[:1].isdigit():
+            continue
+
+        date_str = parts[date_col].strip()
+        raw_desc = parts[desc_col].strip() if desc_col < len(parts) else ''
+        bank_category = parts[category_col].strip() if category_col is not None and category_col < len(parts) else ''
+        amount_str = parts[amount_col].strip() if amount_col < len(parts) else ''
+
+        if not amount_str.replace('PLN', '').strip():
+            continue
+        amount = _clean_amount(amount_str)
+        if amount is None:
+            logger.warning("Odrzucono wiersz mBank CSV — nieprawidłowa kwota (user_token=%s)", user_token)
+            skipped_count += 1
+            continue
+
+        try:
+            tx_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            try:
+                tx_date = datetime.strptime(date_str, '%d.%m.%Y').date()
+            except ValueError:
+                logger.warning("Odrzucono wiersz mBank — nieznany format daty (user_token=%s)", user_token)
+                skipped_count += 1
+                continue
+
+        # Opis mBanku wypełniony jest wieloma spacjami — zwijamy do pojedynczych, by tytuł był czytelny.
+        title = re.sub(r'\s+', ' ', raw_desc).strip()
+
+        acc_match = _MBANK_ACCOUNT_RE.search(raw_desc)
+        counterparty_account = acc_match.group(0) if acc_match else None
+
+        transactions.append({
+            'date': tx_date,
+            'contractor': None,
+            'title': title,
+            'amount': amount,
+            'counterparty_account': counterparty_account,
+            'account_id': main_account_id,
+            'bank_category': bank_category or None,
+        })
+
+    logger.info(
+        "Import CSV mBank zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
+        user_token, len(transactions), skipped_count
+    )
+    return {
+        'transactions': transactions,
+        'csv_accounts': [],
+        'skipped_count': skipped_count,
+    }
 
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _PERIOD_RE = re.compile(r'od\s*(\d{4}-\d{2}-\d{2})\s*do\s*(\d{4}-\d{2}-\d{2})')
@@ -516,7 +879,7 @@ def parse_ing_pdf(raw: bytes, user_token: str, main_account_id: Optional[int] = 
     Etykieta konta to linie MIĘDZY tymi dwiema kwotami.
 
     Rozpoznawanie kont dzieli logikę z parserem CSV (build_ing_account_maps /
-    resolve_ing_account_label w budget_service.py) — ING pokazuje w treści
+    resolve_ing_account_label wyżej w tym module) — ING pokazuje w treści
     transakcji przemianowane konto (np. "Wakacje") inaczej niż w nagłówku
     ("Otwarte Konto Oszczędnościowe"), identycznie jak w CSV.
 

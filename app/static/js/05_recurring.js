@@ -37,67 +37,6 @@ async function fetchRecurringPreview(year, month) {
     }
 }
 
-function generateVirtualTransactions(targetYear, targetMonth, startLimit, endLimit) { // Ta funkcja pozostaje, ale teraz operuje na danych z backendu
-    let virtualTx = [];
-    
-    let periodStart, periodEnd;
-    if (startLimit || endLimit) {
-        periodStart = startLimit ? new Date(startLimit) : new Date(2000, 0, 1);
-        periodEnd = endLimit ? new Date(endLimit) : new Date(2100, 11, 31);
-    } else {
-        periodStart = new Date(targetYear, targetMonth, 1);
-        periodEnd = new Date(targetYear, targetMonth + 1, 0);
-    }
-    
-    recurringTransactions.forEach(rt => {
-        const rtStart = new Date(rt.start_date);
-        const rtEnd = rt.end_date ? new Date(rt.end_date) : new Date(2100, 11, 31);
-        
-        if (rtEnd < periodStart || rtStart > periodEnd) return;
-
-        // Używamy next_run_date z backendu jako punktu startowego do generowania
-        let curr = new Date(rt.next_run_date);
-
-        // Generujemy wirtualne transakcje do przodu, aż do końca okresu
-        while (curr <= periodEnd && curr <= rtEnd) {
-            if (curr >= periodStart) {
-                virtualTx.push(createVirtualTxObject(rt, curr));
-            }
-            // Obliczanie następnej daty na podstawie częstotliwości
-            if (rt.frequency === 'monthly') {
-                curr.setMonth(curr.getMonth() + rt.interval);
-            } else if (rt.frequency === 'daily') {
-                curr.setDate(curr.getDate() + rt.interval);
-            } else if (rt.frequency === 'weekly') {
-                curr.setDate(curr.getDate() + (7 * rt.interval));
-            } else if (rt.frequency === 'yearly') {
-                curr.setFullYear(curr.getFullYear() + rt.interval);
-            } else {
-                break; // Nieznana częstotliwość, przerwij pętlę
-            }
-        }
-    });
-    return virtualTx;
-}
-
-function createVirtualTxObject(rt, dateObj) {
-    const y = dateObj.getFullYear();
-    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const d = String(dateObj.getDate()).padStart(2, '0');
-    return {
-        id: `virt-${rt.id}-${y}${m}${d}`,
-        date: `${y}-${m}-${d}`,
-        desc: `${rt.title}`,
-        amount: parseFloat(rt.amount),
-        category: categories.find(c => c.id === rt.category_id)?.name || 'Brak',
-        contractor_id: rt.contractor_id,
-        contractor_name: contractors.find(c => c.id === rt.contractor_id)?.name || 'Brak',
-        account_id: rt.account_id,
-        isVirtual: true,
-        virtualSourceId: rt.id
-    };
-}
-
 function getFullTransactionsList(monthFilter, startFilter, endFilter) {
     let year, month;
     if (monthFilter) {

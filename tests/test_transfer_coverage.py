@@ -18,9 +18,9 @@ from app.models import Account, Category, Contractor, Transaction
 from app.services.budget_service import (
     approve_staging_record,
     create_transaction,
-    parse_ing_csv,
     save_transactions_to_staging,
 )
+from app.services.statement_parsers import parse_ing_csv
 from app.services.import_history_service import record_statement_import
 
 

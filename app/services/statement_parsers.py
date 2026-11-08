@@ -94,6 +94,10 @@ def detect_bank_and_format(raw: bytes, filename: str = '') -> tuple[Optional[str
     lowered = text.lower()
     if '<html' in lowered[:2000]:
         if 'mbank' in lowered or 'bre.pl' in lowered:
+            # Drugi eksport HTML mBanku (spotkany na rachunku celowym) — inny
+            # układ kolumn, więc osobny parser; zwykły wziąłby saldo za kwotę.
+            if _MBANK_ZESTAWIENIE_MARKER in text:
+                return 'mbank', 'html-zest'
             return 'mbank', 'html'
         if 'millennium' in lowered:
             return 'millennium', 'html'
@@ -139,6 +143,11 @@ def extract_statement_ibans(raw: bytes, bank: Optional[str], fmt: Optional[str])
             return []
     if bank != 'mbank':
         return []
+    if fmt == 'html-zest':
+        try:
+            return _mbank_zestawienie_ibans(BeautifulSoup(decode_statement_bytes(raw), 'html.parser').get_text(' '))
+        except UnicodeDecodeError:
+            return []
     if fmt == 'pdf':
         try:
             import fitz
@@ -256,6 +265,83 @@ def parse_mbank_html(content: str, user_token: str, main_account_id: Optional[in
         'period_start': period_start,
         'period_end': period_end,
         'statement_ibans': statement_ibans,
+    }
+
+
+_MBANK_ZESTAWIENIE_MARKER = 'Elektroniczne zestawienie operacji'
+# W tym eksporcie numer rachunku stoi w nagłówku ze spacjami: '29 1140 2004 ...'.
+_MBANK_ZESTAWIENIE_IBAN_RE = re.compile(r'Numer rachunku\s*((?:\d\s*){26})')
+
+
+def _mbank_zestawienie_ibans(full_text: str) -> list[str]:
+    m = _MBANK_ZESTAWIENIE_IBAN_RE.search(full_text)
+    return [re.sub(r'\s', '', m.group(1))] if m else []
+
+
+def parse_mbank_zestawienie_html(content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
+    """Parsuje 'Elektroniczne zestawienie operacji' mBanku w HTML (jednokontowe).
+
+    Inny eksport niż 'Lista operacji' z parse_mbank_html: kolumny to
+    Data księgowania | Data operacji | Opis | Kwota | Saldo po operacji —
+    bez kategorii i bez rachunku. Data transakcji = data operacji, jak
+    w pozostałych formatach mBanku.
+    """
+    if main_account_id is None:
+        raise BrakKontaError("Wyciąg mBank dotyczy jednego konta — proszę wybrać konto docelowe przed importem.")
+
+    soup = BeautifulSoup(content, 'html.parser')
+    full_text = soup.get_text(' ')
+    period_start, period_end = _extract_period(full_text)
+
+    transactions: list[dict] = []
+    skipped_count = 0
+
+    for tr in soup.find_all('tr'):
+        tds = tr.find_all('td')
+        if len(tds) != 5:
+            continue
+        booking_str, date_str = tds[0].get_text(strip=True), tds[1].get_text(strip=True)
+        if not (_DATE_RE.match(booking_str) and _DATE_RE.match(date_str)):
+            continue
+
+        try:
+            tx_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            skipped_count += 1
+            continue
+
+        amount = _clean_amount(tds[3].get_text(strip=True))
+        if amount is None:
+            logger.warning("Odrzucono wiersz mBank HTML (zestawienie) — nieprawidłowa kwota (user_token=%s)", user_token)
+            skipped_count += 1
+            continue
+
+        parts = [re.sub(r'\s+', ' ', s).strip() for s in tds[2].strings]
+        parts = [p for p in parts if p]
+        acc_match = _MBANK_ACCOUNT_RE.search(' '.join(parts))
+        detail_parts = [p for p in parts[1:] if not _MBANK_ACCOUNT_RE.fullmatch(p)]
+
+        transactions.append({
+            'date': tx_date,
+            'contractor': ' '.join(detail_parts) or None,
+            'title': parts[0] if parts else '',
+            'amount': amount,
+            'counterparty_account': acc_match.group(0) if acc_match else None,
+            'account_id': main_account_id,
+            'bank_category': None,
+        })
+
+    logger.info(
+        "Import HTML mBank (zestawienie) zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
+        user_token, len(transactions), skipped_count
+    )
+    return {
+        'transactions': transactions,
+        'csv_accounts': [],
+        'skipped_count': skipped_count,
+        'period_start': period_start,
+        'period_end': period_end,
+        'statement_ibans': _mbank_zestawienie_ibans(full_text),
     }
 
 

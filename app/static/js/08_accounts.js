@@ -235,8 +235,12 @@ document.getElementById('account-form').addEventListener('submit', async functio
             if (id) {
                 if (is_default) accounts.forEach(a => a.is_default = false);
                 const idx = accounts.findIndex(a => a.id == id);
+                // Serwer przemianowuje razem z kontem jego kontrahenta „Moje konto: …” —
+                // słownik kontrahentów w pamięci jest wtedy nieaktualny.
+                const nazwaSieZmienila = idx !== -1 && accounts[idx].name !== saved.name;
                 if (idx !== -1) accounts[idx] = saved;
                 showToast('Zaktualizowano konto.');
+                if (nazwaSieZmienila) fetchInitialData();
             } else {
                 if (is_default) accounts.forEach(a => a.is_default = false);
                 accounts.push(saved);

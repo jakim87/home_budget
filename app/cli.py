@@ -199,6 +199,57 @@ def register_commands(app):
         logger.info("CLI feedback-delete: usunieto %d zgloszen", len(znalezione))
         click.echo(f'Usunięto {len(znalezione)}.')
 
+    @app.cli.command('fix-transfer-contractors')
+    @click.option('--dry-run', is_flag=True, default=False,
+                  help='Tylko pokaż, co zostałoby zmienione — nic nie zapisuj.')
+    @click.option('--yes', is_flag=True, default=False, help='Nie pytaj o potwierdzenie.')
+    @with_appcontext
+    def fix_transfer_contractors_command(dry_run, yes):
+        """Ujednolica nazwy kontrahentów „Moje konto: X” z nazwami kont, do których prowadzą.
+
+        Naprawa danych sprzed wersji, w której zmiana nazwy konta przemianowuje też jego
+        kontrahenta. Rusza tylko kontrahentów powiązanych z kontem, których nazwa zaczyna się
+        od „Moje konto: ” — nazwy ustawione inaczej zostają. Kontrahenta, któremu nowa nazwa
+        zrobiłaby duplikat aktywnego, pomija i wypisuje do ręcznego rozstrzygnięcia.
+        Można powtarzać: drugi przebieg nic już nie zmienia.
+        """
+        from app.services.contractor_service import ujednolic_nazwy_kontrahentow_kont
+
+        # Przebieg próbny idzie tym samym kodem co zapis, więc lista poniżej to dokładnie to,
+        # co zostanie zmienione.
+        zmienione, pominiete = ujednolic_nazwy_kontrahentow_kont(zapisz=False)
+        if not zmienione and not pominiete:
+            click.echo('Nazwy kontrahentów przelewów są aktualne — nic do zrobienia.')
+            return
+
+        # Nazwy kont pisze użytkownik, więc na terminal idą przez bezpieczny_tekst; strzałka
+        # z ASCII, bo konsola Windows bywa w cp1250.
+        if zmienione:
+            click.echo(f'Do przemianowania: {len(zmienione)}')
+            for z in zmienione:
+                stan = ', wyłączony' if not z['aktywny'] else ''
+                click.echo(bezpieczny_tekst(
+                    f"  #{z['kontrahent_id']} (konto #{z['konto_id']}{stan}): "
+                    f"{z['stara_nazwa']} -> {z['nowa_nazwa']}"))
+        if pominiete:
+            click.echo(f'Pominięte, do ręcznego rozstrzygnięcia: {len(pominiete)}')
+            for p in pominiete:
+                click.echo(bezpieczny_tekst(
+                    f"  #{p['kontrahent_id']} (konto #{p['konto_id']}): {p['stara_nazwa']} — {p['powod']}"))
+
+        if dry_run:
+            click.echo('Tryb próbny — nic nie zapisano.')
+            return
+        if not zmienione:
+            return
+        if not yes and not click.confirm(f'Przemianować {len(zmienione)}?'):
+            click.echo('Przerwano, nic nie zapisano.')
+            return
+
+        zapisane, _ = ujednolic_nazwy_kontrahentow_kont(zapisz=True)
+        logger.info("CLI fix-transfer-contractors: przemianowano %d kontrahentów", len(zapisane))
+        click.echo(f'Przemianowano {len(zapisane)}.')
+
     @app.cli.command('fetch-rates')
     @with_appcontext
     def fetch_rates_command():

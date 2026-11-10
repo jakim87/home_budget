@@ -58,6 +58,9 @@ flask reset-password             # Ustawia nowe hasło użytkownika (jedyna drog
 flask seed-demo                  # Odtwarza konto demo od zera (idempotentne — pod nocny timer)
 flask feedback-list              # Wypisuje uwagi użytkowników (jedyna droga odczytu)
 flask feedback-delete --id N     # Kasuje zgłoszenie na stałe
+flask fix-transfer-contractors   # Ujednolica nazwy kontrahentów „Moje konto: X” z nazwami ich kont
+                                 #   (dane sprzed przemianowywania przy zmianie nazwy konta);
+                                 #   --dry-run pokazuje zmiany bez zapisu, idempotentne
 
 # Tests
 pytest                           # Run all tests (~430 testów w 39 plikach; ok. 2 minuty lokalnie)
@@ -170,7 +173,7 @@ Poza „Odrzuć wszystkie" poczekalnia odrzuca precyzyjnie: jeden wiersz (`DELET
 
 Konto, które dostało lustra, a potem zaczyna dostawać wyciągi: prawdziwa noga z wyciągu **zastępuje lustro** zamiast stanąć obok niego (#217, `_legs_paired_with_mirror`) — ta sama kwota, okno ±4 dni, ta sama waluta, i wyłącznie `origin='mirror'`. Transakcja z `origin='unknown'` (dane sprzed kolumny) mogła przyjść z wyciągu, więc nie jest kasowana automatycznie — taki duplikat poprawia się ręcznie. Poczekalnia pokazuje taki wiersz jako `booked`.
 
-Kontrahent `Moje konto: X` jest **jeden na konto** i niesie `linked_account_id` — po nim szuka parowanie. `create_contractor` dla takiej nazwy zwraca istniejącego zamiast zakładać drugiego (#215); przelewy na duplikacie bez powiązania nie sparowałyby się nigdy.
+Kontrahent `Moje konto: X` jest **jeden na konto** i niesie `linked_account_id` — po nim szuka parowanie. `create_contractor` dla takiej nazwy zwraca istniejącego zamiast zakładać drugiego (#215); przelewy na duplikacie bez powiązania nie sparowałyby się nigdy. **Nazwa idzie za nazwą konta**: `update_account` przemianowuje kontrahentów powiązanych z tym kontem, których nazwa to dokładnie „Moje konto: <stara nazwa>” (`przemianuj_kontrahentow_konta`, w tej samej transakcji co konto) — nazwy ustawione inaczej zostają. Nie robi przy tym dwóch aktywnych kontrahentów o jednej nazwie (pole kontrahenta wybiera po nazwie, więc przelew mógłby trafić na tego bez powiązania): gdy inny aktywny kontrahent użytkownika ma już nową nazwę albo nie mieści się ona w 100 znakach kolumny, kontrahent konta zostaje przy starej nazwie, a zmiana nazwy konta przechodzi (w logu sam identyfikator, A10); wyłączonych kolizja nie dotyczy. Gdy kontrahentów konta jest kilku (dane sprzed przemianowywania), wybiera się ich zawsze tak samo — `kontrahent_konta()` w `contractor_service.py`: aktywny przed wyłączonym, potem najniższe id; nie pisz własnego `.first()` po `linked_account_id`. Dane sprzed tej zmiany wyrównuje `flask fix-transfer-contractors` (ta sama reguła kolizji; kontrahenta bez powiązania albo z nazwą spoza wzorca „Moje konto: …” nie rusza).
 
 Podgląd poczekalni pokazuje obie nogi tak, jak je zobaczy księgowanie (#169): **kierunek strzałki bierze się ze znaku kwoty**, nie z tego, czyj to wiersz (inaczej noga wpływu czyta się jak przelew powrotny), a `transfer_pair` mówi, skąd weźmie się druga strona — `staging` / `booked` / `mirror` / `missing`. Te cztery wartości to gałęzie decyzyjne `handle_internal_transfer`: `_pair_staging_transfer_legs` musi zostać z nimi zgodne, bo `missing` (jedyny stan z ostrzeżeniem) znaczy „saldo konta po drugiej stronie nie drgnie, dopóki jego noga nie zostanie zaimportowana". Parowanie jest 1:1 — sparowana noga zostaje zużyta.
 

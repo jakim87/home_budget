@@ -2,7 +2,7 @@ from app import db
 from app.models import Transaction, Account, TransactionStaging, Contractor, Category, TransactionSplit, StatementImport
 from app.services.import_history_service import account_has_statement_imports
 from app.services.category_service import find_by_name as find_category_by_name, find_owned as find_category_owned, list_active as list_active_categories
-from app.services.contractor_service import find_owned as find_contractor_owned
+from app.services.contractor_service import find_owned as find_contractor_owned, kontrahent_konta
 from collections import Counter
 from sqlalchemy.orm import aliased
 from datetime import date, datetime, timedelta
@@ -358,9 +358,7 @@ def handle_internal_transfer(
 
     # Kontrahent reprezentujący konto źródłowe (widoczny na transakcji docelowej).
     source_cont_name = f"Moje konto: {account.name}"
-    source_contractor = db.session.query(Contractor).filter_by(
-        user_token=user_token, linked_account_id=account.id
-    ).first()
+    source_contractor = kontrahent_konta(user_token, account.id)
     if not source_contractor:
         source_contractor = db.session.query(Contractor).filter_by(
             user_token=user_token, name=source_cont_name, is_active=True
@@ -601,9 +599,7 @@ def _internal_transfer_proposal(user_token: str, acc: Account) -> tuple[int, int
         transfer_cat = Category(name="Przelew wewnętrzny", type="transfer", user_token=user_token)
         db.session.add(transfer_cat)
         db.session.flush()
-    transfer_cont = db.session.query(Contractor).filter_by(
-        user_token=user_token, linked_account_id=acc.id
-    ).first()
+    transfer_cont = kontrahent_konta(user_token, acc.id)
     if not transfer_cont:
         transfer_cont = Contractor(
             name=f"Moje konto: {acc.name}", user_token=user_token,

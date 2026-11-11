@@ -4,6 +4,7 @@ from app.models import (
     Account, ACCOUNT_TYPES, Transaction, TransactionStaging, RecurringTransaction,
     PlannedTransaction, StatementImport, Contractor,
 )
+from app.services.contractor_service import przemianuj_kontrahentow_konta
 from app.services.exchange_rate_service import is_known_currency
 from decimal import Decimal
 from sqlalchemy import func
@@ -133,6 +134,7 @@ def update_account(user_token, a_id, data):
         acc = db.session.query(Account).filter_by(id=a_id, user_token=user_token).first()
         if not acc:
             raise ValueError('Nie znaleziono konta.')
+        stara_nazwa = acc.name
         acc.name = data.get('name', acc.name)
         acc.bank_name = data.get('bank_name', acc.bank_name)
         if 'account_number' in data:
@@ -151,6 +153,9 @@ def update_account(user_token, a_id, data):
                 Account.id != acc.id
             ).update({'is_default': False})
             acc.is_default = True
+        if acc.name != stara_nazwa:
+            # Kontrahent „Moje konto: X” niesie nazwę konta — idzie za nią, w tej samej transakcji.
+            przemianuj_kontrahentow_konta(user_token, acc, stara_nazwa)
         db.session.commit()
         return acc
     except Exception:

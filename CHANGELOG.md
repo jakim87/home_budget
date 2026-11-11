@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.2](https://github.com/jakim87/home_budget/compare/v1.4.1...v1.4.2) (2026-11-11)
+
+
+### Poprawki
+
+* poczekalnia pozwala zatwierdzić przelew mimo nieaktualnej nazwy kontrahenta konta ([#263](https://github.com/jakim87/home_budget/issues/263)) ([1b70f88](https://github.com/jakim87/home_budget/commit/1b70f889a169a8eaceeaa46bb4dd566bb9cd1720))
+* zmiana nazwy konta zmienia też nazwę jego kontrahenta „Moje konto: …” ([#262](https://github.com/jakim87/home_budget/issues/262)) ([eaa3c63](https://github.com/jakim87/home_budget/commit/eaa3c636544791646d10445a3ba3fa0c2229b1e5))
+
 ## [1.4.1](https://github.com/jakim87/home_budget/compare/v1.4.0...v1.4.1) (2026-11-08)
 
 

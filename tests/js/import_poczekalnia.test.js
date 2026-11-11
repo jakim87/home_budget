@@ -187,6 +187,49 @@ describe('opisDrugiejStrony', () => {
     });
 });
 
+describe('konto po drugiej stronie przelewu', () => {
+    // Konto „Wakacje" (id 2) nazywało się kiedyś „Urlop". Zmiana nazwy konta nie rusza jego
+    // kontrahenta, więc „Moje konto: Urlop" nie pasuje już po nazwie do żadnego konta —
+    // a serwer wciąż wie, które to konto (powiązanie), i podaje je w transfer_account_id.
+    const kontrahentZeStaraNazwa = () => {
+        contractors = [{ id: 21, name: 'Moje konto: Urlop' }, { id: 22, name: 'Moje konto: Moje ING' }];
+    };
+
+    it('serwer wskazuje konto — nazwa kontrahenta nie musi pasować do nazwy konta', () => {
+        kontrahentZeStaraNazwa();
+        const t = noga({ id: 1, account_id: 1, amount: -800, transfer_account_id: 2 });
+        expect(resolveStagingDestAccountId(t)).toBe('2');
+        expect(statusPozycji([t])).toBe('ready');
+    });
+
+    it('kontrahent spoza listy (wyłączony) nie blokuje przelewu', () => {
+        contractors = [];  // wyłączeni kontrahenci nie trafiają do /api/init
+        const t = noga({ id: 1, account_id: 1, amount: -800, transfer_account_id: 2 });
+        expect(statusPozycji([t])).toBe('ready');
+    });
+
+    it('para jest gotowa, gdy każda noga ma konto od serwera', () => {
+        kontrahentZeStaraNazwa();
+        const para = [
+            noga({ id: 1, account_id: 1, amount: -800, pair_id: 2, transfer_account_id: 2 }),
+            noga({ id: 2, account_id: 2, amount: 800, pair_id: 1, cont: 99, transfer_account_id: 1 }),
+        ];
+        expect(statusPozycji(para)).toBe('ready');
+    });
+
+    it('bez wskazania serwera obowiązuje dopasowanie po nazwie — stara nazwa kontrahenta blokuje', () => {
+        kontrahentZeStaraNazwa();
+        const t = noga({ id: 1, account_id: 1, amount: -800 });
+        expect(resolveStagingDestAccountId(t)).toBe('');
+        expect(statusPozycji([t])).toBe('todo');
+    });
+
+    it('wybór konta w tej sesji ma pierwszeństwo przed wskazaniem serwera', () => {
+        const t = noga({ id: 1, account_id: 1, amount: -800, transfer_account_id: 2, _dest_account_id: '3' });
+        expect(resolveStagingDestAccountId(t)).toBe('3');
+    });
+});
+
 describe('kwotaPrzelewu', () => {
     it('para w jednej walucie — jedna kwota', () => {
         const para = [noga({ id: 1, account_id: 1, amount: -800 }), noga({ id: 2, account_id: 2, amount: 800 })];
@@ -257,6 +300,24 @@ describe('renderStaging', () => {
         pendingStaging = [stg({ id: 1 }), stg({ id: 2, duplicate_candidates: [{ id: 9, origin: 'manual', days_diff: 0 }] })];
         renderStaging();
         expect(document.getElementById('approve-all-btn').textContent).toBe('Zatwierdź gotowe (1)');
+    });
+
+    it('para z kontrahentem o starej nazwie konta ma aktywny przycisk zatwierdzenia', () => {
+        contractors = [{ id: 21, name: 'Moje konto: Urlop' }, { id: 22, name: 'Moje konto: Moje ING' }];
+        pendingStaging = [
+            noga({ id: 1, account_id: 1, amount: -800, pair_id: 2, transfer_account_id: 2 }),
+            noga({ id: 2, account_id: 2, amount: 800, pair_id: 1, cont: 21, transfer_account_id: 1 }),
+        ];
+        renderStaging();
+        const przycisk = [...document.querySelectorAll('#staging-list button')].find(b => b.textContent === 'Zatwierdź obie');
+        expect(przycisk.disabled).toBe(false);
+    });
+
+    it('„To nie przelew" zdejmuje też wskazanie serwera — ponownie wybrany przelew wymaga wyboru konta', () => {
+        pendingStaging = [noga({ id: 1, account_id: 1, amount: -50, pair: 'mirror', transfer_account_id: 2 })];
+        renderStaging();
+        toNiePrzelew(1);
+        expect(resolveStagingDestAccountId(pendingStaging[0])).toBe('');
     });
 
     it('tytuł z banku trafia na stronę jako tekst, nie HTML', () => {

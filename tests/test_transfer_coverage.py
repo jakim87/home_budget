@@ -271,3 +271,78 @@ def test_poczekalnia_zapowiada_zastapienie_lustra(app, two_accounts):
 
     (wiersz,) = list_pending_staging(token)
     assert wiersz['transfer_pair'] == 'booked'
+
+
+# --- Konto po drugiej stronie przelewu wskazuje serwer, nie nazwa kontrahenta ---
+
+def _wypyw_z_a_w_poczekalni(token, acc_a, cat, cont):
+    """Wypływ z konta A czekający w poczekalni; kontrahent „Moje konto: …” wskazuje drugą stronę."""
+    from app.models import TransactionStaging
+    db.session.add(TransactionStaging(
+        date=date(2026, 6, 10), amount=Decimal("-300.00"), title="Przelew A→B",
+        user_token=token, account_id=acc_a.id,
+        proposed_category_id=cat.id, proposed_contractor_id=cont.id))
+    db.session.commit()
+
+
+@pytest.mark.parametrize("usterka", ["zmieniona_nazwa_konta", "kontrahent_wylaczony"])
+def test_poczekalnia_podaje_konto_przelewu_mimo_starej_nazwy_kontrahenta(app, two_accounts, usterka):
+    """Front dopasowywał konto po nazwie kontrahenta „Moje konto: X” — a ta przestaje pasować,
+    gdy konto zmieni nazwę (kontrahenta zmiana nazwy konta nie rusza) albo gdy kontrahent jest
+    wyłączony i nie ma go na liście z /api/init. Przycisk „Zatwierdź obie” zostawał wtedy
+    zablokowany, choć para była poprawnie sparowana. Konto wskazuje więc serwer: po twardym
+    powiązaniu, tą samą regułą, według której przelew zostanie zaksięgowany."""
+    from app.services.budget_service import list_pending_staging
+    token, acc_a, acc_b, cat, cont_to_b, _ = two_accounts
+    if usterka == "zmieniona_nazwa_konta":
+        acc_b.name = "Dziecko Mill"  # kontrahent zostaje przy „Moje konto: Konto B”
+    else:
+        cont_to_b.is_active = False
+    _wypyw_z_a_w_poczekalni(token, acc_a, cat, cont_to_b)
+
+    (wiersz,) = list_pending_staging(token)
+
+    assert wiersz['transfer_account_id'] == acc_b.id
+
+
+def test_poczekalnia_nie_zgaduje_konta_przelewu_bez_powiazania(app, two_accounts):
+    """Kontrahent „Moje konto: …” bez powiązania i bez konta o takiej nazwie: serwer nie
+    zgaduje, front prosi użytkownika o wskazanie konta."""
+    from app.services.budget_service import list_pending_staging
+    token, acc_a, _, cat, _, _ = two_accounts
+    cont = Contractor(name="Moje konto: Nieistniejące", user_token=token, default_category_id=cat.id)
+    db.session.add(cont)
+    db.session.commit()
+    _wypyw_z_a_w_poczekalni(token, acc_a, cat, cont)
+
+    (wiersz,) = list_pending_staging(token)
+
+    assert wiersz['transfer_account_id'] is None
+
+
+def test_para_laczy_sie_mimo_dwoch_kontrahentow_powiazanych_z_kontem(app, two_accounts):
+    """Po zmianie nazwy konta bywa przy nim dwóch kontrahentów „Moje konto: …”: stary, wyłączony,
+    i aktualny. Pierwsza noga niesie aktualnego, więc druga musi ją znaleźć niezależnie od tego,
+    którego z nich wybierze zapytanie o kontrahenta konta — inaczej obie nogi zostają bez pary,
+    choć salda są zaksięgowane."""
+    token, acc_a, acc_b, cat, cont_to_b, cont_to_a = two_accounts
+    _mark_has_statements(token, acc_a.id)
+    _mark_has_statements(token, acc_b.id)
+    cont_to_b.is_active = False                      # stary kontrahent konta B, niższe id
+    cont_to_b.name = "Moje konto: Stara nazwa B"
+    aktualny = Contractor(name="Moje konto: Konto B", user_token=token,
+                          default_category_id=cat.id, linked_account_id=acc_b.id)
+    db.session.add(aktualny)
+    db.session.commit()
+
+    wyplyw = create_transaction(token, acc_a.id, Decimal("-300.00"), "Przelew A→B",
+                                date(2026, 6, 10), category_id=cat.id, contractor_id=aktualny.id,
+                                preserve_sign=True, origin='import')
+    wplyw = create_transaction(token, acc_b.id, Decimal("300.00"), "Wpływ z A",
+                               date(2026, 6, 11), category_id=cat.id, contractor_id=cont_to_a.id,
+                               preserve_sign=True, origin='import')
+
+    assert wyplyw.linked_transaction_id == wplyw.id
+    assert wplyw.linked_transaction_id == wyplyw.id
+    assert db.session.get(Account, acc_a.id).balance == Decimal("700.00")
+    assert db.session.get(Account, acc_b.id).balance == Decimal("800.00")

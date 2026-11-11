@@ -1,0 +1,758 @@
+<title>Przelewy między kontami</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Układ: wąska kolumna czytania i szerokie wstawki (drabinka decyzji z próbnikiem, diagram stanów).
+   Wygląd: warstwa „Classical" aplikacji, czyli Cormorant Garamond + Lora, ochra i ciepła szarość.
+   Kolory znaczeń z palety „Noble": szałwia = para, łupek = lustro, bursztyn = czeka na drugą stronę. */
+:root{
+  --bg:#f3f2f2; --panel:#faf9f9; --panel-2:#e9e6e6;
+  --fg:#201f1d; --muted:#57534f; --faint:#6a6561;
+  --line:rgba(32,31,29,.16); --line-strong:rgba(32,31,29,.38);
+  --accent:#b68235; --accent-ink:#7a500f; --accent-soft:#f9ecd6;
+  --ok:#3a7058; --ok-soft:#e2eee8;
+  --info:#3d5b8a; --info-soft:#e3e9f3;
+  --wait:#85560f; --wait-soft:#f7ead0;
+  --bad:#964236; --bad-soft:#f4e1dd;
+  --font-head:"Cormorant Garamond",Georgia,"Times New Roman",serif;
+  --font-body:"Lora",Georgia,"Times New Roman",serif;
+  --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#1a1918; --panel:#232120; --panel-2:#2c2927;
+    --fg:#ece8e1; --muted:#bbb5ab; --faint:#a59f96;
+    --line:rgba(236,232,225,.16); --line-strong:rgba(236,232,225,.38);
+    --accent:#d0a45a; --accent-ink:#e3b66f; --accent-soft:#33291a;
+    --ok:#86c3a4; --ok-soft:#1d2d26;
+    --info:#98b5e4; --info-soft:#1e2836;
+    --wait:#e2b660; --wait-soft:#34291a;
+    --bad:#e69284; --bad-soft:#37211d;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1a1918; --panel:#232120; --panel-2:#2c2927;
+  --fg:#ece8e1; --muted:#bbb5ab; --faint:#a59f96;
+  --line:rgba(236,232,225,.16); --line-strong:rgba(236,232,225,.38);
+  --accent:#d0a45a; --accent-ink:#e3b66f; --accent-soft:#33291a;
+  --ok:#86c3a4; --ok-soft:#1d2d26;
+  --info:#98b5e4; --info-soft:#1e2836;
+  --wait:#e2b660; --wait-soft:#34291a;
+  --bad:#e69284; --bad-soft:#37211d;
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:16px;line-height:1.62;-webkit-text-size-adjust:100%}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+a{color:var(--accent-ink);text-underline-offset:3px}
+a:hover{color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+code{font-family:var(--font-mono);font-size:.84em;background:var(--panel-2);padding:.08em .38em;border-radius:3px;overflow-wrap:anywhere}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* nawigacja */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:18px;min-height:48px}
+.brand{font-family:var(--font-head);font-weight:600;font-size:1.2rem;white-space:nowrap}
+.nav{display:flex;gap:2px;margin-left:auto;overflow-x:auto;scrollbar-width:none;min-width:0}
+.nav::-webkit-scrollbar{display:none}
+.nav a{padding:6px 10px;text-decoration:none;color:var(--muted);font-size:.84rem;white-space:nowrap;border-radius:3px}
+.nav a:hover{color:var(--fg);background:var(--panel-2)}
+
+/* nagłówek strony */
+.hero{padding-block:54px 18px}
+.eyebrow{margin:0 0 14px;font-size:.76rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink)}
+h1{margin:0 0 18px;font-family:var(--font-head);font-weight:500;font-size:clamp(2.6rem,7vw,4.3rem);line-height:1.02;letter-spacing:-.02em;text-wrap:balance}
+.lead{margin:0;max-width:44em;font-size:1.16rem;color:var(--muted)}
+.meta{margin:16px 0 0;font-size:.84rem;color:var(--faint)}
+
+/* sekcje */
+section{padding-block:46px 6px;scroll-margin-top:64px}
+h2{margin:0 0 12px;font-family:var(--font-head);font-weight:600;font-size:clamp(1.85rem,4vw,2.45rem);line-height:1.1;text-wrap:balance}
+h3{margin:0 0 6px;font-family:var(--font-head);font-weight:600;font-size:1.45rem;line-height:1.2}
+p{margin:0 0 14px}
+.intro{max-width:46em;color:var(--muted)}
+.note{max-width:46em;font-size:.93rem;color:var(--muted)}
+
+/* chipy znaczeń */
+.chip{display:inline-block;padding:1px 9px;border-radius:999px;font-size:.73rem;font-weight:600;letter-spacing:.03em;white-space:nowrap;vertical-align:1px}
+.c-ok{background:var(--ok-soft);color:var(--ok)}
+.c-info{background:var(--info-soft);color:var(--info)}
+.c-wait{background:var(--wait-soft);color:var(--wait)}
+.c-bad{background:var(--bad-soft);color:var(--bad)}
+.c-none{background:var(--panel-2);color:var(--muted)}
+
+/* rysunek 1: dwie nogi */
+.legs{display:grid;grid-template-columns:minmax(0,1fr) 150px minmax(0,1fr);align-items:center;margin:22px 0 10px}
+.leg{background:var(--panel);border:1px solid var(--line-strong);border-radius:4px;padding:16px 18px 12px}
+.leg-k{margin:0 0 2px;font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.leg-acc{margin:0;font-family:var(--font-head);font-weight:600;font-size:1.4rem;line-height:1.2}
+.amount{margin:6px 0 8px;font-size:1.7rem;font-weight:500;font-variant-numeric:tabular-nums;line-height:1.2}
+.neg{color:var(--bad)} .pos{color:var(--ok)}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;margin:0;font-size:.9rem}
+.kv dt{color:var(--faint)} .kv dd{margin:0;overflow-wrap:anywhere}
+.link{display:grid;justify-items:center;gap:4px;padding:0 6px;text-align:center;color:var(--muted)}
+.link svg{display:block;width:60px;height:16px}
+.link span{font-size:.74rem;line-height:1.35}
+.link code{font-size:.66rem;white-space:nowrap}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px;margin:26px 0 6px}
+.facts h3,.ways h3,.topics h3{font-size:1.3rem}
+.facts p,.ways p,.topics li{font-size:.95rem;color:var(--muted)}
+.facts>div,.ways>div,.topics>div{border-top:2px solid var(--fg);padding-top:12px}
+
+/* trzy drogi powstania przelewu */
+.ways{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:22px;margin-top:20px}
+
+/* drabinka decyzji + próbnik */
+.lab{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);gap:30px;align-items:start;margin-top:22px}
+.ladder{list-style:none;margin:0;padding:0}
+.rung{position:relative;display:grid;grid-template-columns:36px minmax(0,1fr);gap:14px;padding-bottom:16px;transition:opacity .2s}
+.rung::before{content:"";position:absolute;left:17px;top:38px;bottom:0;width:1px;background:var(--line-strong)}
+.rung:last-child{padding-bottom:0}
+.rung:last-child::before{display:none}
+.rung-n{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;border:1px solid var(--line-strong);background:var(--bg);font-family:var(--font-head);font-weight:600;font-size:1.2rem;font-variant-numeric:lining-nums}
+.rung-b{border:1px solid var(--line);border-radius:4px;background:var(--panel);padding:11px 14px 9px;min-width:0}
+.rung-b p{margin:0 0 6px;font-size:.95rem}
+.rung-b .if{color:var(--muted)}
+.rung-b .if b{color:var(--fg);font-weight:600}
+.rung-st{min-height:1.2em;margin:0;font-size:.78rem;color:var(--faint)}
+.rung.is-hit .rung-b{border-color:var(--accent);background:var(--accent-soft)}
+.rung.is-hit .rung-n{background:var(--accent);border-color:var(--accent);color:#1a1918}
+.rung.is-skip{opacity:.5}
+.panel{background:var(--panel);border:1px solid var(--line-strong);border-radius:4px;padding:18px 18px 10px;min-width:0}
+.panel h3{margin-bottom:2px}
+.panel .premise{margin:0 0 14px;font-size:.93rem;color:var(--muted)}
+fieldset{margin:0 0 14px;padding:0;border:0;min-width:0}
+legend{padding:0;margin-bottom:6px;font-size:.84rem;font-weight:600}
+.opt{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);cursor:pointer;font-size:.9rem;line-height:1.4}
+.opt:hover{border-color:var(--line-strong)}
+.opt input{margin:.28em 0 0;accent-color:var(--accent);flex:none}
+.opt.is-on{border-color:var(--accent);background:var(--accent-soft)}
+.opt.is-off{opacity:.45;cursor:not-allowed}
+.opt.is-off:hover{border-color:var(--line)}
+.out{margin-top:4px;padding-top:12px;border-top:1px solid var(--line)}
+.out h3{margin:8px 0 4px;font-size:1.5rem}
+.out p{font-size:.92rem;color:var(--muted)}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:.9rem;font-variant-numeric:tabular-nums}
+th{padding:6px 10px 6px 0;text-align:left;font-size:.72rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);border-bottom:1px solid var(--line-strong);white-space:nowrap}
+td{padding:8px 10px 8px 0;border-bottom:1px solid var(--line);vertical-align:top}
+th.n,td.n{text-align:right;white-space:nowrap}
+td .sub{display:block;font-size:.78rem;line-height:1.35;color:var(--faint)}
+.ledger{margin:8px 0 6px}
+.trace{margin:6px 0 12px;padding:0;list-style:none;display:grid;gap:5px;font-size:.88rem}
+.trace li{display:flex;gap:8px;align-items:baseline}
+.trace li::before{content:"";flex:none;width:6px;height:6px;margin-top:.5em;border-radius:50%;background:var(--accent)}
+.refs{margin:0 0 10px;font-size:.78rem;color:var(--faint)}
+
+/* tabela poczekalni */
+.dot{display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:50%;vertical-align:0}
+.d-ok{background:var(--ok)} .d-info{background:var(--info)} .d-bad{background:var(--bad)}
+.states-t{min-width:700px}
+.states-t td:first-child{white-space:nowrap}
+.states-t strong{font-weight:600}
+.actions{margin:18px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px 26px}
+.actions li{font-size:.93rem;color:var(--muted);padding-top:10px;border-top:1px solid var(--line)}
+.actions b{color:var(--fg);font-weight:600}
+
+/* rysunek 3: diagram stanów */
+.fig{margin:22px 0 0}
+.fig figcaption{margin-top:8px;max-width:46em;font-size:.88rem;color:var(--faint)}
+.states{display:block;width:100%;min-width:760px;height:auto;color:var(--muted)}
+.states text{font-family:var(--font-body);fill:var(--fg)}
+.states .tt{font-size:15px;font-weight:600}
+.states .ts{font-size:12px;fill:var(--muted)}
+.states .tl{font-size:12px;fill:var(--muted);paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
+.states .node{fill:var(--panel);stroke:var(--line-strong);stroke-width:1.2}
+.states .n-ok{fill:var(--ok-soft);stroke:var(--ok)}
+.states .n-info{fill:var(--info-soft);stroke:var(--info)}
+.states .n-wait{fill:var(--wait-soft);stroke:var(--wait)}
+.states .edge{fill:none;stroke:currentColor;stroke-width:1.5}
+.states .edge.dash{stroke-dasharray:6 5}
+
+/* tematy "co dalej" */
+.topics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:26px 32px;margin-top:30px}
+.topics ul{margin:0;padding-left:1.1em}
+.topics li{margin-bottom:8px}
+.topics li::marker{color:var(--accent)}
+.limit{max-width:820px;margin:30px 0 0;padding:12px 16px;border-left:3px solid var(--accent);background:var(--accent-soft)}
+.limit h3{margin:0 0 4px;font-size:1.2rem}
+.limit p{margin:0;font-size:.93rem;color:var(--muted)}
+.hint{display:none;margin:0 0 6px;font-size:.8rem;color:var(--faint)}
+
+/* waluty */
+.fx{margin:20px 0 8px;max-width:760px}
+
+/* reguły */
+.rules{counter-reset:r;list-style:none;margin:20px 0 0;padding:0;max-width:820px}
+.rules li{counter-increment:r;display:grid;grid-template-columns:3.1em minmax(0,1fr);padding:11px 0;border-top:1px solid var(--line);scroll-margin-top:64px}
+.rules li::before{content:"R"counter(r);font-family:var(--font-head);font-weight:600;font-size:1.25rem;line-height:1.35;font-variant-numeric:lining-nums;color:var(--accent-ink)}
+.rules li:target{background:var(--accent-soft)}
+.rules p{margin:0;font-size:.95rem}
+details{margin:36px 0 0;border-top:1px solid var(--line-strong);padding-top:14px}
+summary{cursor:pointer;font-family:var(--font-head);font-weight:600;font-size:1.3rem}
+details ul{margin:12px 0 0;padding-left:1.1em;font-size:.9rem;color:var(--muted)}
+details li{margin-bottom:6px}
+footer{padding-block:34px 48px;font-size:.84rem;color:var(--faint)}
+
+@media (max-width:940px){
+  .lab{grid-template-columns:1fr}
+  .lab .panel{order:-1}
+}
+@media (max-width:720px){
+  .brand{display:none}
+  .nav{margin-left:0}
+  .hint{display:block}
+  /* tabela stanów poczekalni: na telefonie każdy wiersz staje się blokiem z podpisanymi polami */
+  .states-t{min-width:0}
+  .states-t thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .states-t,.states-t tbody,.states-t tr,.states-t td{display:block}
+  .states-t tr{padding:12px 0;border-top:1px solid var(--line-strong)}
+  .states-t td{padding:3px 0;border:0}
+  .states-t td::before{content:attr(data-label);display:block;font-size:.7rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .states-t td:first-child::before{display:none}
+  .hero{padding-block:34px 10px}
+  .legs{grid-template-columns:1fr}
+  .link{padding:10px 0}
+  .link svg{transform:rotate(90deg);margin:22px 0}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .rung{transition:none}
+}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <span class="brand">Ile mam kasy</span>
+    <nav class="nav" aria-label="Sekcje strony">
+      <a href="#podstawy">Podstawy</a>
+      <a href="#skad">Skąd przelew</a>
+      <a href="#druga-strona">Druga strona</a>
+      <a href="#poczekalnia">Poczekalnia</a>
+      <a href="#pozniej">Co dalej</a>
+      <a href="#waluty">Waluty</a>
+      <a href="#reguly">Reguły</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<div class="hero">
+  <p class="eyebrow">Dokumentacja biznesowa · Ile mam kasy</p>
+  <h1>Przelewy między kontami</h1>
+  <p class="lead">Przelew między Twoimi kontami to dwie operacje, nie jedna. Ta strona pokazuje, jak aplikacja je zapisuje, skąd bierze drugą stronę i co dzieje się z przelewem przy imporcie, edycji i usuwaniu.</p>
+  <p class="meta">Stan na 2026-11-09. Ten sam opis w postaci tekstu jest w rozdziale 4.4 pliku <code>docs/DOCUMENTATION.md</code>.</p>
+</div>
+
+<section id="podstawy">
+  <h2>Jedna decyzja, dwa wpisy</h2>
+  <p class="intro">Gdy przesuwasz pieniądze z jednego swojego konta na drugie, w historii powstają dwa wpisy: wypływ na koncie źródłowym i wpływ na koncie docelowym. Aplikacja nazywa je nogami przelewu i wiąże ze sobą, żeby traktować je jak jedną operację.</p>
+
+  <figure class="fig" style="margin-top:0">
+    <div class="legs">
+      <article class="leg" aria-label="Wypływ na koncie źródłowym">
+        <p class="leg-k">Noga 1 · wypływ</p>
+        <p class="leg-acc">Konto osobiste</p>
+        <p class="amount neg">−300,00 PLN</p>
+        <dl class="kv">
+          <dt>Tytuł</dt><dd>Zasilenie poduszki</dd>
+          <dt>Kategoria</dt><dd>Przelew wewnętrzny <span class="chip c-none">typ: przelew</span></dd>
+          <dt>Kontrahent</dt><dd>Moje konto: Poduszka finansowa</dd>
+          <dt>Saldo konta</dt><dd>1 000,00 → 700,00 PLN</dd>
+        </dl>
+      </article>
+      <div class="link" aria-hidden="true">
+        <svg viewBox="0 0 60 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 8H54"/><path d="M11 3L5 8l6 5"/><path d="M49 3l6 5-6 5"/></svg>
+        <span>powiązane przez<br><code>linked_transaction_id</code></span>
+      </div>
+      <article class="leg" aria-label="Wpływ na koncie docelowym">
+        <p class="leg-k">Noga 2 · wpływ</p>
+        <p class="leg-acc">Poduszka finansowa</p>
+        <p class="amount pos">+300,00 PLN</p>
+        <dl class="kv">
+          <dt>Tytuł</dt><dd>Zasilenie poduszki</dd>
+          <dt>Kategoria</dt><dd>Przelew wewnętrzny <span class="chip c-none">typ: przelew</span></dd>
+          <dt>Kontrahent</dt><dd>Moje konto: Konto osobiste</dd>
+          <dt>Saldo konta</dt><dd>500,00 → 800,00 PLN</dd>
+        </dl>
+      </article>
+    </div>
+    <figcaption>Przelew 300,00 zł zapisuje się jako dwie nogi. Kontrahent „Moje konto: …” na każdej z nich wskazuje konto po drugiej stronie, a powiązanie łączy nogi w parę.</figcaption>
+  </figure>
+
+  <div class="facts">
+    <div>
+      <h3>Co robi z wpisu przelew</h3>
+      <p>Kategoria typu przelew i kontrahent „Moje konto: …” działają razem, żadne z nich osobno nie wystarczy. Kontrahent jest powiązany z kontem, więc to konto, a nie nazwa, wskazuje, dokąd poszły pieniądze.</p>
+    </div>
+    <div>
+      <h3>Czym przelew nie jest</h3>
+      <p>Nie jest wydatkiem ani przychodem. Raporty domyślnie go pomijają, a Podsumowanie, wykres kategorii na Dashboardzie i Budżet nie liczą go do przychodów i wydatków.</p>
+    </div>
+    <div>
+      <h3>Co dzieje się z majątkiem</h3>
+      <p>Dwie nogi w tej samej walucie sumują się do zera, więc majątek netto się nie zmienia. Zmienia się tylko chwilowo, gdy jedna noga już jest, a druga jeszcze nie.</p>
+    </div>
+  </div>
+</section>
+
+<section id="skad">
+  <h2>Skąd bierze się przelew</h2>
+  <p class="intro">Są trzy drogi. Każda kończy się zapisem jednej nogi, a ten zapis uruchamia mechanizm szukania drugiej strony, opisany w następnej sekcji.</p>
+  <div class="ways">
+    <div>
+      <h3>Wpisujesz go sam</h3>
+      <p>W formularzu transakcji wybierasz kategorię typu przelew. Pole kontrahenta znika, a pojawia się wybór konta docelowego. Kwota jest zawsze wypływem z wybranego konta. Szybki wpis rozumie znacznik <code>&gt;konto</code>, na przykład „Zasilenie 300 &gt;Poduszka finansowa”.</p>
+    </div>
+    <div>
+      <h3>Importujesz wyciąg</h3>
+      <p>Wiersz jest przelewem, gdy numer rachunku kontrahenta z wyciągu jest numerem jednego z Twoich kont. W Revolucie przelewem jest wymiana walut między subkontami. Takie wiersze trafiają do poczekalni, do sekcji „Przelewy między Twoimi kontami”. Wyciąg obejmujący oba konta dostarcza obie nogi w jednym pliku.</p>
+    </div>
+    <div>
+      <h3>Ustawiasz go w harmonogramie</h3>
+      <p>Transakcje cykliczne i zaplanowane zapisują się tą samą funkcją co wpis ręczny. Przelew w harmonogramie to kategoria typu przelew i kontrahent „Moje konto: …”. W chwili wykonania zachowuje się jak wpis ręczny.</p>
+    </div>
+  </div>
+</section>
+
+<section id="druga-strona">
+  <h2>Skąd bierze się druga strona</h2>
+  <p class="intro">Gdy jedna noga zostaje zapisana, na przykład zatwierdzasz ją w poczekalni albo dodajesz ręcznie, aplikacja sprawdza zasady po kolei. Pierwsza spełniona rozstrzyga, dalszych już nie sprawdza. Poniżej konto, na którym zapisujesz nogę, to <strong>A</strong>, a konto po drugiej stronie to <strong>B</strong>.</p>
+
+  <div class="lab">
+    <ol class="ladder" id="ladder">
+      <li class="rung" data-n="1">
+        <div class="rung-n" aria-hidden="true">1</div>
+        <div class="rung-b">
+          <p class="if"><b>Jeśli</b> konto B jest nieznane albo jest tym samym kontem co A,</p>
+          <p><span class="chip c-none">bez pary</span> zostaje jedna noga. Aplikacja niczego nie dopisuje.</p>
+          <p class="rung-st"></p>
+        </div>
+      </li>
+      <li class="rung" data-n="2">
+        <div class="rung-n" aria-hidden="true">2</div>
+        <div class="rung-b">
+          <p class="if"><b>Jeśli</b> na koncie B czeka już niepowiązana noga tego przelewu: przeciwna kwota, kontrahent „Moje konto: A”, data w oknie ±4 dni,</p>
+          <p><span class="chip c-ok">para</span> obie nogi wiążą się ze sobą. Nic nie powstaje.</p>
+          <p class="rung-st"></p>
+        </div>
+      </li>
+      <li class="rung" data-n="3">
+        <div class="rung-n" aria-hidden="true">3</div>
+        <div class="rung-b">
+          <p class="if"><b>Jeśli</b> konta mają różne waluty,</p>
+          <p><span class="chip c-wait">czeka</span> noga czeka na drugą stronę. Między walutami lustra nie ma.</p>
+          <p class="rung-st"></p>
+        </div>
+      </li>
+      <li class="rung" data-n="4">
+        <div class="rung-n" aria-hidden="true">4</div>
+        <div class="rung-b">
+          <p class="if"><b>Jeśli</b> drugą nogę trzyma lustro na koncie A,</p>
+          <p><span class="chip c-ok">zastąpienie</span> prawdziwa noga zajmuje miejsce lustra. Lustro znika, saldo się nie zmienia.</p>
+          <p class="rung-st"></p>
+        </div>
+      </li>
+      <li class="rung" data-n="5">
+        <div class="rung-n" aria-hidden="true">5</div>
+        <div class="rung-b">
+          <p class="if"><b>Jeśli</b> konto B dostaje własne wyciągi,</p>
+          <p><span class="chip c-wait">czeka</span> noga czeka na wyciąg konta B i ma znacznik „Do zmapowania”. Saldo konta B się nie zmienia.</p>
+          <p class="rung-st"></p>
+        </div>
+      </li>
+      <li class="rung" data-n="6">
+        <div class="rung-n" aria-hidden="true">6</div>
+        <div class="rung-b">
+          <p class="if"><b>W przeciwnym razie</b></p>
+          <p><span class="chip c-info">lustro</span> aplikacja dopisuje wpływ na koncie B i zmienia jego saldo.</p>
+          <p class="rung-st"></p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="panel" aria-labelledby="panel-h">
+      <h3 id="panel-h">Sprawdź swoją sytuację</h3>
+      <p class="premise" id="premise"></p>
+
+      <fieldset>
+        <legend>Druga strona przelewu, czyli wpływ na koncie B</legend>
+        <label class="opt" id="o-druga-brak"><input type="radio" name="druga" value="brak" checked><span>Nie ma jej jeszcze w aplikacji</span></label>
+        <label class="opt" id="o-druga-jest"><input type="radio" name="druga" value="jest"><span id="t-druga-jest"></span></label>
+        <label class="opt" id="o-druga-lustro"><input type="radio" name="druga" value="lustro"><span>Jest zaksięgowana, a po stronie A stoi lustro dopisane wcześniej</span></label>
+      </fieldset>
+      <fieldset>
+        <legend>Konto B</legend>
+        <label class="opt" id="o-b-bez"><input type="radio" name="kontob" value="bez" checked><span>Nie dostaje własnych wyciągów, na przykład cel oszczędnościowy</span></label>
+        <label class="opt" id="o-b-z"><input type="radio" name="kontob" value="z"><span>Dostaje własne wyciągi, które importujesz</span></label>
+      </fieldset>
+      <fieldset>
+        <legend>Waluty kont</legend>
+        <label class="opt" id="o-w-pln"><input type="radio" name="waluta" value="pln" checked><span>Oba konta w PLN</span></label>
+        <label class="opt" id="o-w-eur"><input type="radio" name="waluta" value="eur"><span>Konto A w PLN, konto B w EUR</span></label>
+      </fieldset>
+
+      <div class="out" aria-live="polite">
+        <span class="chip" id="v-chip"></span>
+        <h3 id="v-title"></h3>
+        <p id="v-text"></p>
+        <div class="scroll">
+          <table class="ledger">
+            <caption class="sr">Salda przed i po zapisie nogi</caption>
+            <thead><tr><th scope="col">Konto i zmiana</th><th scope="col" class="n">Przed</th><th scope="col" class="n">Po</th></tr></thead>
+            <tbody id="v-ledger"></tbody>
+          </table>
+        </div>
+        <ul class="trace" id="v-trace"></ul>
+        <p class="refs" id="v-refs"></p>
+      </div>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:24px"><strong>Dlaczego lustro tylko dla kont bez wyciągów?</strong> Gdyby aplikacja dopisywała je także na koncie, które importuje własne wyciągi, ten sam wpływ policzyłby się dwa razy: raz z lustra, drugi raz z wyciągu. Konto „dostaje wyciągi”, gdy ma w historii importów choć jeden wpis. Lustro to wpis o pochodzeniu „lustro”, i tylko taki wpis może zostać później zastąpiony.</p>
+  <p class="note">Między walutami para łączy się tylko wtedy, gdy obie operacje mają ten sam dzień, przeciwny znak i identyczny tytuł. Tak jest przy wymianie w Revolucie. Parowanie jest zawsze jeden do jednego: sparowana noga nie bierze udziału w kolejnych.</p>
+</section>
+
+<section id="poczekalnia">
+  <h2>Co pokazuje poczekalnia importu</h2>
+  <p class="intro">W zakładce Import przelewy mają osobną sekcję „Przelewy między Twoimi kontami”. Kolumna „Druga strona” mówi, skąd weźmie się druga noga i czy saldo drugiego konta się ruszy. Stan liczy serwer tą samą regułą, według której przelew zostanie zaksięgowany, więc podgląd nie obiecuje niczego, czego zatwierdzenie nie zrobi.</p>
+
+  <div class="scroll">
+    <table class="states-t">
+      <caption class="sr">Cztery stany drugiej strony przelewu w poczekalni</caption>
+      <thead><tr><th scope="col">Stan</th><th scope="col">Co mówi aplikacja</th><th scope="col">Co robi zatwierdzenie</th><th scope="col">Saldo drugiego konta</th></tr></thead>
+      <tbody>
+        <tr>
+          <td data-label="Stan"><span class="dot d-ok"></span><strong>w tym imporcie</strong></td>
+          <td data-label="Co mówi aplikacja">„Obie operacje są w tym imporcie”. Para to jeden wiersz z przyciskiem „Zatwierdź obie”.</td>
+          <td data-label="Co robi zatwierdzenie">Zatwierdza po kolei wypływ i wpływ. Druga noga widzi pierwszą jako zaksięgowaną i łączy się z nią.</td>
+          <td data-label="Saldo drugiego konta">Zmienia się przy zatwierdzeniu wpływu.</td>
+        </tr>
+        <tr>
+          <td data-label="Stan"><span class="dot d-ok"></span><strong>już zaksięgowana</strong></td>
+          <td data-label="Co mówi aplikacja">„Druga strona jest już zaksięgowana”.</td>
+          <td data-label="Co robi zatwierdzenie">Łączy nogę z zaksięgowaną drugą stroną albo zastępuje lustro, które ją na razie reprezentuje.</td>
+          <td data-label="Saldo drugiego konta">Bez zmian, jej noga już jest.</td>
+        </tr>
+        <tr>
+          <td data-label="Stan"><span class="dot d-info"></span><strong>dopisze aplikacja</strong></td>
+          <td data-label="Co mówi aplikacja">„Dopisze ją aplikacja”. Konto po drugiej stronie nie dostaje wyciągów.</td>
+          <td data-label="Co robi zatwierdzenie">Dopisuje lustro na drugim koncie.</td>
+          <td data-label="Saldo drugiego konta">Zmienia się od razu.</td>
+        </tr>
+        <tr>
+          <td data-label="Stan"><span class="dot d-bad"></span><strong>brak</strong></td>
+          <td data-label="Co mówi aplikacja">„Brak — zaimportuj wyciąg z konta B”. Konto dostaje własne wyciągi albo ma inną walutę.</td>
+          <td data-label="Co robi zatwierdzenie">Księguje tylko tę nogę. To ostrzeżenie, nie blokada.</td>
+          <td data-label="Saldo drugiego konta">Nie zmienia się, dopóki nie zaimportujesz drugiej nogi.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ul class="actions">
+    <li><b>Zatwierdź obie.</b> Jeśli druga operacja się nie uda, pierwsza zostaje zaksięgowana, a druga czeka na liście jako „Druga strona jest już zaksięgowana”.</li>
+    <li><b>Rozdziel.</b> Pokazuje obie nogi pary osobno, każdą z własnym przyciskiem.</li>
+    <li><b>Zmień konto.</b> Wskazujesz konto po drugiej stronie. Stan z serwera przestaje wtedy obowiązywać, a aplikacja sprawdzi drugą stronę przy zatwierdzeniu.</li>
+    <li><b>To nie przelew.</b> Czyści kategorię i kontrahenta „Moje konto: …”. Operacja wraca do zwykłych operacji konta i wymaga zwykłej kategorii i kontrahenta. Zmiana trwa do zatwierdzenia.</li>
+    <li><b>Zatwierdź gotowe.</b> Pomija możliwe duplikaty, dopóki ich nie rozstrzygniesz. Lustro na koncie nogi przelewu nie jest duplikatem, bo zatwierdzenie je zastąpi.</li>
+  </ul>
+</section>
+
+<section id="pozniej">
+  <h2>Co dzieje się z przelewem później</h2>
+  <p class="intro">Po zapisie noga trafia do jednego z trzech stanów. Dwa z nich, czekanie i lustro, kończą się parą, gdy do aplikacji dojdzie prawdziwa druga noga.</p>
+
+  <figure class="fig">
+    <p class="hint">Na wąskim ekranie diagram przewija się w bok.</p>
+    <div class="scroll">
+      <svg class="states" viewBox="0 0 880 350" role="img" aria-label="Po zapisie noga przelewu trafia do stanu: para, noga bez pary albo noga z lustrem. Noga bez pary staje się parą, gdy przyjdzie druga noga z wyciągu. Noga z lustrem staje się parą, gdy konto docelowe zacznie dostawać wyciągi. Zmiana kategorii lub kontrahenta liczy drugą stronę od nowa.">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker>
+        </defs>
+
+        <path class="edge" d="M156 122H240V51H328" marker-end="url(#ah)"/>
+        <path class="edge" d="M156 145H716" marker-end="url(#ah)"/>
+        <path class="edge" d="M156 168H240V271H328" marker-end="url(#ah)"/>
+        <path class="edge" d="M540 51H630V122H716" marker-end="url(#ah)"/>
+        <path class="edge" d="M540 271H630V168H716" marker-end="url(#ah)"/>
+        <path class="edge dash" d="M852 190V338H81V193" marker-end="url(#ah)"/>
+
+        <rect class="node" x="6" y="100" width="150" height="90" rx="4"/>
+        <text class="tt" x="81" y="140" text-anchor="middle">Zapis nogi</text>
+        <text class="ts" x="81" y="160" text-anchor="middle">ręcznie albo z importu</text>
+
+        <rect class="node n-wait" x="330" y="12" width="210" height="78" rx="4"/>
+        <text class="tt" x="435" y="47" text-anchor="middle">Noga bez pary</text>
+        <text class="ts" x="435" y="67" text-anchor="middle">znacznik „Do zmapowania”</text>
+
+        <rect class="node n-info" x="330" y="232" width="210" height="78" rx="4"/>
+        <text class="tt" x="435" y="267" text-anchor="middle">Noga i lustro</text>
+        <text class="ts" x="435" y="287" text-anchor="middle">druga strona dopisana</text>
+
+        <rect class="node n-ok" x="718" y="100" width="150" height="90" rx="4"/>
+        <text class="tt" x="793" y="140" text-anchor="middle">Para</text>
+        <text class="ts" x="793" y="160" text-anchor="middle">dwie prawdziwe nogi</text>
+
+        <text class="tl" x="232" y="76" text-anchor="end">konto z wyciągami</text>
+        <text class="tl" x="232" y="92" text-anchor="end">albo inna waluta</text>
+        <text class="tl" x="435" y="136" text-anchor="middle">druga noga już jest</text>
+        <text class="tl" x="232" y="222" text-anchor="end">konto bez wyciągów,</text>
+        <text class="tl" x="232" y="238" text-anchor="end">ta sama waluta</text>
+        <text class="tl" x="640" y="70">druga noga z wyciągu</text>
+        <text class="tl" x="640" y="86">paruje się z pierwszą</text>
+        <text class="tl" x="640" y="222">wyciąg konta docelowego:</text>
+        <text class="tl" x="640" y="238">noga zastępuje lustro</text>
+        <text class="tl" x="450" y="329" text-anchor="middle">zmiana kategorii lub kontrahenta: druga strona liczona od nowa</text>
+      </svg>
+    </div>
+    <figcaption>Strzałki odpowiadają zasadom z drabinki: druga noga już jest (zasada 2), konto z wyciągami albo inna waluta (3 i 5), konto bez wyciągów (6), zastąpienie lustra (4).</figcaption>
+  </figure>
+
+  <div class="topics">
+    <div>
+      <h3>Druga strona dochodzi później</h3>
+      <ul>
+        <li><strong>Noga „Do zmapowania”.</strong> Gdy zatwierdzisz drugą nogę z wyciągu, obie wiążą się ze sobą, znacznik znika, a saldo drugiego konta zmienia się dopiero wtedy.</li>
+        <li><strong>Lustro.</strong> Gdy konto zacznie dostawać wyciągi, prawdziwa noga zastępuje lustro. Dotyczy to tylko wpisów o pochodzeniu „lustro”. Wpis o nieznanym pochodzeniu, z danych sprzed wprowadzenia tej informacji, nie jest kasowany automatycznie, a taki duplikat poprawia się ręcznie.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Edycja</h3>
+      <ul>
+        <li><strong>Kwota.</strong> Zmiana kwoty jednej nogi zmienia obie nogi i obie salda, a kierunek znaków zostaje. Przy kontach w różnych walutach druga noga zostaje bez zmian.</li>
+        <li><strong>Data.</strong> Idzie za drugą nogą tylko wtedy, gdy któraś z nich jest lustrem. Dwie nogi z wyciągów mają własne daty księgowania.</li>
+        <li><strong>Kategoria lub kontrahent.</strong> Druga strona jest liczona od nowa. Lustro znika, a noga z wyciągu zostaje odpięta i widać ją jako wpływ bez pary.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Usuwanie</h3>
+      <ul>
+        <li>Usunięcie jednej nogi usuwa też drugą i koryguje oba salda. Jest trwałe, bez archiwum i bez przywracania.</li>
+        <li>Przy usuwaniu zbiorczym aplikacja ostrzega przed operacją o nogach spoza zaznaczenia, które też znikną.</li>
+        <li>Zbiorcza zmiana kategorii pomija przelewy i nie pozwala nadać kategorii typu przelew, bo to wymaga wskazania konta docelowego.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Raporty i majątek netto</h3>
+      <ul>
+        <li>Raporty domyślnie wykluczają przelewy, bo inaczej podwajałyby obroty. Kafelek „Transfery” pokazuje ich sumę.</li>
+        <li>Gdy jedna noga czeka na drugą, majątek netto jest chwilowo niższy albo wyższy o kwotę przelewu, aż druga noga się zaksięguje.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="limit">
+    <h3>Znane ograniczenie: zmiana nazwy konta</h3>
+    <p>Przelewy działają dalej, bo kontrahent „Moje konto: …” jest powiązany z kontem, a nie z jego nazwą. Nazwa kontrahenta nie zmienia się jednak razem z kontem, więc w słowniku i na starych wpisach zostaje stara. Możesz ją poprawić ręcznie w słowniku kontrahentów.</p>
+  </div>
+</section>
+
+<section id="waluty">
+  <h2>Przelew między walutami</h2>
+  <p class="intro">Kwoty obu nóg dzieli kurs i spread banku, więc aplikacja niczego nie przelicza i nigdy nie dopisuje lustra. Konta w różnych walutach sparują się tylko wtedy, gdy obie operacje mają ten sam dzień, przeciwny znak i identyczny tytuł. Tak wygląda wymiana w Revolucie, gdzie tytuł niesie znacznik czasu.</p>
+  <div class="scroll fx">
+    <table>
+      <caption class="sr">Przykład wymiany walut: dwie nogi o identycznym tytule</caption>
+      <thead><tr><th scope="col">Konto</th><th scope="col">Tytuł</th><th scope="col" class="n">Kwota</th></tr></thead>
+      <tbody>
+        <tr><td>Konto złotowe</td><td>Wymiana na EUR 2026-11-02 15:19:27</td><td class="n neg">−430,00 PLN</td></tr>
+        <tr><td>Konto w euro</td><td>Wymiana na EUR 2026-11-02 15:19:27<span class="sub">ten sam dzień i identyczny tytuł, więc noga paruje się z pierwszą</span></td><td class="n pos">+100,00 EUR</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Edycja kwoty jednej nogi nie zmienia drugiej. Kursy służą wyłącznie do wyceny: majątek netto wycenia saldo każdego konta po kursie średnim NBP z końca miesiąca. Brak kursu oznacza, że konto wypada z sumy jawnie, a nie jako zero.</p>
+</section>
+
+<section id="reguly">
+  <h2>Reguły biznesowe</h2>
+  <p class="intro">Numery reguł są stałe i można się na nie powoływać. Ta sama lista jest w rozdziale 4.4 dokumentacji.</p>
+  <ol class="rules">
+    <li id="r1"><p>Przelew wewnętrzny to dwie powiązane transakcje, czyli nogi: wypływ na koncie źródłowym i wpływ na docelowym. Wiąże je <code>linked_transaction_id</code>. Przelew nie jest ani przychodem, ani wydatkiem.</p></li>
+    <li id="r2"><p>Wpis jest przelewem, gdy kategoria ma typ <code>transfer</code>, a kontrahent jest aktywny i nazywa się „Moje konto: …”. Potrzebne są oba warunki naraz.</p></li>
+    <li id="r3"><p>Konto docelowe wskazuje kontrahent „Moje konto: …” przez powiązanie z kontem (<code>linked_account_id</code>). Dopiero gdy powiązania brak, aplikacja dopasowuje konto po nazwie. Kontrahent przelewu powinien być jeden na konto.</p></li>
+    <li id="r4"><p>Noga dodana ręcznie albo z harmonogramu jest zawsze wypływem. W imporcie znak kwoty pochodzi z banku i się nie zmienia.</p></li>
+    <li id="r5"><p>Po zapisie nogi aplikacja sprawdza po kolei: konto po drugiej stronie, istniejącą nogę do sparowania, różne waluty, lustro do zastąpienia i własne wyciągi konta docelowego. Ostatnim krokiem jest lustro. Pierwsza spełniona zasada rozstrzyga.</p></li>
+    <li id="r6"><p>Para wymaga nogi na koncie docelowym, która jest jeszcze niepowiązana, ma kontrahenta wskazującego konto zapisywanej nogi, przeciwną kwotę i datę w oknie ±4 dni. Parowanie jest jeden do jednego.</p></li>
+    <li id="r7"><p>Lustro powstaje tylko na koncie, które nie dostaje własnych wyciągów, i tylko w tej samej walucie. Konto dostaje wyciągi, gdy ma w historii importów choć jeden wpis.</p></li>
+    <li id="r8"><p>Noga bez pary jest widoczna jako „Do zmapowania”. Saldo konta po drugiej stronie nie zmienia się, dopóki jego noga nie zostanie zatwierdzona z wyciągu.</p></li>
+    <li id="r9"><p>Prawdziwa noga z wyciągu zastępuje wcześniejsze lustro. Dotyczy to tylko wpisów o pochodzeniu „lustro”. Wpis o nieznanym pochodzeniu nie jest kasowany automatycznie.</p></li>
+    <li id="r10"><p>Między różnymi walutami nie powstaje lustro. Para łączy się tylko przy tym samym dniu, przeciwnym znaku i identycznym tytule.</p></li>
+    <li id="r11"><p>Edycja kwoty zmienia obie nogi i obie salda, ale tylko w tej samej walucie. Data idzie za drugą nogą tylko przy lustrze. Zmiana kategorii lub kontrahenta liczy drugą stronę od nowa: lustro znika, noga z wyciągu zostaje odpięta.</p></li>
+    <li id="r12"><p>Usunięcie jednej nogi usuwa obie i koryguje oba salda. Jest trwałe. Przy usuwaniu zbiorczym aplikacja ostrzega o nogach spoza zaznaczenia, a zbiorcza zmiana kategorii pomija przelewy.</p></li>
+    <li id="r13"><p>Raporty (domyślnie), Podsumowanie, wykres kategorii na Dashboardzie i Budżet nie liczą przelewów jako przychodu ani wydatku.</p></li>
+  </ol>
+
+  <details>
+    <summary>Dla programistów</summary>
+    <ul>
+      <li><code>budget_service.create_transaction</code> uruchamia <code>handle_internal_transfer</code>, gdy kategoria ma typ <code>transfer</code> i kontrahent jest aktywny oraz zaczyna się od „Moje konto: ”.</li>
+      <li><code>handle_internal_transfer</code> trzyma kolejność decyzji (R5). Warunki pary: <code>_transfer_legs_match</code>. Zastępowanie lustra: <code>_legs_paired_with_mirror</code>. Pokrycie wyciągami: <code>import_history_service.account_has_statement_imports</code>.</li>
+      <li>Konto docelowe wyznacza <code>_resolve_destination_account</code>: najpierw <code>linked_account_id</code>, potem nazwa. Ta sama reguła zasila poczekalnię (<code>list_pending_staging</code>, pole <code>transfer_account_id</code>).</li>
+      <li>Stany drugiej strony w poczekalni liczy <code>_pair_staging_transfer_legs</code>: <code>staging</code>, <code>booked</code>, <code>mirror</code>, <code>missing</code>.</li>
+      <li>Edycja i usuwanie: <code>transaction_service.update_transaction</code>, <code>_przelicz_druga_noge</code>, <code>delete_transaction</code>, <code>bulk_update_category</code>, <code>bulk_delete_transactions</code>.</li>
+      <li>Model: <code>Transaction.linked_transaction_id</code>, <code>Transaction.origin</code> (<code>mirror</code> oznacza lustro), <code>Contractor.linked_account_id</code>.</li>
+    </ul>
+  </details>
+</section>
+
+</main>
+
+<footer class="wrap">Ile mam kasy · dokumentacja biznesowa · przelewy między kontami · stan na 2026-11-09</footer>
+
+<script>
+(function () {
+  'use strict';
+  var NBSP = ' ';
+  var KURS = 4.3; // PLN za 1 EUR, tylko do wyceny w przykładzie
+  var $ = function (id) { return document.getElementById(id); };
+
+  function fmt(c, cur) {
+    var v = Math.abs(c);
+    var s = (v / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
+    return (c < 0 ? '−' : '') + s + NBSP + cur;
+  }
+  function fmtZm(c, cur) { return c === 0 ? '0,00' + NBSP + cur : (c > 0 ? '+' : '') + fmt(c, cur); }
+  function checked(name) { return document.querySelector('input[name="' + name + '"]:checked').value; }
+
+  // Numer zasady z drabinki, która rozstrzyga, w kolejności z handle_internal_transfer.
+  function ktora(s) {
+    if (s.druga === 'jest') return 2;
+    if (s.waluta === 'eur') return 3;
+    if (s.druga === 'lustro') return 4;
+    if (s.b === 'z') return 5;
+    return 6;
+  }
+
+  var WYNIK = {
+    2: { chip: 'c-ok', nazwa: 'para', tytul: 'Nowa noga łączy się z drugą stroną', refs: 'Zasady z drabinki: 2. Reguły: R5, R6, R10.' },
+    3: { chip: 'c-wait', nazwa: 'czeka', tytul: 'Noga czeka na drugą stronę', refs: 'Zasady z drabinki: 3. Reguły: R5, R8, R10.' },
+    4: { chip: 'c-ok', nazwa: 'zastąpienie', tytul: 'Prawdziwa noga zastępuje lustro', refs: 'Zasady z drabinki: 4. Reguły: R5, R9.' },
+    5: { chip: 'c-wait', nazwa: 'czeka', tytul: 'Noga czeka na drugą stronę', refs: 'Zasady z drabinki: 5. Reguły: R5, R7, R8.' },
+    6: { chip: 'c-info', nazwa: 'lustro', tytul: 'Aplikacja dopisuje lustro', refs: 'Zasady z drabinki: 6. Reguły: R5, R7.' }
+  };
+
+  function licz(s) {
+    var eur = s.waluta === 'eur';
+    var n = ktora(s);
+    var kA = eur ? 43000 : 30000;      // wypływ z A, w groszach waluty A
+    var kB = eur ? 10000 : 30000;      // wpływ na B, w groszach waluty B
+    var curA = 'PLN', curB = eur ? 'EUR' : 'PLN';
+    var pre = eur
+      ? { brak: { A: 100000, B: 10000 }, jest: { A: 100000, B: 20000 } }[s.druga]
+      : { brak: { A: 100000, B: 50000 }, jest: { A: 100000, B: 80000 }, lustro: { A: 70000, B: 80000 } }[s.druga];
+    var A = pre.A, B = pre.B, opisA = 'zapisana noga', opisB = '';
+    var tekst, slad;
+
+    if (n === 2) {
+      A -= kA; opisB = 'bez zmian, jej noga już była zaksięgowana';
+      tekst = 'Wpływ na koncie B jest już zaksięgowany, więc nowa noga wiąże się z nim. Aplikacja niczego nie dopisuje. ' +
+        (eur ? 'Między walutami para łączy się, bo obie operacje mają ten sam dzień i identyczny tytuł. ' : '') +
+        'Przed tym zapisem majątek był zawyżony o kwotę przelewu, bo wpływ już był, a wypływu jeszcze nie.';
+      slad = ['Konto A: ' + fmt(-kA, curA) + ', noga', 'Konto B: ' + fmtZm(kB, curB) + ', noga zaksięgowana wcześniej', 'Obie nogi są powiązane'];
+    } else if (n === 4) {
+      opisA = 'nowa noga ' + fmt(-kA, curA) + ', znika lustro ' + fmtZm(kA, curA);
+      opisB = 'bez zmian';
+      tekst = 'Wpływ na koncie B jest zaksięgowany, a po stronie A stało lustro dopisane wtedy, gdy A nie dostawało wyciągów. Teraz przyszła prawdziwa noga z wyciągu: lustro znika, a nowa noga wiąże się z nogą B. Salda się nie zmieniają, więc nic nie liczy się podwójnie.';
+      slad = ['Konto A: ' + fmt(-kA, curA) + ', noga z wyciągu, lustro usunięte', 'Konto B: ' + fmtZm(kB, curB) + ', noga', 'Obie nogi są powiązane'];
+    } else if (n === 3 || n === 5) {
+      A -= kA; opisB = 'bez zmian, czeka na wyciąg konta B';
+      tekst = (n === 3
+        ? 'Konta mają różne waluty, więc aplikacja nie dopisuje lustra: kwoty nóg dzieli kurs i spread. '
+        : 'Konto B dostaje własne wyciągi, więc jego wpływ przyjdzie z wyciągu. Aplikacja nie dopisuje lustra, bo ten sam wpływ policzyłby się dwa razy. ') +
+        'Noga ma znacznik „Do zmapowania”, a saldo konta B nie zmienia się, dopóki jej nie zaimportujesz. Do tego czasu majątek netto jest niższy o kwotę przelewu.';
+      slad = ['Konto A: ' + fmt(-kA, curA) + ', noga, znacznik „Do zmapowania”', 'Konto B: brak wpisu do czasu wyciągu konta B'];
+    } else {
+      A -= kA; B += kB; opisB = 'lustro dopisane przez aplikację';
+      tekst = 'Konto B nie dostaje własnych wyciągów, na przykład jako cel oszczędnościowy, więc nikt inny nie zapisze wpływu. Aplikacja dopisuje go sama na koncie B i zmienia jego saldo. Majątek netto się nie zmienia.';
+      slad = ['Konto A: ' + fmt(-kA, curA) + ', noga', 'Konto B: ' + fmtZm(kB, curB) + ', lustro dopisane przez aplikację', 'Obie nogi są powiązane'];
+    }
+
+    var wartosc = function (a, b) { return a + (eur ? Math.round(b * KURS) : b); };
+    return {
+      n: n, kA: kA, kB: kB, curA: curA, curB: curB, eur: eur,
+      wiersze: [
+        { nazwa: 'Konto A', cur: curA, przed: pre.A, po: A, opis: opisA },
+        { nazwa: 'Konto B', cur: curB, przed: pre.B, po: B, opis: opisB },
+        { nazwa: 'Majątek netto', cur: 'PLN', przed: wartosc(pre.A, pre.B), po: wartosc(A, B), opis: eur ? 'B wyceniony po kursie 4,30 PLN/EUR' : '' }
+      ],
+      tekst: tekst, slad: slad
+    };
+  }
+
+  function ustawOpcje(id, wlaczona, zaznaczona) {
+    var l = $(id);
+    l.classList.toggle('is-off', !wlaczona);
+    l.classList.toggle('is-on', !!zaznaczona && wlaczona);
+    l.querySelector('input').disabled = !wlaczona;
+  }
+
+  function render() {
+    var eur = checked('waluta') === 'eur';
+    // Lustra między walutami nie ma, więc ten wariant znika razem z wyborem EUR.
+    if (eur && checked('druga') === 'lustro') document.querySelector('input[name="druga"][value="brak"]').checked = true;
+    var s = { druga: checked('druga'), b: checked('kontob'), waluta: checked('waluta') };
+
+    $('t-druga-jest').textContent = eur
+      ? 'Jest już zaksięgowana: +100,00 EUR na B, ten sam dzień i identyczny tytuł'
+      : 'Jest już zaksięgowana: +300,00 PLN na B, data w oknie ±4 dni';
+    $('premise').textContent = eur
+      ? 'Zapisujesz wypływ 430,00 PLN z konta A. Na koncie B, w euro, ma pojawić się 100,00 EUR.'
+      : 'Zapisujesz wypływ 300,00 PLN z konta A na konto B.';
+
+    var drugaBrak = s.druga === 'brak';
+    ustawOpcje('o-druga-brak', true, s.druga === 'brak');
+    ustawOpcje('o-druga-jest', true, s.druga === 'jest');
+    ustawOpcje('o-druga-lustro', !eur, s.druga === 'lustro');
+    // Własne wyciągi konta B rozstrzygają tylko wtedy, gdy nie ma jeszcze drugiej nogi i waluty są te same.
+    var wyciagiMajaZnaczenie = drugaBrak && !eur;
+    ustawOpcje('o-b-bez', wyciagiMajaZnaczenie, s.b === 'bez');
+    ustawOpcje('o-b-z', wyciagiMajaZnaczenie, s.b === 'z');
+    ustawOpcje('o-w-pln', true, s.waluta === 'pln');
+    ustawOpcje('o-w-eur', true, s.waluta === 'eur');
+
+    var r = licz(s), w = WYNIK[r.n];
+    var chip = $('v-chip');
+    chip.className = 'chip ' + w.chip;
+    chip.textContent = w.nazwa;
+    $('v-title').textContent = w.tytul;
+    $('v-text').textContent = r.tekst;
+    $('v-refs').textContent = w.refs;
+
+    var tbody = $('v-ledger');
+    tbody.textContent = '';
+    r.wiersze.forEach(function (x) {
+      var tr = document.createElement('tr');
+      var th = document.createElement('td'); th.textContent = x.nazwa;
+      var sub = document.createElement('span'); sub.className = 'sub';
+      sub.textContent = 'zmiana ' + fmtZm(x.po - x.przed, x.cur) + (x.opis ? ' · ' + x.opis : '');
+      th.appendChild(sub);
+      var p = document.createElement('td'); p.className = 'n'; p.textContent = fmt(x.przed, x.cur);
+      var o = document.createElement('td'); o.className = 'n'; o.textContent = fmt(x.po, x.cur);
+      [th, p, o].forEach(function (c) { tr.appendChild(c); });
+      tbody.appendChild(tr);
+    });
+
+    var trace = $('v-trace');
+    trace.textContent = '';
+    r.slad.forEach(function (t) { var li = document.createElement('li'); li.textContent = t; trace.appendChild(li); });
+
+    document.querySelectorAll('#ladder .rung').forEach(function (li) {
+      var k = Number(li.getAttribute('data-n'));
+      li.classList.toggle('is-hit', k === r.n);
+      li.classList.toggle('is-skip', k > r.n);
+      li.querySelector('.rung-st').textContent = k < r.n ? 'Nie spełnione, sprawdzam dalej.' : (k === r.n ? 'Spełnione. To rozstrzyga.' : 'Nie sprawdzane.');
+    });
+  }
+
+  document.querySelectorAll('.panel input[type="radio"]').forEach(function (i) { i.addEventListener('change', render); });
+  render();
+})();
+</script>

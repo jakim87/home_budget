@@ -380,6 +380,12 @@ def handle_internal_transfer(
     # Zwykły wpływ zewnętrzny nie ma takiego kontrahenta, więc nie zostanie błędnie
     # sparowany. Data z tolerancją — banki księgują obie strony w różnych dniach.
     counter_amount = -new_transaction.amount
+    # Druga noga mogła zostać zapisana na którymkolwiek z kontrahentów powiązanych z tym kontem:
+    # po zmianie nazwy konta bywa ich dwóch (stary, wyłączony, i aktualny), a wcześniejsza noga
+    # mogła trafić na starego. Dlatego szukamy po wszystkich, nie tylko po wybranym wyżej.
+    kontrahenci_konta = {source_contractor.id, *(
+        cid for (cid,) in db.session.query(Contractor.id).filter_by(
+            user_token=user_token, linked_account_id=account.id))}
     window_start = transaction_date - timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
     window_end = transaction_date + timedelta(days=_TRANSFER_MATCH_WINDOW_DAYS)
     kandydaci = (
@@ -387,7 +393,7 @@ def handle_internal_transfer(
         .filter(
             Transaction.user_token == user_token,
             Transaction.account_id == dest_account.id,
-            Transaction.contractor_id == source_contractor.id,
+            Transaction.contractor_id.in_(kontrahenci_konta),
             Transaction.linked_transaction_id.is_(None),
             Transaction.id != new_transaction.id,
             Transaction.date >= window_start,
@@ -1085,6 +1091,10 @@ def list_pending_staging(user_token: str) -> list[dict]:
             item['transfer_from'] = {'name': zrodlo[0], 'abbrev': _abbrev_account(zrodlo[1])}
             item['transfer_to'] = {'name': cel[0], 'abbrev': _abbrev_account(cel[1])}
             item['transfer_own'] = 'to' if tx.amount > 0 else 'from'
+            # Konto po drugiej stronie wg reguły księgowania (powiązanie, potem nazwa). Front
+            # nie odgaduje go po nazwie kontrahenta: po zmianie nazwy konta ta bywa nieaktualna,
+            # a wyłączonego kontrahenta front w ogóle nie dostaje.
+            item['transfer_account_id'] = other_acc.id if other_acc else None
             if own_acc and other_acc:
                 legs.append((tx, other_acc))
                 leg_items.append(item)

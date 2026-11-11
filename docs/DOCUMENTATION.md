@@ -1,6 +1,6 @@
 # Dokumentacja projektu: Ile mam kasy
 
-> Ostatnia aktualizacja: 2026-06-21
+> Ostatnia aktualizacja: 2026-11-09
 > Zakres: dokumentacja biznesowa (procesy, wymagania, przepływy)
 
 ---
@@ -39,7 +39,7 @@
 - **Kategoryzacja transakcji** — własne kategorie wydatków, przychodów i transferów; obsługa podziałów transakcji (split) na wiele kategorii
 - **Transakcje cykliczne** — definicje automatycznie wykonywanych transakcji wg harmonogramu (dziennie, tygodniowo, miesięcznie, rocznie)
 - **Transakcje zaplanowane** — jednorazowe transakcje z określoną datą wykonania w przyszłości
-- **Przelewu wewnętrzne** — automatyczne tworzenie lustrzanej transakcji na koncie docelowym przy przelewie między własnymi kontami
+- **Przelewy wewnętrzne** — przelew między własnymi kontami to dwie powiązane operacje (nogi); druga strona pochodzi z wyciągu drugiego konta albo, gdy to konto nie dostaje wyciągów, jest dopisywana automatycznie jako lustro (patrz 4.4)
 - **Dashboard** — Net Worth z porównaniem do poprzedniego miesiąca i roku, majątek w czasie (razem albo wg typu kont), przychody i wydatki wg wybranych kategorii, udział majątku wg typu kont; klik w miesiąc prowadzi do jego transakcji albo raportu
 - **Raporty** — osobna zakładka z filtrowaniem po zakresie dat, kategoriach i kontach; wykresy słupkowe i liniowe, domyślnie z wyłączeniem przelewów wewnętrznych (inaczej podwajałyby obroty)
 - **Budżet miesięczny** — plan kwoty na kategorię w danym miesiącu, zestawiony z wykonaniem i z rezerwacjami z harmonogramu; planowane są obie strony (przychody i wydatki), więc widać, czy plan wydatków mieści się w planie przychodów
@@ -56,7 +56,10 @@
 | **Kontrahent** | Słownikowy wpis reprezentujący sklep, osobę lub instytucję; zawiera reguły automatycznego mapowania |
 | **Staging** | Strefa buforowa dla transakcji zaimportowanych z wyciągu, oczekujących na weryfikację użytkownika |
 | **Split** | Podział jednej transakcji na kilka pozycji z różnymi kategoriami i kwotami |
-| **Przelew wewnętrzny** | Transfer między własnymi kontami — generuje dwie sprzężone transakcje (rozchód + przychód) |
+| **Przelew wewnętrzny** | Transfer między własnymi kontami — dwie powiązane transakcje (nogi): wypływ na koncie źródłowym i wpływ na docelowym. Nie jest przychodem ani wydatkiem |
+| **Noga przelewu** | Jedna z dwóch transakcji przelewu wewnętrznego; nogi wiąże `linked_transaction_id` |
+| **Lustro** | Noga dopisana przez aplikację (`origin = 'mirror'`) na koncie, które nie dostaje własnych wyciągów; zastępowana prawdziwą nogą, gdy ta przyjdzie z wyciągu |
+| **Do zmapowania** | Znacznik nogi przelewu bez pary — czeka na drugą stronę z wyciągu drugiego konta |
 | **Transakcja cykliczna** | Definicja automatycznie powtarzającej się transakcji (np. czynsz co miesiąc) |
 | **Transakcja zaplanowana** | Jednorazowa transakcja zaplanowana na konkretną datę w przyszłości |
 | **Uzgadnianie salda** | Korekta salda konta przez transakcję systemową, gdy saldo w aplikacji rozmija się z rzeczywistym |
@@ -174,7 +177,7 @@ Użytkownik wybiera kategorię i kontrahenta w dropdownie
          ▼
   create_transaction() — zapis do tabeli transactions
   - automatyczna aktualizacja Account.balance
-  - jeśli kategoria = 'transfer': tworzy lustrzaną transakcję
+  - jeśli kategoria = 'transfer': szuka drugiej nogi przelewu — paruje ją albo dopisuje lustro (patrz 4.4)
          │
          ▼
   Usunięcie rekordu ze staging
@@ -207,11 +210,23 @@ Po zapisaniu saldo konta jest natychmiast aktualizowane.
 
 ### 4.4 Przelew wewnętrzny
 
-**Cel:** Odwzorowanie przesunięcia środków między własnymi kontami bez sztucznego zawyżania wydatków/przychodów.
+**Cel:** Odwzorowanie przesunięcia środków między własnymi kontami bez sztucznego zawyżania wydatków i przychodów.
 
-**Warunek wyzwolenia (backend):** kategoria transakcji ma typ `transfer` ORAZ kontrahent ma nazwę w formacie `Moje konto: <nazwa konta>`.
+**Wizualizacja:** [przelewy-miedzy-kontami.html](przelewy-miedzy-kontami.html) pokazuje tę samą logikę na diagramach, z próbnikiem scenariuszy („co zrobi aplikacja w mojej sytuacji”). To samodzielny plik, który otwiera się w przeglądarce. Reguły z niego (R1–R13) są wypisane na końcu tego rozdziału.
 
-**Formularz ręczny — nowy przepływ UI:**
+**Model:** przelew to dwie transakcje, zwane nogami: wypływ na koncie źródłowym i wpływ na koncie docelowym. Wiąże je `Transaction.linked_transaction_id`. Przelew nie jest przychodem ani wydatkiem: Raporty (domyślnie), Podsumowanie, wykres kategorii na Dashboardzie i Budżet go pomijają, a majątek netto w jednej walucie się nie zmienia, bo nogi sumują się do zera.
+
+**Warunek wyzwolenia (backend):** kategoria transakcji ma typ `transfer` ORAZ kontrahent jest aktywny i ma nazwę w formacie `Moje konto: <nazwa konta>`. Kontrahent wskazuje konto docelowe przez twarde powiązanie z kontem (`Contractor.linked_account_id`); dopiero gdy powiązania brak, konto jest dopasowywane po nazwie. Dzięki temu zmiana nazwy konta nie psuje przelewów.
+
+**Skąd bierze się przelew:**
+
+| Droga | Jak działa |
+|-------|------------|
+| Wpis ręczny | Wybór kategorii typu `transfer` ukrywa pole kontrahenta i pokazuje wybór konta docelowego; kwota jest zawsze wypływem. Szybki wpis rozumie znacznik `>konto` |
+| Import wyciągu | Wiersz jest przelewem, gdy numer rachunku kontrahenta jest numerem jednego z kont użytkownika; w Revolucie przelewem jest wymiana walut między subkontami. Wyciąg obejmujący oba konta dostarcza obie nogi w jednym pliku. Wiersze trafiają do sekcji „Przelewy między Twoimi kontami” w poczekalni |
+| Harmonogram | Transakcje cykliczne i zaplanowane zapisują się tą samą funkcją co wpis ręczny (`create_transaction`) |
+
+**Formularz ręczny — przepływ UI:**
 
 ```
 Użytkownik wybiera kategorię typu "transfer"
@@ -231,27 +246,71 @@ Użytkownik wybiera kategorię typu "transfer"
   Następnie wysyła transakcję z contractor_id.
 ```
 
-**Mechanizm backendu (`create_transaction`):**
+**Skąd bierze się druga strona (`handle_internal_transfer`):** po zapisie nogi na koncie A (kontrahent „Moje konto: B”) aplikacja sprawdza zasady po kolei; pierwsza spełniona rozstrzyga i dalsze nie są sprawdzane. Zasady działają symetrycznie, także gdy jako pierwsza zapisywana jest noga wpływu.
 
 ```
-Transakcja źródłowa (np. -1000 PLN na Koncie A)
+Zapisano nogę na koncie A, kontrahent „Moje konto: B”
          │
-         ▼
-  System szuka konta o nazwie = <część po "Moje konto: ">
-         │
-         ├── Konto docelowe NIE istnieje → zapis tylko transakcji źródłowej
-         │
-         └── Konto docelowe ISTNIEJE (i różne od źródłowego):
-              │
-              ├── Sprawdza czy lustrzana transakcja już istnieje
-              │   (deduplikacja przy imporcie obustronnego wyciągu)
-              │
-              └── Tworzy transakcję lustrzaną (+1000 PLN na Koncie B)
-                  - kontrahent: "Moje konto: <nazwa Konta A>"
-                  - auto-usunięcie pasującego rekordu ze stagingu
+  1. Konto B nieznane albo to samo konto co A?
+     └─ TAK → zostaje jedna noga (bez pary, bez lustra)
+         │ NIE
+  2. Na koncie B czeka niepowiązana noga tego przelewu:
+     przeciwna kwota, kontrahent „Moje konto: A”, data w oknie ±4 dni?
+     └─ TAK → PARA: nogi wiążą się ze sobą, nic nie powstaje
+         │ NIE
+  3. Konta mają różne waluty?
+     └─ TAK → noga czeka na drugą stronę (lustra między walutami nie ma)
+         │ NIE
+  4. Drugą nogę trzyma lustro na koncie A (origin = 'mirror')?
+     └─ TAK → prawdziwa noga ZASTĘPUJE lustro, saldo bez zmian
+         │ NIE
+  5. Konto B dostaje własne wyciągi (ma wpis w historii importów)?
+     └─ TAK → noga czeka na wyciąg konta B, znacznik „Do zmapowania”
+         │ NIE
+  6. LUSTRO: aplikacja dopisuje wpływ na koncie B (origin = 'mirror')
+     i zmienia jego saldo
 ```
 
-**Znak kwoty:** wyznaczany automatycznie — kategoria `transfer` jest traktowana jak wydatek (kwota ujemna na koncie źródłowym); konto docelowe otrzymuje lustrzaną kwotę dodatnią.
+Dlaczego lustro tylko dla kont bez wyciągów: lustro na koncie, które importuje własne wyciągi, liczyłoby ten sam wpływ dwa razy, z lustra i z wyciągu. Konto „dostaje wyciągi”, gdy ma w historii importów choć jeden wpis. Gdy lustro powstaje, a w poczekalni czeka już wiersz tego samego wpływu (ta sama kwota i data, kontrahent „Moje konto: A”), aplikacja usuwa ten wiersz, żeby wpływ nie został zaksięgowany drugi raz.
+
+Między różnymi walutami para łączy się tylko przy tym samym dniu, przeciwnym znaku i identycznym tytule (tak jest przy wymianie w Revolucie, gdzie tytuł niesie znacznik czasu). Kwot się nie porównuje, bo dzieli je kurs i spread. Parowanie jest zawsze jeden do jednego.
+
+**Poczekalnia — stan drugiej strony** (kolumna „Druga strona”; stan liczy serwer tą samą regułą, według której przelew zostanie zaksięgowany):
+
+| Stan | Komunikat w aplikacji | Co zrobi zatwierdzenie |
+|------|----------------------|------------------------|
+| `staging` | „Obie operacje są w tym imporcie” (para to jeden wiersz z przyciskiem „Zatwierdź obie”) | Zatwierdza po kolei wypływ i wpływ; druga noga paruje się z pierwszą |
+| `booked` | „Druga strona jest już zaksięgowana” | Wiąże nogę z zaksięgowaną drugą stroną albo zastępuje lustro, które ją reprezentuje |
+| `mirror` | „Dopisze ją aplikacja” | Dopisuje lustro na koncie bez wyciągów |
+| `missing` | „Brak — zaimportuj wyciąg z konta B” | Księguje tylko tę nogę (to ostrzeżenie, nie blokada); saldo drugiego konta nie zmienia się, dopóki nie przyjdzie jego noga |
+
+Akcje na wierszu: „Zatwierdź obie”, „Rozdziel” (pokazuje nogi osobno), „Zmień konto” (wskazanie konta po drugiej stronie), „To nie przelew” (czyści kategorię i kontrahenta „Moje konto: …”; zmiana tylko w przeglądarce, do zatwierdzenia). „Zatwierdź gotowe” pomija możliwe duplikaty, a lustro na koncie nogi przelewu nie jest duplikatem, bo zatwierdzenie je zastąpi.
+
+**Co dzieje się później:**
+
+- **Druga strona dochodzi później.** Noga „Do zmapowania” paruje się, gdy zostanie zatwierdzona druga noga z wyciągu: znacznik znika, a saldo drugiego konta zmienia się dopiero wtedy. Lustro zostaje zastąpione prawdziwą nogą, gdy konto zacznie dostawać wyciągi. Dotyczy to tylko wpisów o pochodzeniu `mirror`; wpis o pochodzeniu `unknown` (dane sprzed wprowadzenia tej kolumny) nie jest kasowany automatycznie, a taki duplikat poprawia się ręcznie.
+- **Edycja.** Zmiana kwoty jednej nogi zmienia obie nogi i obie salda (tylko w tej samej walucie; kierunek znaków zostaje). Data idzie za drugą nogą tylko wtedy, gdy któraś z nich jest lustrem. Zmiana kategorii lub kontrahenta liczy drugą stronę od nowa: lustro znika, a noga z wyciągu zostaje odpięta.
+- **Usuwanie.** Usunięcie jednej nogi usuwa obie i koryguje oba salda; jest trwałe (patrz 4.9). Usuwanie zbiorcze ostrzega o nogach spoza zaznaczenia, a zbiorcza zmiana kategorii pomija przelewy i nie pozwala nadać kategorii typu `transfer`.
+- **Majątek netto.** Gdy jedna noga czeka na drugą, majątek jest chwilowo niższy albo wyższy o kwotę przelewu, aż druga noga się zaksięguje.
+- **Zmiana nazwy konta.** Przelewy działają dalej, ale nazwa kontrahenta „Moje konto: …” nie zmienia się razem z kontem (patrz 7).
+
+**Reguły szczegółowe** (stałe numery; ta sama lista jest na stronie wizualizacji):
+
+| # | Reguła |
+|---|--------|
+| R1 | Przelew wewnętrzny to dwie powiązane transakcje (nogi): wypływ na koncie źródłowym i wpływ na docelowym, wiązane przez `linked_transaction_id`. Nie jest ani przychodem, ani wydatkiem |
+| R2 | Wpis jest przelewem, gdy kategoria ma typ `transfer`, a kontrahent jest aktywny i nazywa się „Moje konto: …”. Potrzebne są oba warunki naraz |
+| R3 | Konto docelowe wskazuje kontrahent przez powiązanie z kontem (`linked_account_id`); dopiero gdy powiązania brak, aplikacja dopasowuje konto po nazwie. Kontrahent przelewu powinien być jeden na konto |
+| R4 | Noga dodana ręcznie albo z harmonogramu jest zawsze wypływem. W imporcie znak kwoty pochodzi z banku i się nie zmienia |
+| R5 | Po zapisie nogi aplikacja sprawdza po kolei: konto po drugiej stronie, istniejącą nogę do sparowania, różne waluty, lustro do zastąpienia i własne wyciągi konta docelowego. Ostatnim krokiem jest lustro. Pierwsza spełniona zasada rozstrzyga |
+| R6 | Para wymaga nogi na koncie docelowym, która jest jeszcze niepowiązana, ma kontrahenta wskazującego konto zapisywanej nogi, przeciwną kwotę i datę w oknie ±4 dni. Parowanie jest jeden do jednego |
+| R7 | Lustro powstaje tylko na koncie, które nie dostaje własnych wyciągów, i tylko w tej samej walucie. Konto dostaje wyciągi, gdy ma w historii importów choć jeden wpis |
+| R8 | Noga bez pary jest widoczna jako „Do zmapowania”. Saldo konta po drugiej stronie nie zmienia się, dopóki jego noga nie zostanie zatwierdzona z wyciągu |
+| R9 | Prawdziwa noga z wyciągu zastępuje wcześniejsze lustro. Dotyczy to tylko wpisów o pochodzeniu `mirror`; wpis o nieznanym pochodzeniu nie jest kasowany automatycznie |
+| R10 | Między różnymi walutami nie powstaje lustro. Para łączy się tylko przy tym samym dniu, przeciwnym znaku i identycznym tytule |
+| R11 | Edycja kwoty zmienia obie nogi i obie salda, ale tylko w tej samej walucie. Data idzie za drugą nogą tylko przy lustrze. Zmiana kategorii lub kontrahenta liczy drugą stronę od nowa: lustro znika, noga z wyciągu zostaje odpięta |
+| R12 | Usunięcie jednej nogi usuwa obie i koryguje oba salda; jest trwałe. Przy usuwaniu zbiorczym aplikacja ostrzega o nogach spoza zaznaczenia, a zbiorcza zmiana kategorii pomija przelewy |
+| R13 | Raporty (domyślnie), Podsumowanie, wykres kategorii na Dashboardzie i Budżet nie liczą przelewów jako przychodu ani wydatku |
 
 ---
 
@@ -423,7 +482,7 @@ Usuniętej transakcji nie da się przywrócić — pomyłkę poprawia się, wpis
 | 2 | Kwoty finansowe przechowywane jako `Decimal` (nigdy `float`) — precision 10, scale 2 |
 | 3 | Transakcja wychodzącą (wydatek) ma kwotę ujemną; przychodząca — dodatnią |
 | 4 | Przelew wewnętrzny wymaga koniecznie: kategorii `type=transfer` + kontrahenta w formacie `Moje konto: <nazwa>` |
-| 5 | Lustrzana transakcja przelewu wewnętrznego nie jest tworzona, jeśli już istnieje transakcja na koncie docelowym o tej samej kwocie i dacie (deduplikacja importu) |
+| 5 | Lustro przelewu wewnętrznego powstaje tylko na koncie, które nie dostaje własnych wyciągów, i tylko w tej samej walucie; gdy druga noga już istnieje, nowa noga paruje się z nią zamiast tworzyć lustro (reguły przelewów R1–R13: 4.4) |
 | 6 | Kategorie i kontrahenci są miękko usuwani (`is_active=False`) — nigdy hard-delete; filtry zawsze stosują `is_active=True` |
 | 7 | Kontrahent może mieć tylko jedną domyślną kategorię; zmiana kategorii kontrahenta dotyczy tylko przyszłych importów |
 | 8 | Staging transakcji należy do konkretnego użytkownika i konta; rekord bez `account_id` (starszy import) nie może być zatwierdzony — należy go odrzucić i reimportować |
@@ -455,3 +514,4 @@ Usuniętej transakcji nie da się przywrócić — pomyłkę poprawia się, wpis
 | **Transakcje cykliczne bez obsługi zaległości** | Jeśli `flask process-scheduled` nie był uruchamiany przez dłuższy czas, zaległe iteracje nie są nadrabiane — wykonywana jest tylko bieżąca |
 | **Waluta stała (PLN)** | Konta mogą mieć pole `currency`, ale logika sald i raportowania zakłada PLN; brak przeliczania kursów walut |
 | **Brak eksportu danych** | Aplikacja nie oferuje eksportu transakcji do CSV/PDF/Excel |
+| **Nazwy kontrahentów „Moje konto: …” po zmianie nazwy konta** | Zmiana nazwy konta nie zmienia nazwy jego kontrahenta. Przelewy działają dalej (kontrahent jest powiązany z kontem), ale w słowniku i na starych wpisach zostaje stara nazwa; poprawia się ją ręcznie |

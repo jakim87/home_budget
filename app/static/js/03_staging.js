@@ -33,11 +33,14 @@ async function fetchPendingStaging() {
 }
 
 function resolveStagingDestAccountId(t) {
-    // Konto docelowe może pochodzić z lokalnego wyboru w tej sesji (_dest_account_id)
-    // albo, dla wierszy już rozpoznanych automatycznie po numerze konta, z nazwy
-    // istniejącego kontrahenta "Moje konto: {nazwa}" — ta sama konwencja co po
-    // stronie serwera w _resolve_destination_account (budget_service.py).
+    // Konto docelowe może pochodzić z lokalnego wyboru w tej sesji (_dest_account_id),
+    // ze wskazania serwera (transfer_account_id — rozpoznane po powiązaniu kontrahenta
+    // z kontem, więc nie zależy od tego, czy nazwa kontrahenta nadąża za nazwą konta, ani
+    // czy kontrahent jest na liście) albo, gdy serwer go nie wskazał, z nazwy istniejącego
+    // kontrahenta "Moje konto: {nazwa}" — ta sama konwencja co po stronie serwera
+    // w _resolve_destination_account (budget_service.py).
     if (t._dest_account_id) return String(t._dest_account_id);
+    if (t.transfer_account_id) return String(t.transfer_account_id);
     if (t.proposed_contractor_id) {
         const cont = contractors.find(c => c.id == t.proposed_contractor_id);
         if (cont && cont.name.startsWith('Moje konto: ')) {
@@ -609,6 +612,7 @@ window.toNiePrzelew = function(id) {
     t.proposed_category = '';
     t.proposed_contractor_id = '';
     t._dest_account_id = '';
+    t.transfer_account_id = null;
     stagingEdycjaKonta.delete(id);
     renderStaging();
     showToast(`„${t.title}” przeniesione do operacji konta ${nazwaKonta(t.account_id)} — wybierz kontrahenta i kategorię.`, 'info');

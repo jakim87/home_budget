@@ -151,6 +151,8 @@ def wipe_user_data(user_token: str, commit: bool = True) -> None:
             "DELETE FROM recurring_transactions WHERE user_token = :utok",
             "DELETE FROM planned_transactions WHERE user_token = :utok",
             "DELETE FROM budgets WHERE user_token = :utok",
+            # Widoki Wniosków zapisane przez gości demo — inaczej przetrwałyby nocne odtworzenie.
+            "DELETE FROM saved_views WHERE user_token = :utok",
             # Historia importów trzyma FK do konta — bez tego kasowania konta
             # demo nie dają się usunąć przy odtwarzaniu.
             "DELETE FROM statement_imports WHERE user_token = :utok",

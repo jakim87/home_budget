@@ -4,6 +4,7 @@ from app import db
 from app.models import Account, Contractor, Transaction, TransactionSplit
 from app.services.category_service import list_active as list_active_categories
 from app.services.exchange_rate_service import latest_rates, monthly_rates
+from app.services.saved_view_service import list_views, view_dict
 
 
 def build_init_payload(user_token: str) -> dict:
@@ -83,6 +84,7 @@ def build_init_payload(user_token: str) -> dict:
         'inactive_accounts': [
             _account_dict(a, full=False) for a in inactive_accounts if a.id in accounts_with_tx
         ],
+        'saved_views': [view_dict(w) for w in list_views(user_token)],
     }
 
 
@@ -95,6 +97,7 @@ def _account_dict(a: Account, full: bool = True) -> dict:
     if full:
         data.update({
             'is_default': a.is_default,
+            'is_favorite': a.is_favorite,
             'owner': a.owner,
             'co_owner': a.co_owner,
             'created_at': a.created_at.strftime('%Y-%m-%d') if a.created_at else None,

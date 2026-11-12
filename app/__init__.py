@@ -86,6 +86,7 @@ def create_app(config_class=Config):
     from app.blueprints.legal_bp import legal_bp
     from app.blueprints.feedback_bp import feedback_bp
     from app.blueprints.budget_bp import budget_bp
+    from app.blueprints.views_bp import views_bp
     from app.blueprints.dev_bp import dev_bp
 
     app.register_blueprint(auth_bp)
@@ -100,6 +101,7 @@ def create_app(config_class=Config):
     app.register_blueprint(legal_bp)
     app.register_blueprint(feedback_bp)
     app.register_blueprint(budget_bp)
+    app.register_blueprint(views_bp)
     # dev_bp zawiera destrukcyjny endpoint resetu danych — rejestrujemy go tylko
     # w trybie debug/testów lub gdy jawnie włączony zmienną ENABLE_DEV_RESET.
     # Wynik trafia do config, bo szablon musi ukryć przycisk dokładnie wtedy, gdy

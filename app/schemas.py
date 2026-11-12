@@ -1,5 +1,5 @@
 from decimal import Decimal
-from marshmallow import EXCLUDE, Schema, fields, validate, post_load
+from marshmallow import EXCLUDE, Schema, ValidationError, fields, post_load, validate, validates_schema
 from app.models import Frequency # Import models for nested schemas or enums
 
 # Kolumny kwot to Numeric(10, 2): |kwota| < 10^8. Bez tej granicy za duża liczba
@@ -181,3 +181,49 @@ class BudgetPlanSchema(Schema):
 
     amount = fields.Decimal(required=True, as_string=False,
                             validate=validate.Range(min=0, max=99999999))
+
+
+class OkresWidokuSchema(Schema):
+    """Okres widoku Wniosków — zawsze względny do miesiąca wybranego na zakładce."""
+    typ = fields.String(required=True, validate=validate.OneOf(['miesiac', 'n', 'rok', 'calosc']))
+    n = fields.Integer(strict=True, validate=validate.OneOf([3, 6, 12]))
+
+    @validates_schema
+    def _n_tylko_przy_n(self, data, **kwargs):
+        if (data['typ'] == 'n') != ('n' in data):
+            raise ValidationError('Liczba miesięcy tylko (i zawsze) przy okresie „N miesięcy”.', 'n')
+
+
+_LISTA_ID = dict(load_default=list, validate=validate.Length(max=500))
+
+
+class WidokConfigSchema(Schema):
+    """Konfiguracja zapisanego widoku. Nieznany klucz = błąd (domyślne RAISE), bo konfiguracja
+    przychodzi od klienta i trafia do bazy jako tekst — zapisujemy tylko to, co tu opisane.
+    Filtr dnia (`dzien`) celowo nie istnieje: w okresie względnym dzień nic nie znaczy
+    w innym miesiącu (decyzja 16)."""
+    okres = fields.Nested(OkresWidokuSchema, load_default=lambda: {'typ': 'miesiac'})
+    konta = fields.List(fields.Integer(strict=True), **_LISTA_ID)
+    kategorie = fields.List(fields.Integer(strict=True), **_LISTA_ID)
+    kontrahenci = fields.List(fields.Integer(strict=True), **_LISTA_ID)
+    liczy = fields.String(load_default='oba', validate=validate.OneOf(['oba', 'wydatki', 'przychody']))
+    pokaz = fields.String(load_default='kategorie',
+                          validate=validate.OneOf(['czas', 'kategorie', 'kontrahenci', 'salda']))
+    sald = fields.String(load_default='auto', validate=validate.OneOf(['auto', 'konta', 'typy', 'razem']))
+    ulubione = fields.Boolean(load_default=False, truthy={True}, falsy={False})
+
+    @post_load
+    def _posortuj(self, data, **kwargs):
+        # Posortowane listy: front porównuje konfigurację tekstowo („widok zmieniony?").
+        for pole in ('konta', 'kategorie', 'kontrahenci'):
+            data[pole] = sorted(set(data[pole]))
+        return data
+
+
+class SavedViewSchema(Schema):
+    name = fields.String(required=True, validate=validate.Length(min=1, max=60))
+    config = fields.Nested(WidokConfigSchema, required=True)
+
+
+class FavoriteSchema(Schema):
+    is_favorite = fields.Boolean(required=True, truthy={True}, falsy={False})

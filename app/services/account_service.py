@@ -208,6 +208,29 @@ def delete_or_archive_account(user_token, a_id):
         db.session.rollback()
         raise
 
+# Tyle linii mieści się jeszcze czytelnie na wykresie sald we Wnioskach.
+MAKS_ULUBIONYCH = 10
+
+
+def set_favorite(user_token, a_id, value):
+    """Oznacza aktywne konto jako ulubione albo zdejmuje oznaczenie. Limit liczy tylko
+    konta aktywne: zamknięte znika z Wniosków razem z ulubionym, bez osobnej obsługi."""
+    try:
+        acc = db.session.query(Account).filter_by(id=a_id, user_token=user_token, is_active=True).first()
+        if not acc:
+            raise ValueError('Nie znaleziono konta.')
+        if value and not acc.is_favorite:
+            ile = db.session.query(Account).filter_by(
+                user_token=user_token, is_active=True, is_favorite=True).count()
+            if ile >= MAKS_ULUBIONYCH:
+                raise ValueError(f'Ulubionych kont może być najwyżej {MAKS_ULUBIONYCH}.')
+        acc.is_favorite = bool(value)
+        db.session.commit()
+        return acc
+    except Exception:
+        db.session.rollback()
+        raise
+
 def reorder_accounts(user_token, ordered_ids):
     """Zapisuje kolejność wyświetlania kont wg listy ID podanej przez użytkownika (tylko UI, bez wpływu na logikę)."""
     try:

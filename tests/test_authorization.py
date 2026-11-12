@@ -508,3 +508,45 @@ def test_budget_endpoints_require_login(client):
     assert client.get('/api/budgets/2026/5').status_code in (302, 401)
     assert client.put('/api/budgets/2026/5/1', json={'amount': '10'}).status_code in (302, 401)
     assert client.delete('/api/budgets/2026/5/1').status_code in (302, 401)
+
+
+# --- Wnioski: zapisane widoki i ulubione konta ---
+
+def _cudzy_widok(test_user):
+    from app.models import SavedView
+    w = SavedView(user_token=test_user.token, name="Widok Ofiary", config='{"pokaz": "czas"}')
+    db.session.add(w)
+    db.session.commit()
+    return w
+
+
+def test_intruder_cannot_update_foreign_view(intruder_client, owner_data, test_user):
+    from app.models import SavedView
+    w = _cudzy_widok(test_user)
+    resp = intruder_client.put(f'/api/views/{w.id}', json={'name': 'PRZEJĘTE', 'config': {'pokaz': 'salda'}})
+    assert resp.status_code == 404
+    db.session.expire_all()
+    w = db.session.get(SavedView, w.id)
+    assert w.name == "Widok Ofiary" and w.user_token == test_user.token
+    assert '"czas"' in w.config
+
+
+def test_intruder_cannot_delete_foreign_view(intruder_client, owner_data, test_user):
+    from app.models import SavedView
+    w = _cudzy_widok(test_user)
+    assert intruder_client.delete(f'/api/views/{w.id}').status_code == 404
+    db.session.expire_all()
+    assert db.session.get(SavedView, w.id) is not None
+
+
+def test_intruder_does_not_see_foreign_views_in_init(intruder_client, owner_data, test_user):
+    _cudzy_widok(test_user)
+    assert intruder_client.get('/api/init').get_json()['saved_views'] == []
+
+
+def test_intruder_cannot_favorite_foreign_account(intruder_client, owner_data):
+    acc = owner_data['account']
+    resp = intruder_client.put(f'/api/accounts/{acc.id}/favorite', json={'is_favorite': True})
+    assert resp.status_code == 404
+    db.session.expire_all()
+    assert db.session.get(Account, acc.id).is_favorite is False

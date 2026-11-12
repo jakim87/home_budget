@@ -12,6 +12,7 @@ let accounts = [];
 let inactiveAccounts = []; // konta zamknięte/archiwalne — poza aktywnym słownikiem, z zachowaną historią transakcji
 let currencies = {};   // najnowsza tabela A NBP: { EUR: { name, rate, date } }
 let monthlyRates = {}; // kurs na koniec miesiąca dla walut kont użytkownika: { EUR: { 'RRRR-MM': kurs } }
+let savedViews = [];   // własne widoki zakładki Wnioski: [{ id, name, config }] (wbudowane są w 23_wnioski.js)
 
 let inlineEditingTxId = null;
 

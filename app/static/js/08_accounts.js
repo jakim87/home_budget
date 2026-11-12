@@ -104,7 +104,7 @@ function renderInactiveAccounts() {
             </div>
             <div class="flex items-center gap-3 shrink-0">
                 <span class="text-sm font-semibold ${Number(a.balance) < 0 ? 'text-rose-600' : 'text-slate-500'}">${formatKwota(a.balance)} ${escapeHtml(a.currency || 'PLN')}</span>
-                <button onclick="viewAccountSummary(${a.id})" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline whitespace-nowrap" title="Cała historia konta w Podsumowaniu (zakres dat)">Podsumowanie →</button>
+                <button onclick="viewAccountSummary(${a.id})" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline whitespace-nowrap" title="Cała historia konta we Wnioskach">Wnioski →</button>
                 <button onclick="viewAccountTransactions(${a.id})" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline whitespace-nowrap" title="Transakcje tego konta (miesięcznie)">Transakcje →</button>
             </div>
         </li>
@@ -129,21 +129,10 @@ window.viewAccountTransactions = function(id) {
     renderTransactions();
 };
 
-// Cała historia konta w zakładce Podsumowanie: ustaw filtr na to konto i zakres
-// dat obejmujący WSZYSTKIE jego transakcje (od pierwszej do ostatniej). Działa
-// dla kont aktywnych i archiwalnych — Podsumowanie liczy z globalnego stanu.
+// Cała historia konta: Wnioski z niezapisanym widokiem tego konta i okresem „Cała historia”.
+// Działa dla kont aktywnych i archiwalnych — Wnioski liczą z globalnego stanu.
 window.viewAccountSummary = function(id) {
-    globalAccountFilter = id.toString();
-    const globalAcc = document.getElementById('global-account-filter');
-    if (globalAcc) globalAcc.value = globalAccountFilter;
-    const dates = transactions.filter(t => t.account_id == id && t.date).map(t => t.date).sort();
-    document.getElementById('filter-month').value = '';
-    if (dates.length > 0) {
-        document.getElementById('filter-start').value = dates[0];
-        document.getElementById('filter-end').value = dates[dates.length - 1];
-    }
-    switchTab('summary');
-    renderSummary();
+    wnPokazKonto(id);
 };
 
 window.moveAccount = async function(id, direction) {

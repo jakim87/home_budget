@@ -1,6 +1,6 @@
 // --- ZAKŁADKI ---
 function switchTab(tabName) {
-    ['dashboard', 'transactions', 'summary', 'budget', 'categories', 'staging', 'reports'].forEach(name => {
+    ['dashboard', 'transactions', 'summary', 'wnioski', 'budget', 'categories', 'staging', 'reports'].forEach(name => {
         document.getElementById(`tab-${name}`).classList.add('tab-hidden');
         const btn = document.getElementById(`btn-tab-${name}`);
         btn.classList.remove('tab-active');
@@ -21,8 +21,9 @@ function switchTab(tabName) {
         container.classList.add('max-w-7xl');
     }
 
-    // Import zawsze pokazuje wszystkie konta — przełącznik „Widok konta" by tu mylił.
-    document.getElementById('global-account-filter').parentElement.classList.toggle('hidden', tabName === 'staging');
+    // Import zawsze pokazuje wszystkie konta — przełącznik „Widok konta" by tu mylił. Wnioski
+    // też: konta wybiera się w filtrze widoku (decyzja 6).
+    document.getElementById('global-account-filter').parentElement.classList.toggle('hidden', tabName === 'staging' || tabName === 'wnioski');
 
     if (panelWpisuOtwarty()) zamknijPanelWpisu();  // formularz wraca do zakładki Transakcje
     odswiezPrzyciskWpisu(tabName);
@@ -32,6 +33,7 @@ function switchTab(tabName) {
     if (tabName === 'transactions') renderTransactions();
     if (tabName === 'staging') renderStaging();
     if (tabName === 'reports') renderReports();
+    if (tabName === 'wnioski') renderWnioski();
     if (tabName === 'budget') renderBudget();
 }
 

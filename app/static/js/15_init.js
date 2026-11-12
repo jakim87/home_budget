@@ -21,6 +21,7 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
         inactiveAccounts = data.inactive_accounts || [];
         currencies = data.currencies || {};
         monthlyRates = data.monthly_rates || {};
+        savedViews = data.saved_views || [];
 
         updateCategorySelects();
         updateContractorSelects();
@@ -32,6 +33,7 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
         renderInactiveAccounts();
         renderTransactions();
         renderDashboard();
+        odswiezWnioski();
         odswiezDaneSzybkiegoWpisu();
         await fetchPlannedTransactions();
         await fetchRecurringTransactions();

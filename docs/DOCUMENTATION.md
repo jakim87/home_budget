@@ -40,7 +40,8 @@
 - **Transakcje cykliczne** — definicje automatycznie wykonywanych transakcji wg harmonogramu (dziennie, tygodniowo, miesięcznie, rocznie)
 - **Transakcje zaplanowane** — jednorazowe transakcje z określoną datą wykonania w przyszłości
 - **Przelewy wewnętrzne** — przelew między własnymi kontami to dwie powiązane operacje (nogi); druga strona pochodzi z wyciągu drugiego konta albo, gdy to konto nie dostaje wyciągów, jest dopisywana automatycznie jako lustro (patrz 4.4)
-- **Dashboard** — Net Worth z porównaniem do poprzedniego miesiąca i roku, majątek w czasie (razem albo wg typu kont), przychody i wydatki wg wybranych kategorii, udział majątku wg typu kont; klik w miesiąc prowadzi do jego transakcji albo raportu
+- **Dashboard** — Net Worth z porównaniem do poprzedniego miesiąca i roku, majątek w czasie (razem albo wg typu kont), przychody i wydatki wg wybranych kategorii, udział majątku wg typu kont; klik w miesiąc prowadzi do jego transakcji albo widoku we Wnioskach
+- **Wnioski** — automatyczne wnioski z wybranego pełnego miesiąca (trendy kategorii, jednorazowe zdarzenia, stałe opłaty, bilans) liczone regułami w przeglądarce względem typowego miesiąca (mediana z 6 poprzednich), a pod nimi widoki: filtry okresu, kont, kategorii i kontrahentów z wykresem i tabelą, rozbijaniem elementów (menu, ścieżka, karta kategorii) i saldami kont na koniec miesiąca; do 7 własnych widoków zapisanych na koncie i do 10 ulubionych kont jako filtr. Kwoty w PLN po kursie NBP z końca miesiąca, przelewy wewnętrzne zawsze poza sumami (poza widokiem sald)
 - **Raporty** — osobna zakładka z filtrowaniem po zakresie dat, kategoriach i kontach; wykresy słupkowe i liniowe, domyślnie z wyłączeniem przelewów wewnętrznych (inaczej podwajałyby obroty)
 - **Budżet miesięczny** — plan kwoty na kategorię w danym miesiącu, zestawiony z wykonaniem i z rezerwacjami z harmonogramu; planowane są obie strony (przychody i wydatki), więc widać, czy plan wydatków mieści się w planie przychodów
 
@@ -214,7 +215,7 @@ Po zapisaniu saldo konta jest natychmiast aktualizowane.
 
 **Wizualizacja:** [przelewy-miedzy-kontami.html](przelewy-miedzy-kontami.html) pokazuje tę samą logikę na diagramach, z próbnikiem scenariuszy („co zrobi aplikacja w mojej sytuacji”). To samodzielny plik, który otwiera się w przeglądarce. Reguły z niego (R1–R13) są wypisane na końcu tego rozdziału.
 
-**Model:** przelew to dwie transakcje, zwane nogami: wypływ na koncie źródłowym i wpływ na koncie docelowym. Wiąże je `Transaction.linked_transaction_id`. Przelew nie jest przychodem ani wydatkiem: Raporty (domyślnie), Podsumowanie, wykres kategorii na Dashboardzie i Budżet go pomijają, a majątek netto w jednej walucie się nie zmienia, bo nogi sumują się do zera.
+**Model:** przelew to dwie transakcje, zwane nogami: wypływ na koncie źródłowym i wpływ na koncie docelowym. Wiąże je `Transaction.linked_transaction_id`. Przelew nie jest przychodem ani wydatkiem: Raporty (domyślnie), Podsumowanie, Wnioski (poza widokiem sald), wykres kategorii na Dashboardzie i Budżet go pomijają, a majątek netto w jednej walucie się nie zmienia, bo nogi sumują się do zera.
 
 **Warunek wyzwolenia (backend):** kategoria transakcji ma typ `transfer` ORAZ kontrahent jest aktywny i ma nazwę w formacie `Moje konto: <nazwa konta>`. Kontrahent wskazuje konto docelowe przez twarde powiązanie z kontem (`Contractor.linked_account_id`); dopiero gdy powiązania brak, konto jest dopasowywane po nazwie. Dzięki temu zmiana nazwy konta nie psuje przelewów.
 
@@ -310,7 +311,7 @@ Akcje na wierszu: „Zatwierdź obie”, „Rozdziel” (pokazuje nogi osobno), 
 | R10 | Między różnymi walutami nie powstaje lustro. Para łączy się tylko przy tym samym dniu, przeciwnym znaku i identycznym tytule |
 | R11 | Edycja kwoty zmienia obie nogi i obie salda, ale tylko w tej samej walucie. Data idzie za drugą nogą tylko przy lustrze. Zmiana kategorii lub kontrahenta liczy drugą stronę od nowa: lustro znika, noga z wyciągu zostaje odpięta |
 | R12 | Usunięcie jednej nogi usuwa obie i koryguje oba salda; jest trwałe. Przy usuwaniu zbiorczym aplikacja ostrzega o nogach spoza zaznaczenia, a zbiorcza zmiana kategorii pomija przelewy |
-| R13 | Raporty (domyślnie), Podsumowanie, wykres kategorii na Dashboardzie i Budżet nie liczą przelewów jako przychodu ani wydatku |
+| R13 | Raporty (domyślnie), Podsumowanie, Wnioski (poza widokiem sald), wykres kategorii na Dashboardzie i Budżet nie liczą przelewów jako przychodu ani wydatku |
 
 ---
 

@@ -18,6 +18,7 @@ Zrealizowane:
 - Transakcje cykliczne i zaplanowane (harmonogramy)
 - Budżet miesięczny: plan per kategoria zestawiony z wykonaniem i rezerwacjami z harmonogramu
 - Dashboard z wartością netto (Net Worth) i jej zmianą m/m i r/r, majątkiem wg typu kont i wykresem kategorii; konta walutowe wyceniane po kursie średnim NBP
+- Wnioski: automatyczne wnioski z miesiąca (trendy, jednorazowe zdarzenia, stałe opłaty, bilans) i zapisywane widoki z filtrami, rozbijaniem i saldami kont
 - Szybki wpis transakcji jedną linią („Biedronka 85,60 wczoraj”) z podpowiedziami; na telefonie przycisk „+” z każdej zakładki
 - Moduł raportów: KPI, wykresy, filtry kont/kategorii/kontrahentów, presety zakresów dat
 - Obsługa typów kont, w tym kredytów (zobowiązania / wartość ujemna)
@@ -131,7 +132,7 @@ flask feedback-delete --id 7        # Usuń zgłoszenie nr 7
 # Testy
 pytest                              # Uruchom wszystkie testy (backend)
 npm install                         # Jednorazowo: zależności testów frontu
-npm test                            # Testy JS — liczenie na Dashboardzie i w Raportach
+npm test                            # Testy JS — liczenie na Dashboardzie, w Raportach i we Wnioskach
 pytest tests/test_plik.py           # Pojedynczy plik
 pytest tests/test_plik.py::test_nazwa -vv --tb=long   # Pojedynczy test, tryb szczegółowy
 

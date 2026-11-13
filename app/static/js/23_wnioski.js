@@ -223,7 +223,8 @@ function renderWnioskiKarty() {
     }
     if (w.stan === 'luka') {
         const konta = w.konta.map(wnKontoNazwa).filter(Boolean).join(', ');
-        box.innerHTML = `<p class="wn-pusto">W tym miesiącu brakuje operacji z konta: ${wnEsc(konta)}, choć zwykle jest ich sporo. Wygląda to na niezaimportowany wyciąg, więc wniosków nie liczymy — wyszłyby fałszywe. Ten miesiąc wypada też z porównań w kolejnych.</p>`;
+        const co = konta ? `brakuje operacji z konta: ${wnEsc(konta)}, choć zwykle jest ich sporo` : 'nie ma żadnych operacji';
+        box.innerHTML = `<p class="wn-pusto">W tym miesiącu ${co}. Wygląda to na niezaimportowane wyciągi, więc wniosków nie liczymy — wyszłyby fałszywe. Ten miesiąc wypada też z porównań w kolejnych.</p>`;
         return;
     }
     if (w.stan !== 'ok') {

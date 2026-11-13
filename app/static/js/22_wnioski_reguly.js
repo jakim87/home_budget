@@ -139,19 +139,29 @@ function wnPrzygotuj({ transakcje, kategorie, konta, kurs, dzis }) {
             }
         }
     });
+    // Historia zaczyna się od pierwszej prawdziwej operacji: lata samych uzgodnień salda
+    // (migracja historii sald) nie są historią wydatków — inaczej pierwszy miesiąc z wyciągami
+    // dostawał „pierwszy raz” przy każdym kontrahencie. Miesiąc bez żadnej operacji po niej
+    // (bieżący pomijamy) to niezaimportowane wyciągi, a nie miesiąc bez wydatków.
+    const pierwszyOp = ops.length ? ops[0].j : null;
+    if (pierwszyOp !== null) {
+        for (let j = pierwszyOp + 1; j < miesiace.length - 1; j++) {
+            if (!wMies[j].length && !lukiKonta.has(j)) lukiKonta.set(j, []);
+        }
+    }
 
     return {
-        miesiace, idx, biezacy: miesiace.length - 1, ops, wMies, agg, kat, kontoById,
+        miesiace, idx, biezacy: miesiace.length - 1, ops, wMies, agg, kat, kontoById, pierwszyOp,
         pierwszyKat, pierwszaOp, serie, nazwyKluczy, lukiKonta, brakKursu, pam: new Map(),
     };
 }
 
 const wnPam = (d, klucz, f) => (d.pam.has(klucz) ? d.pam.get(klucz) : d.pam.set(klucz, f()).get(klucz));
 
-// Okno typowego miesiąca: do 6 poprzednich miesięcy, bez miesięcy z luką w imporcie.
+// Okno typowego miesiąca: do 6 poprzednich miesięcy od pierwszej operacji, bez miesięcy z luką.
 function wnOkno(d, i) {
     const okno = [];
-    for (let j = Math.max(0, i - WN_PROGI.oknoMies); j < i; j++) if (!d.lukiKonta.has(j)) okno.push(j);
+    for (let j = Math.max(d.pierwszyOp ?? i, i - WN_PROGI.oknoMies); j < i; j++) if (!d.lukiKonta.has(j)) okno.push(j);
     return okno;
 }
 
@@ -238,7 +248,7 @@ function wnDuzeWydatki(d, i) {
 
 function wnNowiKontrahenci(d, i) {
     return wnPam(d, `nowi${i}`, () => {
-        if (i < WN_PROGI.nowyOdHistorii) return [];
+        if (i - d.pierwszyOp < WN_PROGI.nowyOdHistorii) return [];
         const duze = wnDuzeWydatki(d, i);
         return d.wMies[i].filter(o => o.kwota < 0 && -o.kwota >= WN_PROGI.nowyKwota && o.klucz
             && o.klucz !== WN_GOTOWKA && d.pierwszaOp.get(o.klucz) === o.id && !duze.includes(o));
@@ -422,7 +432,7 @@ function wnWnioskiZa(d, ym) {
     if (i >= d.biezacy) return { stan: 'trwa', lista: [] };
     if (d.lukiKonta.has(i)) return { stan: 'luka', lista: [], konta: d.lukiKonta.get(i) };
     const okno = wnOkno(d, i);
-    if (i < WN_PROGI.minHistorii || okno.length < WN_PROGI.minHistorii) return { stan: 'malo', lista: [] };
+    if (d.pierwszyOp === null || i - d.pierwszyOp < WN_PROGI.minHistorii || okno.length < WN_PROGI.minHistorii) return { stan: 'malo', lista: [] };
     const lista = WN_REGULY.flatMap(r => r(d, i)).sort((a, b) => b.waga - a.waga);
     return { stan: 'ok', lista, okno: okno.length };
 }

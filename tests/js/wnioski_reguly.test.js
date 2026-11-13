@@ -107,6 +107,27 @@ describe('kiedy wniosków nie ma', () => {
         expect(wnioski('2026-10').lista.some(x => x.plakietka === 'pierwszy raz' && x.tytul === 'Gabinet weterynaryjny Azor')).toBe(true);
     });
 
+    it('historia liczy się od pierwszej operacji, nie od uzgodnień salda z migracji', () => {
+        // Lata samych uzgodnień salda (migracja historii sald), potem pierwsze wyciągi.
+        const uzgodnienia = Array.from({ length: 24 }, (_, k) => ({
+            id: 8000 + k, date: `${2023 + Math.floor(k / 12)}-${String(k % 12 + 1).padStart(2, '0')}-28`,
+            amount: 100, desc: 'Uzgadnianie salda', category: 'Uzgadnianie salda', account_id: 1,
+        }));
+        const transakcje = [...uzgodnienia, ...zbudujTransakcje().transakcje];
+        expect(wnioski('2025-04', { transakcje }).stan).toBe('malo');
+        expect(wnioski('2025-06', { transakcje }).stan).toBe('malo');
+        const wczesne = ['2025-07', '2025-08', '2025-09'].flatMap(ym => wnioski(ym, { transakcje }).lista);
+        expect(wczesne.some(x => x.plakietka === 'pierwszy raz')).toBe(false);
+    });
+
+    it('miesiąc bez żadnej operacji w środku danych to luka, a nie „zero wydatków”', () => {
+        // Trzeci miesiąc danych: za wcześnie na regułę „konto nagle bez operacji” (3 miesiące wstecz).
+        const transakcje = zbudujTransakcje().transakcje.filter(t => !t.date.startsWith('2025-06'));
+        expect(wnioski('2025-06', { transakcje })).toMatchObject({ stan: 'luka', konta: [] });
+        expect(wnioski('2025-07', { transakcje }).stan).toBe('malo');
+        expect(wnioski('2025-08', { transakcje })).toMatchObject({ stan: 'ok', okno: 3 });
+    });
+
     it('miesiąc bez wyciągu z konta nie daje wniosków i wypada z okna mediany', () => {
         const transakcje = zbudujTransakcje().transakcje.filter(t => !(t.account_id === 1 && t.date.startsWith('2026-09')));
         expect(wnioski('2026-09', { transakcje })).toMatchObject({ stan: 'luka', konta: [1] });

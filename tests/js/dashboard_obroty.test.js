@@ -1,35 +1,29 @@
 // Przychody i wydatki wg kategorii na Dashboardzie oraz przejscie „Szczegolowy raport".
 //
-// Slupek miesiaca na Dashboardzie musi sie zgadzac z tym, co pokaze zakladka Raporty po
+// Slupek miesiaca na Dashboardzie musi sie zgadzac z tym, co pokaze widok we Wnioskach po
 // przejsciu z niego — inaczej uzytkownik dostaje dwie rozne liczby za ten sam miesiac.
-// Dlatego test liczy oba widoki na tych samych danych i porownuje wyniki.
+// Dlatego test liczy oba miejsca na tych samych danych i porownuje wyniki.
 
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { tx, zaladujModuly } from './helpers.js';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { htmlWnioskow, tx, zaladujModuly } from './helpers.js';
 
 beforeAll(() => {
-    zaladujModuly('01_state.js', '04_helpers.js', '13_dashboard.js', '16_reports.js');
-    globalThis.renderRptBarChart = () => {};
-    globalThis.renderRptLineChart = () => {};
-    globalThis.renderRptTable = () => {};
-    globalThis.renderBudget = () => {};
-    // switchTab z 06_tabs.js przelacza zakladki w DOM; tu wystarczy, ze przeliczy raport.
-    globalThis.switchTab = (nazwa) => { if (nazwa === 'reports') renderReports(); };
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 4, 10));
+    zaladujModuly('01_state.js', '04_helpers.js', '13_dashboard.js', '22_wnioski_reguly.js', '23_wnioski.js');
+    // switchTab z 06_tabs.js przelacza zakladki w DOM; tu wystarczy, ze narysuje Wnioski.
+    globalThis.switchTab = (nazwa) => { if (nazwa === 'wnioski') renderWnioski(); };
 });
+afterAll(() => vi.useRealTimers());
 
 beforeEach(() => {
-    document.body.innerHTML = `
-        <input id="rpt-date-from"><input id="rpt-date-to">
-        <input type="checkbox" id="rpt-exclude-transfers">
-        <span id="rpt-accounts-badge"></span><span id="rpt-categories-badge"></span><span id="rpt-contractors-badge"></span>
-        <span id="rpt-kpi-income"></span><span id="rpt-kpi-income-count"></span>
-        <span id="rpt-kpi-expense"></span><span id="rpt-kpi-expense-count"></span>
-        <span id="rpt-kpi-net"></span><span id="rpt-kpi-transfers"></span><span id="rpt-kpi-transfers-count"></span>
-        <div id="rpt-accounts-list"></div><div id="rpt-categories-list"></div><div id="rpt-contractors-list"></div>
-    `;
-    rptInitialized = false;
-    accounts = [{ id: 1, name: 'ROR' }, { id: 2, name: 'Oszczednosci' }];
+    document.body.innerHTML = htmlWnioskow();
+    accounts = [{ id: 1, name: 'ROR', currency: 'PLN' }, { id: 2, name: 'Oszczednosci', currency: 'PLN' }, { id: 3, name: 'Konto EUR', currency: 'EUR' }];
+    inactiveAccounts = [];
     contractors = [];
+    savedViews = [];
+    currencies = { EUR: { rate: 4.3, date: '2026-05-08' } };
+    monthlyRates = { EUR: { '2026-03': 4.25 } };
     categories = [
         { id: 1, name: 'Zakupy', type: 'expense' },
         { id: 2, name: 'Paliwo', type: 'expense' },
@@ -46,46 +40,59 @@ beforeEach(() => {
         tx({ id: 6, date: '2026-03-20', amount: 37, category: 'Korekta salda' }),
         tx({ id: 7, date: '2026-03-21', amount: -15, category: 'Kategoria usunieta' }),
         tx({ id: 8, date: '2026-04-01', amount: -60, category: 'Zakupy' }),
+        tx({ id: 9, date: '2026-03-22', amount: -10, category: 'Zakupy', account_id: 3 }),
     ];
 });
 
-const raportZaMarzec = (kategorieIds) => {
-    rptPokazOkres('2026-03-01', '2026-03-31', kategorieIds);
-    return rptGroupByMonth(rptFilteredTxs)['2026-03'];
+// Widok, który otwiera „Szczegółowy raport”, i jego sumy.
+const wnioskiZaMarzec = () => {
+    pokazRaportMiesiaca('2026-03');
+    return wnSumy(wnFiltruj(wnCfg, wnZakres(wnCfg)));
 };
 
 describe('obrotyMiesieczne', () => {
-    it('bez wybranych kategorii: bez przelewow i kategorii systemowych, po znaku kwoty', () => {
+    it('bez wybranych kategorii: bez przelewow i kategorii systemowych, po znaku kwoty, w PLN', () => {
         const marzec = obrotyMiesieczne(transactions, new Set())['2026-03'];
-        expect(marzec).toEqual({ przychody: 5000, wydatki: 120 + 240 + 15 });
+        expect(marzec.przychody).toBe(5000);
+        expect(marzec.wydatki).toBeCloseTo(120 + 240 + 15 + 10 * 4.25);
     });
 
-    it('z wybranymi kategoriami liczy tylko je', () => {
+    it('z wybranymi kategoriami liczy tylko je (bez transakcji z kategoria spoza slownika)', () => {
         const marzec = obrotyMiesieczne(transactions, new Set([2]))['2026-03'];
-        expect(marzec.wydatki).toBe(240 + 15);  // jak Raporty: transakcja z kategoria spoza slownika przechodzi filtr
+        expect(marzec.wydatki).toBe(240);
         expect(marzec.przychody).toBe(0);
+    });
+
+    it('konto bez kursu wypada z sumy, zamiast liczyc sie jak PLN', () => {
+        monthlyRates = {};
+        currencies = {};
+        expect(obrotyMiesieczne(transactions, new Set())['2026-03'].wydatki).toBeCloseTo(120 + 240 + 15);
     });
 });
 
-describe('Szczegolowy raport z Dashboardu', () => {
+describe('Szczegolowy raport z Dashboardu otwiera Wnioski', () => {
     it('bez wybranych kategorii pokazuje te same sumy co slupek Dashboardu', () => {
         const dashboard = obrotyMiesieczne(transactions, new Set())['2026-03'];
-        const raport = raportZaMarzec([]);
-        expect(raport.income).toBeCloseTo(dashboard.przychody);
-        expect(raport.expense).toBeCloseTo(dashboard.wydatki);
+        const widok = wnioskiZaMarzec();
+        expect(widok.inc).toBeCloseTo(dashboard.przychody);
+        expect(widok.exp).toBeCloseTo(dashboard.wydatki);
     });
 
     it('z wybranymi kategoriami tez sie zgadza', () => {
-        const dashboard = obrotyMiesieczne(transactions, new Set([1, 3]))['2026-03'];
-        const raport = raportZaMarzec([1, 3]);
-        expect(raport.income).toBeCloseTo(dashboard.przychody);
-        expect(raport.expense).toBeCloseTo(dashboard.wydatki);
+        dashKategorie.clear(); dashKategorie.add(1); dashKategorie.add(3);
+        const dashboard = obrotyMiesieczne(transactions, dashKategorie)['2026-03'];
+        const widok = wnioskiZaMarzec();
+        expect(wnCfg.kategorie).toEqual([1, 3]);
+        expect(widok.inc).toBeCloseTo(dashboard.przychody);
+        expect(widok.exp).toBeCloseTo(dashboard.wydatki);
+        dashKategorie.clear();
     });
 
-    it('ustawia zakres dat na caly miesiac i nie nadpisuje go presetem przy pierwszym otwarciu', () => {
-        raportZaMarzec([]);
-        expect(document.getElementById('rpt-date-from').value).toBe('2026-03-01');
-        expect(document.getElementById('rpt-date-to').value).toBe('2026-03-31');
-        expect(rptFilteredTxs.some(t => t.date === '2026-04-01')).toBe(false);
+    it('ustawia wybrany miesiac jako niezapisany widok jednego miesiaca', () => {
+        wnioskiZaMarzec();
+        expect(wnYm).toBe('2026-03');
+        expect(wnCfg.okres).toEqual({ typ: 'miesiac' });
+        expect(wnAktywnyId).toBeNull();
+        expect(document.getElementById('wn-kpi').textContent).toContain('5 000 zł');
     });
 });

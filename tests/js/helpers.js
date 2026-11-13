@@ -46,3 +46,14 @@ export function tx({ id = 1, date = '2026-01-15', amount = -100, category = 'Zak
                      account_id = 1, contractor_id = null, title = 'Test' } = {}) {
     return { id, date, amount, category, account_id, contractor_id, title };
 }
+
+/**
+ * Fragment base.html z zakładką Wnioski — testy widoków działają na prawdziwym
+ * szablonie, więc zmiana id w base.html od razu psuje test zamiast przejść bokiem.
+ */
+export function htmlWnioskow() {
+    const html = readFileSync(join(process.cwd(), 'app', 'templates', 'base.html'), 'utf-8');
+    const od = html.indexOf('<div id="tab-wnioski"');
+    const doKonca = html.indexOf('<div id="tab-budget"');
+    return html.slice(od, doKonca);
+}

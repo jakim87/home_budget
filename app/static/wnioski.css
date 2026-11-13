@@ -9,6 +9,8 @@
   --wn-steel: #5f6f8c; --wn-steel-soft: #e9edf3; --wn-spark: #cfc8c0; --wn-radius: 4px;
   display: grid; gap: 20px; color: var(--wn-text);
 }
+/* Atrybut hidden ma wygrać z display: grid/flex nadanym klasom niżej. */
+.wn [hidden] { display: none !important; }
 .wn h2 { font-size: 1.5rem; margin: 0; line-height: 1.15; }
 .wn h3 { font-size: 1.2rem; margin: 0; line-height: 1.15; overflow-wrap: anywhere; }
 .wn h4 { font-size: 1.1rem; margin: 0 0 8px; }

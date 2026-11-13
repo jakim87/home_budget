@@ -186,6 +186,8 @@ function wnIskra(d, i, f) {
 const wnKatId = (d, nazwa) => (d.kat.get(nazwa) ? d.kat.get(nazwa).id : null);
 const wnTylkoId = id => (id === null || id === undefined ? [] : [id]);
 const wnNazwaKonta = (d, id) => (d.kontoById.get(id) ? d.kontoById.get(id).name : '');
+// Tytuł operacji jako pierwsze zdanie opisu — chyba że to ta sama nazwa co w nagłówku karty.
+const wnTytulZdanie = o => (o.tytul && normalizujTekst(o.tytul) !== normalizujTekst(o.nazwa) ? `${o.tytul}. ` : '');
 const wnMeta = (d, o) => [wnDataDl(o.data), o.kat, wnNazwaKonta(d, o.konto)].filter(Boolean).join(' · ');
 
 // Widok „ta operacja”: kategoria i miesiąc, tabela operacji.
@@ -263,7 +265,7 @@ function wnRegulaJednorazowe(d, i) {
             klucz: `duzy-${o.id}`, rodzaj: 'Jednorazowe zdarzenie', ton: 'info', plakietka: 'jednorazowo',
             temat: { typ: 'kontrahent', nazwa: o.nazwa }, tytul: o.nazwa, kwota: wnZl2(-o.kwota),
             krotko: `${o.nazwa}: ${wnZl(-o.kwota)} jednorazowo`,
-            opis: `${o.tytul ? o.tytul + '. ' : ''}`
+            opis: `${wnTytulZdanie(o)}`
                 + (wiekszy ? `Większy pojedynczy wydatek był ostatnio ${wnMsc(wiekszy.ym)} (${wiekszy.nazwa}, ${wnZl(-wiekszy.kwota)}).` : 'Największy pojedynczy wydatek w całej historii.')
                 + (typWyd > 0 ? ` To ${Math.round(-o.kwota / typWyd * 100)}% typowych miesięcznych wydatków.` : ''),
             meta: wnMeta(d, o), waga: -o.kwota, pokaz: wnPokazOperacji(d, o, 'wydatki'),
@@ -273,14 +275,14 @@ function wnRegulaJednorazowe(d, i) {
         klucz: `nowy-${o.id}`, rodzaj: 'Jednorazowe zdarzenie', ton: 'info', plakietka: 'pierwszy raz',
         temat: { typ: 'kontrahent', nazwa: o.nazwa }, tytul: o.nazwa, kwota: wnZl2(-o.kwota),
         krotko: `Pierwszy raz: ${o.nazwa}, ${wnZl(-o.kwota)}`,
-        opis: `${o.tytul ? o.tytul + '. ' : ''}Pierwsza płatność u tego kontrahenta.`,
+        opis: `${wnTytulZdanie(o)}Pierwsza płatność u tego kontrahenta.`,
         meta: wnMeta(d, o), waga: -o.kwota, pokaz: wnPokazOperacji(d, o, 'wydatki'),
     })));
     wnNietypoweWplywy(d, i).forEach(o => lista.push(wnCiekawostka(d, i, {
         klucz: `wplyw-${o.id}`, rodzaj: 'Jednorazowe zdarzenie', ton: 'lepiej', plakietka: 'dodatkowy wpływ',
         temat: { typ: 'kontrahent', nazwa: o.nazwa }, tytul: o.nazwa, kwota: '+' + wnZl2(o.kwota),
         krotko: `Wpływ: ${o.nazwa}, +${wnZl(o.kwota)}`,
-        opis: `${o.tytul ? o.tytul + '. ' : ''}Od tego nadawcy nic nie wpłynęło w ${okno.length} poprzednich miesiącach.`,
+        opis: `${wnTytulZdanie(o)}Od tego nadawcy nic nie wpłynęło w ${okno.length} poprzednich miesiącach.`,
         meta: wnMeta(d, o), waga: o.kwota, pokaz: wnPokazOperacji(d, o, 'przychody'),
     })));
     return lista;

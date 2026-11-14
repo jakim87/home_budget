@@ -81,6 +81,9 @@ def test_widoki_w_init(logged_in_client):
     {**CFG, 'pokaz': 'mapa'},
     {**CFG, 'sald': 'kolo'},
     {**CFG, 'konta': ['1']},                      # ID tylko jako liczby
+    {**CFG, 'konta': [10**20]},                   # ID w zakresie kolumny (inaczej megabajty w bazie)
+    {**CFG, 'kategorie': [0]},
+    {**CFG, 'ulubione': 1},                       # 1 to nie True
     {**CFG, 'kategorie': list(range(501))},       # górna granica listy
     {**CFG, 'ulubione': 'tak'},
     {**CFG, 'dzien': 14},                         # dnia nie zapisujemy (decyzja 16)
@@ -210,6 +213,7 @@ def test_zamkniete_konto_nie_zostaje_ulubionym(logged_in_client, test_user_token
 def test_ulubione_wymaga_wartosci_logicznej(logged_in_client, test_user_token):
     a = _konto(test_user_token)
     assert logged_in_client.put(f'/api/accounts/{a.id}/favorite', json={'is_favorite': 'tak'}).status_code == 400
+    assert logged_in_client.put(f'/api/accounts/{a.id}/favorite', json={'is_favorite': 1}).status_code == 400
     assert logged_in_client.put(f'/api/accounts/{a.id}/favorite', json={}).status_code == 400
 
 

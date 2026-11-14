@@ -194,7 +194,18 @@ class OkresWidokuSchema(Schema):
             raise ValidationError('Liczba miesięcy tylko (i zawsze) przy okresie „N miesięcy”.', 'n')
 
 
+# ID w zakresie kolumny INTEGER. Bez górnej granicy json przyjmuje liczby do 4300 cyfr,
+# więc 3 listy po 500 takich ID to megabajty na widok — w bazie i w każdym /api/init.
+_ID = fields.Integer(strict=True, validate=validate.Range(min=1, max=2**31 - 1))
 _LISTA_ID = dict(load_default=list, validate=validate.Length(max=500))
+
+
+class _ScislyBool(fields.Boolean):
+    """Tylko true/false z JSON-a. `truthy={True}` przepuszczało 1 i 0, bo 1 == True w Pythonie."""
+    def _deserialize(self, value, attr, data, **kwargs):
+        if not isinstance(value, bool):
+            raise ValidationError('Oczekiwano wartości true albo false.')
+        return value
 
 
 class WidokConfigSchema(Schema):
@@ -203,14 +214,14 @@ class WidokConfigSchema(Schema):
     Filtr dnia (`dzien`) celowo nie istnieje: w okresie względnym dzień nic nie znaczy
     w innym miesiącu (decyzja 16)."""
     okres = fields.Nested(OkresWidokuSchema, load_default=lambda: {'typ': 'miesiac'})
-    konta = fields.List(fields.Integer(strict=True), **_LISTA_ID)
-    kategorie = fields.List(fields.Integer(strict=True), **_LISTA_ID)
-    kontrahenci = fields.List(fields.Integer(strict=True), **_LISTA_ID)
+    konta = fields.List(_ID, **_LISTA_ID)
+    kategorie = fields.List(_ID, **_LISTA_ID)
+    kontrahenci = fields.List(_ID, **_LISTA_ID)
     liczy = fields.String(load_default='oba', validate=validate.OneOf(['oba', 'wydatki', 'przychody']))
     pokaz = fields.String(load_default='kategorie',
                           validate=validate.OneOf(['czas', 'kategorie', 'kontrahenci', 'salda']))
     sald = fields.String(load_default='auto', validate=validate.OneOf(['auto', 'konta', 'typy', 'razem']))
-    ulubione = fields.Boolean(load_default=False, truthy={True}, falsy={False})
+    ulubione = _ScislyBool(load_default=False)
 
     @post_load
     def _posortuj(self, data, **kwargs):
@@ -226,4 +237,4 @@ class SavedViewSchema(Schema):
 
 
 class FavoriteSchema(Schema):
-    is_favorite = fields.Boolean(required=True, truthy={True}, falsy={False})
+    is_favorite = _ScislyBool(required=True)

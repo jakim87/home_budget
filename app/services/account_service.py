@@ -212,13 +212,17 @@ def delete_or_archive_account(user_token, a_id):
 MAKS_ULUBIONYCH = 10
 
 
+class BrakKonta(ValueError):
+    """Konta nie ma, jest zamknięte albo należy do kogoś innego — blueprint odpowiada 404."""
+
+
 def set_favorite(user_token, a_id, value):
     """Oznacza aktywne konto jako ulubione albo zdejmuje oznaczenie. Limit liczy tylko
     konta aktywne: zamknięte znika z Wniosków razem z ulubionym, bez osobnej obsługi."""
     try:
         acc = db.session.query(Account).filter_by(id=a_id, user_token=user_token, is_active=True).first()
         if not acc:
-            raise ValueError('Nie znaleziono konta.')
+            raise BrakKonta('Nie znaleziono konta.')
         if value and not acc.is_favorite:
             ile = db.session.query(Account).filter_by(
                 user_token=user_token, is_active=True, is_favorite=True).count()

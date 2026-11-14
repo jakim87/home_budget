@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from marshmallow import ValidationError
 from flask_login import login_required, current_user
 from app.schemas import AccountSchema, FavoriteSchema, ReconcileSchema
-from app.services.account_service import create_account, update_account, delete_or_archive_account, reorder_accounts, set_favorite
+from app.services.account_service import create_account, update_account, delete_or_archive_account, reorder_accounts, set_favorite, BrakKonta
 from app.services.budget_service import reconcile_account_balance
 
 accounts_bp = Blueprint('accounts', __name__, url_prefix='/api/accounts')
@@ -66,8 +66,10 @@ def toggle_favorite(a_id):
         return jsonify({'error': err.messages}), 400
     try:
         acc = set_favorite(current_user.token, a_id, data['is_favorite'])
+    except BrakKonta as err:
+        return jsonify({'error': str(err)}), 404
     except ValueError as err:
-        return jsonify({'error': str(err)}), 404 if 'Nie znaleziono' in str(err) else 400
+        return jsonify({'error': str(err)}), 400
     return jsonify({'id': acc.id, 'is_favorite': acc.is_favorite}), 200
 
 @accounts_bp.route('/<int:a_id>', methods=['DELETE'])

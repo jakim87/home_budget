@@ -20,9 +20,11 @@ const WN_PROGI = {
     nowyKwota: 200, nowyOdHistorii: 6,   // „pierwszy raz” zalewał krótką historię
     wplywKwota: 300,
     stalaTolKwoty: 0.15, stalaTolDni: 5, stalaZmiana: 0.03, stalaZmianaMin: 2,
-    bilansPunkty: 0.10, przychodyProc: 0.05, przychodyKwota: 300,
+    bilansPunkty: 0.10, przychodyProc: 0.10, przychodyKwota: 300,   // +5–8% przy pensji to szum
+    prawieNic: 50,         // typowa kwota poniżej tego: bez procentu („+29536%”), tylko „zwykle prawie nic”
     jednaPrzyczyna: 0.7,
-    lukaMinOperacji: 5,    // konto z tyloma operacjami co miesiąc, a teraz bez żadnej = brak wyciągu
+    lukaMinOperacji: 5,    // konto z tyloma operacjami w 2 poprzednich miesiącach…
+    lukaUlamek: 0.4,       // …a teraz z mniejszym ułamkiem mediany swoich operacji = niepełny wyciąg
     krotkoMaks: 50,
 };
 
@@ -128,13 +130,16 @@ function wnPrzygotuj({ transakcje, kategorie, konta, kurs, dzis }) {
         }
     });
 
-    // Miesiąc z niepełnym importem: konto, które w każdym z 3 poprzednich miesięcy miało
-    // kilka operacji, nagle nie ma żadnej. Taki miesiąc zaniżałby medianę („Inne: −100%”),
-    // więc wypada z okna, a dla niego samego wniosków nie liczymy.
+    // Miesiąc z niepełnym importem: konto, które w 2 poprzednich miesiącach miało po kilka
+    // operacji, ma teraz mniej niż 40% mediany swoich miesięcy (także zero). Taki miesiąc
+    // zaniżałby medianę i zawyżał trendy kolejnych („+346%”), więc wypada z okna, a dla niego
+    // samego wniosków nie liczymy.
     const lukiKonta = new Map();
     liczbaTx.forEach((ile, konto) => {
-        for (let j = 3; j < miesiace.length; j++) {
-            if (!ile[j] && [1, 2, 3].every(o => ile[j - o] >= WN_PROGI.lukaMinOperacji)) {
+        for (let j = 2; j < miesiace.length; j++) {
+            const wczesniej = ile.slice(Math.max(0, j - WN_PROGI.oknoMies), j).filter(n => n > 0);
+            if ([1, 2].every(o => ile[j - o] >= WN_PROGI.lukaMinOperacji)
+                && ile[j] < WN_PROGI.lukaUlamek * wnMediana(wczesniej)) {
                 (lukiKonta.get(j) || lukiKonta.set(j, []).get(j)).push(konto);
             }
         }
@@ -211,19 +216,27 @@ function wnPodobne(a, b) {
     return Math.abs(a.kwota - b.kwota) <= WN_PROGI.stalaTolKwoty * Math.max(a.kwota, b.kwota)
         && Math.abs(a.dzien - b.dzien) <= WN_PROGI.stalaTolDni;
 }
-function wnCiag(s, od, doM) {
-    if (od < 0) return false;
-    for (let j = od; j <= doM; j++) {
-        if (!s.m.has(j)) return false;
-        if (j > od && !wnPodobne(s.m.get(j - 1), s.m.get(j))) return false;
-    }
-    return true;
+// n miesięcy przed i, od najstarszego, z pominięciem luk w imporcie (null, gdy tylu nie ma).
+// Luka nie przerywa ciągu stałej opłaty — płatność z niej po prostu nie dotarła do aplikacji.
+function wnPoprzednie(d, i, n) {
+    const w = [];
+    for (let j = i - 1; j >= 0 && w.length < n; j--) if (!d.lukiKonta.has(j)) w.push(j);
+    return w.length === n ? w.reverse() : null;
+}
+// Czy we wskazanych miesiącach (rosnąco) są płatności, kolejno podobne do siebie?
+function wnCiag(s, mies) {
+    if (!mies) return false;
+    return mies.every((j, k) => s.m.has(j) && (k === 0 || wnPodobne(s.m.get(mies[k - 1]), s.m.get(j))));
 }
 // Czy do miesiąca i kontrahent był już stałą opłatą (3 podobne płatności z rzędu)?
-function wnStalaDo(s, i) {
-    for (const j of s.m.keys()) if (j <= i && wnCiag(s, j - 2, j)) return true;
+function wnStalaDo(d, s, i) {
+    for (const j of s.m.keys()) {
+        if (j <= i && !d.lukiKonta.has(j) && wnCiag(s, [...(wnPoprzednie(d, j, 2) || [NaN]), j])) return true;
+    }
     return false;
 }
+// Nazwa na karcie: gotówka jako „Wypłaty gotówki”, nie nazwa bankomatu.
+const wnNazwaOp = (d, o) => (o.klucz ? d.nazwyKluczy.get(o.klucz) : o.nazwa);
 
 // --- Składniki wspólne kilku reguł („jedna przyczyna, jeden wniosek”) ---
 function wnDuzeWydatki(d, i) {
@@ -232,9 +245,10 @@ function wnDuzeWydatki(d, i) {
         const typWyd = wnMediana(okno.map(j => d.agg[j].exp));
         const prog = Math.max(WN_PROGI.duzyKwota, WN_PROGI.duzyUdzial * typWyd);
         return d.wMies[i].filter(o => {
-            if (o.kwota >= 0 || -o.kwota < prog) return false;
+            // Wypłata gotówki to przeniesienie pieniędzy do portfela, nie zakup — nawet nieregularna.
+            if (o.kwota >= 0 || -o.kwota < prog || o.klucz === WN_GOTOWKA) return false;
             const s = o.klucz && d.serie.get(o.klucz);
-            if (s && !s.wiele && wnStalaDo(s, i)) return false;
+            if (s && !s.wiele && wnStalaDo(d, s, i)) return false;
             // Regularny duży wydatek (np. comiesięczna wypłata gotówki): w co najmniej 3 miesiącach
             // okna u tego kontrahenta był wydatek co najmniej o połowę tej kwoty.
             if (o.klucz) {
@@ -273,25 +287,25 @@ function wnRegulaJednorazowe(d, i) {
         const wiekszy = d.ops.filter(p => p.kwota < 0 && p.data < o.data && p.kwota <= o.kwota).pop();
         lista.push(wnCiekawostka(d, i, {
             klucz: `duzy-${o.id}`, rodzaj: 'Jednorazowe zdarzenie', ton: 'info', plakietka: 'jednorazowo',
-            temat: { typ: 'kontrahent', nazwa: o.nazwa }, tytul: o.nazwa, kwota: wnZl2(-o.kwota),
-            krotko: `${o.nazwa}: ${wnZl(-o.kwota)} jednorazowo`,
+            temat: { typ: 'kontrahent', nazwa: wnNazwaOp(d, o) }, tytul: wnNazwaOp(d, o), kwota: wnZl2(-o.kwota),
+            krotko: `${wnNazwaOp(d, o)}: ${wnZl(-o.kwota)} jednorazowo`,
             opis: `${wnTytulZdanie(o)}`
-                + (wiekszy ? `Większy pojedynczy wydatek był ostatnio ${wnMsc(wiekszy.ym)} (${wiekszy.nazwa}, ${wnZl(-wiekszy.kwota)}).` : 'Największy pojedynczy wydatek w całej historii.')
+                + (wiekszy ? `Większy pojedynczy wydatek był ostatnio ${wnMsc(wiekszy.ym)} (${wnNazwaOp(d, wiekszy)}, ${wnZl(-wiekszy.kwota)}).` : 'Największy pojedynczy wydatek w całej historii.')
                 + (typWyd > 0 ? ` To ${Math.round(-o.kwota / typWyd * 100)}% typowych miesięcznych wydatków.` : ''),
             meta: wnMeta(d, o), waga: -o.kwota, pokaz: wnPokazOperacji(d, o, 'wydatki'),
         }));
     });
     wnNowiKontrahenci(d, i).forEach(o => lista.push(wnCiekawostka(d, i, {
         klucz: `nowy-${o.id}`, rodzaj: 'Jednorazowe zdarzenie', ton: 'info', plakietka: 'pierwszy raz',
-        temat: { typ: 'kontrahent', nazwa: o.nazwa }, tytul: o.nazwa, kwota: wnZl2(-o.kwota),
-        krotko: `Pierwszy raz: ${o.nazwa}, ${wnZl(-o.kwota)}`,
+        temat: { typ: 'kontrahent', nazwa: wnNazwaOp(d, o) }, tytul: wnNazwaOp(d, o), kwota: wnZl2(-o.kwota),
+        krotko: `Pierwszy raz: ${wnNazwaOp(d, o)}, ${wnZl(-o.kwota)}`,
         opis: `${wnTytulZdanie(o)}Pierwsza płatność u tego kontrahenta.`,
         meta: wnMeta(d, o), waga: -o.kwota, pokaz: wnPokazOperacji(d, o, 'wydatki'),
     })));
     wnNietypoweWplywy(d, i).forEach(o => lista.push(wnCiekawostka(d, i, {
         klucz: `wplyw-${o.id}`, rodzaj: 'Jednorazowe zdarzenie', ton: 'lepiej', plakietka: 'dodatkowy wpływ',
-        temat: { typ: 'kontrahent', nazwa: o.nazwa }, tytul: o.nazwa, kwota: '+' + wnZl2(o.kwota),
-        krotko: `Wpływ: ${o.nazwa}, +${wnZl(o.kwota)}`,
+        temat: { typ: 'kontrahent', nazwa: wnNazwaOp(d, o) }, tytul: wnNazwaOp(d, o), kwota: '+' + wnZl2(o.kwota),
+        krotko: `Wpływ: ${wnNazwaOp(d, o)}, +${wnZl(o.kwota)}`,
         opis: `${wnTytulZdanie(o)}Od tego nadawcy nic nie wpłynęło w ${okno.length} poprzednich miesiącach.`,
         meta: wnMeta(d, o), waga: o.kwota, pokaz: wnPokazOperacji(d, o, 'przychody'),
     })));
@@ -315,14 +329,16 @@ function wnRegulaTrendy(d, i) {
         if (r > 0 && zOperacji >= WN_PROGI.jednaPrzyczyna * r) return;
         let seria = 0;
         for (let j = i; j > od && (r > 0 ? sumaK(j) > sumaK(j - 1) : sumaK(j) < sumaK(j - 1)); j--) seria++;
-        const proc = typ > 0 ? Math.round(Math.abs(r) / typ * 100) : null;
+        // Od prawie zerowej podstawy procent nic nie mówi („+29536%”) — wtedy sama kwota.
+        const zwyklePrawieNic = typ < WN_PROGI.prawieNic;
+        const proc = zwyklePrawieNic ? null : Math.round(Math.abs(r) / typ * 100);
         lista.push(wnCiekawostka(d, i, {
             klucz: `trend-${nazwa}`, rodzaj: 'Trend kategorii', ton: r > 0 ? 'gorzej' : 'lepiej',
             plakietka: r > 0 ? 'więcej niż zwykle' : 'mniej niż zwykle',
             temat: { typ: 'kategoria', nazwa }, tytul: nazwa, kwota: wnZl(teraz),
-            delta: typ > 0 ? (r > 3 * typ ? `${Math.round(teraz / typ)}× więcej` : `${r > 0 ? '+' : '−'}${proc}%`) : '',
+            delta: zwyklePrawieNic ? '' : (r > 3 * typ ? `${Math.round(teraz / typ)}× więcej` : `${r > 0 ? '+' : '−'}${proc}%`),
             krotko: `${nazwa}: ${wnZl(teraz)}` + (proc !== null ? `, ${r > 0 ? '+' : '−'}${proc}% do zwykłych` : ''),
-            opis: (typ > 0 ? `Zwykle ${wnZl(typ)} (mediana z ${okn.length} mies.).` : 'Zwykle w tej kategorii nic.')
+            opis: (typ <= 0 ? 'Zwykle w tej kategorii nic.' : zwyklePrawieNic ? `Zwykle prawie nic (${wnZl(typ)}, mediana z ${okn.length} mies.).` : `Zwykle ${wnZl(typ)} (mediana z ${okn.length} mies.).`)
                 + (seria >= 2 ? ` ${r > 0 ? 'Rośnie' : 'Spada'} od ${seria} miesięcy.` : ''),
             iskra: wnIskra(d, i, sumaK), waga: Math.abs(r),
             pokaz: { cfg: { okres: { typ: 'n', n: 6 }, kategorie: wnTylkoId(wnKatId(d, nazwa)), liczy: 'wydatki', pokaz: 'czas' }, tabela: 'operacje', opis: nazwa },
@@ -337,7 +353,10 @@ function wnRegulaStaleOplaty(d, i) {
         if (s.wiele || klucz === WN_GOTOWKA) return;
         const a = j => s.m.get(j);
         const nazwa = d.nazwyKluczy.get(klucz);
-        const ostatnia = a(i) || a(i - 1) || a(i - 2);
+        // Poprzednie miesiące bez luk (null, gdy historia za krótka).
+        const prev3 = wnPoprzednie(d, i, 3), prev4 = wnPoprzednie(d, i, 4);
+        const p1 = prev3 && prev3[2], p2 = prev3 && prev3[1];
+        const ostatnia = a(i) || (prev3 && (a(p1) || a(p2))) || null;
         const kontrId = klucz.startsWith('k') ? Number(klucz.slice(1)) : null;
         // Kontrahent bez wpisu w słowniku nie ma ID do filtra — wtedy kategoria ostatniej płatności.
         const cfg = kontrId
@@ -349,19 +368,22 @@ function wnRegulaStaleOplaty(d, i) {
             iskra: wnIskra(d, i, j => (a(j) ? a(j).kwota : 0)),
             pokaz: { cfg, tabela: 'operacje', opis: nazwa },
         };
-        if (a(i) && wnCiag(s, i - 3, i - 1) && Math.abs(a(i).dzien - a(i - 1).dzien) <= WN_PROGI.stalaTolDni) {
-            const r = a(i).kwota - a(i - 1).kwota;
-            if (Math.abs(r) >= Math.max(WN_PROGI.stalaZmianaMin, WN_PROGI.stalaZmiana * a(i - 1).kwota)) {
+        if (a(i) && wnCiag(s, prev3) && Math.abs(a(i).dzien - a(p1).dzien) <= WN_PROGI.stalaTolDni) {
+            const r = a(i).kwota - a(p1).kwota;
+            if (Math.abs(r) >= Math.max(WN_PROGI.stalaZmianaMin, WN_PROGI.stalaZmiana * a(p1).kwota)) {
                 lista.push(wnCiekawostka(d, i, {
                     ...wspolne, klucz: `zmiana-${klucz}`, ton: r > 0 ? 'gorzej' : 'lepiej', plakietka: r > 0 ? 'podwyżka' : 'obniżka',
                     kwota: wnZl2(a(i).kwota), krotko: `${r > 0 ? 'Podwyżka' : 'Obniżka'}: ${nazwa}, ${wnZl2(a(i).kwota)}`,
-                    opis: `Wcześniej ${wnZl2(a(i - 1).kwota)}. To ${wnZl2(Math.abs(r))} ${r > 0 ? 'więcej' : 'mniej'} co miesiąc, ${wnZl(Math.abs(r) * 12)} w skali roku.`,
+                    opis: `Wcześniej ${wnZl2(a(p1).kwota)}. To ${wnZl2(Math.abs(r))} ${r > 0 ? 'więcej' : 'mniej'} co miesiąc, ${wnZl(Math.abs(r) * 12)} w skali roku.`,
                     waga: Math.abs(r) * 12,
                 }));
             }
         }
+        // „Nowa”: druga albo trzecia płatność w kolejnych miesiącach bez luk.
         const pierwszy = Math.min(...s.m.keys());
-        if (pierwszy >= 1 && pierwszy >= i - 2 && pierwszy < i && wnCiag(s, pierwszy, i)) {
+        const odPierwszej = [];
+        for (let j = pierwszy; j <= i; j++) if (!d.lukiKonta.has(j)) odPierwszej.push(j);
+        if (pierwszy > d.pierwszyOp && odPierwszej.length >= 2 && odPierwszej.length <= 3 && wnCiag(s, odPierwszej)) {
             lista.push(wnCiekawostka(d, i, {
                 ...wspolne, klucz: `nowa-${klucz}`, ton: 'info', plakietka: 'nowa', kwota: wnZl2(a(i).kwota),
                 krotko: `Nowa stała opłata: ${nazwa}`,
@@ -369,12 +391,12 @@ function wnRegulaStaleOplaty(d, i) {
                 waga: a(i).kwota * 12,
             }));
         }
-        if (!a(i) && !a(i - 1) && wnCiag(s, i - 4, i - 2)) {
+        if (prev4 && !a(i) && !a(p1) && wnCiag(s, prev4.slice(0, 3))) {
             lista.push(wnCiekawostka(d, i, {
-                ...wspolne, klucz: `znikla-${klucz}`, ton: 'info', plakietka: 'przestała się pojawiać', kwota: wnZl2(a(i - 2).kwota),
+                ...wspolne, klucz: `znikla-${klucz}`, ton: 'info', plakietka: 'przestała się pojawiać', kwota: wnZl2(a(p2).kwota),
                 krotko: `${nazwa}: brak opłaty od 2 miesięcy`,
-                opis: `Ostatnia płatność ${wnDataDl(a(i - 2).o.data)}. ${wnCap(WN_M_MSC[wnNrM(d.miesiace[i - 1])])} i ${WN_M_MSC[wnNrM(d.miesiace[i])]} jej nie było. Jeśli to rezygnacja, w skali roku zostaje ${wnZl(a(i - 2).kwota * 12)}.`,
-                waga: a(i - 2).kwota * 12,
+                opis: `Ostatnia płatność ${wnDataDl(a(p2).o.data)}. ${wnCap(WN_M_MSC[wnNrM(d.miesiace[p1])])} i ${WN_M_MSC[wnNrM(d.miesiace[i])]} jej nie było. Jeśli to rezygnacja, w skali roku zostaje ${wnZl(a(p2).kwota * 12)}.`,
+                waga: a(p2).kwota * 12,
             }));
         }
     });
@@ -401,7 +423,7 @@ function wnRegulaBilans(d, i) {
             krotko: `Zostało ${Math.round(stopa * 100)}% przychodów, zwykle ${Math.round(typ * 100)}%`,
             opis: (zostalo >= 0 ? '' : `Wydatki przewyższyły przychody o ${wnZl(-zostalo)}. `)
                 + `Zwykle zostaje ${Math.round(typ * 100)}% przychodów, czyli przy tych przychodach ${wnZl(typ * A.inc)}.`
-                + (przyczyna ? ` Główna przyczyna: ${przyczyna.nazwa}, ${wnZl(-przyczyna.kwota)}.` : ''),
+                + (przyczyna ? ` Główna przyczyna: ${wnNazwaOp(d, przyczyna)}, ${wnZl(-przyczyna.kwota)}.` : ''),
             iskra: wnIskra(d, i, j => Math.round(stopaM(j) * 100)), waga: Math.abs(luka),
             pokaz: { cfg: { okres: { typ: 'n', n: 6 }, liczy: 'oba', pokaz: 'czas' }, tabela: 'zestawienie', opis: 'Bilans' },
         }));

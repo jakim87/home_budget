@@ -921,8 +921,11 @@ function wnPokazOkres(ym, kategorieIds) {
     wnOtworzZWidokiem(ym, { kategorie: [...kategorieIds].sort((a, b) => a - b) },
         nazwy.length === 0 ? 'Szczegółowy raport' : nazwy.length === 1 ? nazwy[0] : `${nazwy.length} kategorie`);
 }
-// „Cała historia konta” z listy kont (także zamkniętego).
+// „Cała historia konta” z listy kont (także zamkniętego). Konto z samymi przelewami (np. zamknięta
+// lokata) pokazałoby we Wnioskach pusty widok — przelewy są poza sumami, a zamknięte konta poza
+// saldami — więc wtedy otwieramy jego Transakcje.
 function wnPokazKonto(id) {
+    if (!wnD().ops.some(o => o.konto === id)) { viewAccountTransactions(id); return; }
     wnOtworzZWidokiem(wnD().miesiace[wnD().biezacy], { konta: [id], okres: { typ: 'calosc' }, pokaz: 'czas' }, wnKontoNazwa(id) || 'Konto');
 }
 

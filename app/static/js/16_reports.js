@@ -142,28 +142,6 @@ function resetRptFilters() {
     rptSetPreset('6months');
 }
 
-// Wejście z Dashboardu („Szczegółowy raport"): cały wybrany miesiąc i kategorie z filtra
-// wykresu (pusta lista = domyślne przychody i wydatki). Pierwsze otwarcie Raportów
-// nadpisałoby daty presetem „6 miesięcy", więc listy inicjalizujemy tutaj.
-function rptPokazOkres(od, doDaty, kategorieIds) {
-    if (!rptInitialized) {
-        rptInitDropdowns();
-        rptInitialized = true;
-    }
-    document.querySelectorAll('.rpt-acc-check, .rpt-cont-check').forEach(chk => { chk.checked = true; });
-    document.querySelectorAll('.rpt-cat-check').forEach(chk => {
-        const cat = categories.find(c => c.id == parseInt(chk.value));
-        chk.checked = kategorieIds.length
-            ? kategorieIds.includes(cat?.id)
-            : !!cat && (cat.type === 'income' || cat.type === 'expense');
-    });
-    const excludeChk = document.getElementById('rpt-exclude-transfers');
-    if (excludeChk) excludeChk.checked = true;
-    document.getElementById('rpt-date-from').value = od;
-    document.getElementById('rpt-date-to').value = doDaty;
-    switchTab('reports');  // renderReports() przeliczy raport z tymi filtrami
-}
-
 function applyRptFilters() {
     const dateFrom = document.getElementById('rpt-date-from')?.value || null;
     const dateTo = document.getElementById('rpt-date-to')?.value || null;

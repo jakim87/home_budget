@@ -96,3 +96,22 @@ describe('Szczegolowy raport z Dashboardu otwiera Wnioski', () => {
         expect(document.getElementById('wn-kpi').textContent).toContain('5 000 zł');
     });
 });
+
+describe('przycisk „Szczegółowy raport”', () => {
+    const przyciski = ym => {
+        document.body.innerHTML = '<div class="dashboard-wybor"></div>';
+        dashWybranyMiesiac = ym;
+        renderWyborMiesiaca();
+        return document.querySelector('.dashboard-wybor').textContent;
+    };
+
+    it('jest przy miesiącu bieżącym i przeszłym', () => {
+        expect(przyciski('2026-03')).toContain('Szczegółowy raport');
+        expect(przyciski('2026-05')).toContain('Szczegółowy raport');
+    });
+
+    it('znika przy miesiącu z przyszłości — Wnioski go nie liczą i pokazałyby inny miesiąc', () => {
+        expect(przyciski('2026-06')).not.toContain('Szczegółowy raport');
+        expect(przyciski('2026-06')).toContain('Pokaż transakcje');
+    });
+});

@@ -512,7 +512,7 @@ function renderWyborMiesiaca() {
         el.innerHTML = `
             <span class="text-sm font-medium text-slate-700 mr-auto">Wybrany miesiąc: ${escapeHtml(nazwaMiesiaca(dashWybranyMiesiac))}</span>
             <button type="button" onclick="pokazTransakcjeMiesiaca('${ym}')" class="${przycisk}">Pokaż transakcje →</button>
-            <button type="button" onclick="pokazRaportMiesiaca('${ym}')" class="${przycisk}">Szczegółowy raport →</button>
+            ${dashWybranyMiesiac <= dzisiejszyMiesiac() ? `<button type="button" onclick="pokazRaportMiesiaca('${ym}')" class="${przycisk}">Szczegółowy raport →</button>` : ''}
             <button type="button" onclick="wybierzMiesiacDashboardu(null)" class="text-sm text-slate-500 hover:text-slate-700 underline">Wyczyść ×</button>`;
     });
 }

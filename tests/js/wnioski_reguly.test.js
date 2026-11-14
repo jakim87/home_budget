@@ -85,9 +85,6 @@ describe('stałe opłaty', () => {
         expect(czynsz.opis).toContain('40,00');
     });
 
-    it('podwyżka pensji w lipcu jako przychody więcej niż zwykle', () => {
-        expect(znajdz(wnioski('2026-07').lista, 'przychody').ton).toBe('lepiej');
-    });
 });
 
 describe('kiedy wniosków nie ma', () => {
@@ -123,7 +120,8 @@ describe('kiedy wniosków nie ma', () => {
     it('miesiąc bez żadnej operacji w środku danych to luka, a nie „zero wydatków”', () => {
         // Trzeci miesiąc danych: za wcześnie na regułę „konto nagle bez operacji” (3 miesiące wstecz).
         const transakcje = zbudujTransakcje().transakcje.filter(t => !t.date.startsWith('2025-06'));
-        expect(wnioski('2025-06', { transakcje })).toMatchObject({ stan: 'luka', konta: [] });
+        // (konto osobiste łapie też reguła „ułamek zwykłej liczby operacji”, więc lista kont nie jest pusta)
+        expect(wnioski('2025-06', { transakcje }).stan).toBe('luka');
         expect(wnioski('2025-07', { transakcje }).stan).toBe('malo');
         expect(wnioski('2025-08', { transakcje })).toMatchObject({ stan: 'ok', okno: 3 });
     });
@@ -166,6 +164,55 @@ describe('przelewy, uzgodnienia, gotówka, waluty', () => {
         const bez = przygotuj({ transakcje: [t], konta: [...KONTA, eur] });
         expect(bez.ops).toEqual([]);
         expect([...bez.brakKursu]).toEqual(['EUR']);
+    });
+});
+
+describe('poprawki po symulacji na prawdziwych danych (dane syntetyczne o tym samym kształcie)', () => {
+    const bezCzesci = (filtr) => zbudujTransakcje().transakcje.filter(t => !filtr(t));
+
+    it('niepełny import konta (ułamek zwykłej liczby operacji) to luka, a nie miesiąc z niskimi wydatkami', () => {
+        // Z sierpnia konta osobistego zostają tylko 3 operacje (zwykle ~25).
+        let zostaw = 3;
+        const transakcje = bezCzesci(t => t.account_id === 1 && t.date.startsWith('2026-08') && zostaw-- <= 0);
+        expect(wnioski('2026-08', { transakcje })).toMatchObject({ stan: 'luka', konta: [1] });
+        expect(wnioski('2026-10', { transakcje }).okno).toBe(5);
+    });
+
+    it('podwyżka stałej opłaty wychodzi także wtedy, gdy miesiąc wcześniej był luką w imporcie', () => {
+        const transakcje = bezCzesci(t => t.date.startsWith('2026-09'));
+        const lista = wnioski('2026-10', { transakcje }).lista;
+        const netflix = lista.find(x => x.klucz.startsWith('zmiana-') && x.tytul === 'Netflix');
+        expect(netflix && netflix.plakietka).toBe('podwyżka');
+        expect(netflix.opis).toContain('49,00');
+    });
+
+    it('wypłata gotówki nigdy nie jest „jednorazowym zdarzeniem”, a na karcie nie ma nazwy bankomatu', () => {
+        const transakcje = [...zbudujTransakcje().transakcje,
+            { id: 9300, date: '2026-07-04', amount: -2500, desc: 'Wypłata z bankomatu', category: 'Inne', account_id: 1, contractor_name: 'Bank X bankomat 17' },
+            { id: 9301, date: '2026-10-04', amount: -2500, desc: 'Wypłata z bankomatu', category: 'Inne', account_id: 1, contractor_name: 'Bank X bankomat 17' }];
+        const lista = wnioski('2026-10', { transakcje }).lista;
+        expect(lista.some(x => x.plakietka === 'jednorazowo' && /bankomat|gotówki/i.test(x.tytul))).toBe(false);
+        expect(lista.some(x => /Bank X/.test(x.tytul + x.opis))).toBe(false);
+    });
+
+    it('przychody wyżej o 8% to szum, o kilkanaście procent — wniosek', () => {
+        expect(znajdz(wnioski('2026-07').lista, 'przychody')).toBeUndefined();  // pensja 8400 → 9100
+        const transakcje = [...zbudujTransakcje().transakcje,
+            { id: 9400, date: '2026-01-20', amount: 1500, desc: 'Premia', category: 'Wynagrodzenie', account_id: 1, contractor_id: zbudujTransakcje().kontrahenci.get('Pracodawca sp. z o.o.'), contractor_name: 'Pracodawca sp. z o.o.' }];
+        expect(znajdz(wnioski('2026-01', { transakcje }).lista, 'przychody').ton).toBe('lepiej');
+    });
+
+    it('trend od prawie zerowej podstawy bez absurdalnego procentu', () => {
+        const transakcje = [...zbudujTransakcje().transakcje];
+        ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'].forEach((ym, k) => transakcje.push(
+            { id: 9500 + k, date: `${ym}-09`, amount: -10, desc: 'Drobiazg', category: 'Hobby', account_id: 1, contractor_id: 777, contractor_name: 'Sklep hobby' }));
+        [0, 1, 2].forEach(k => transakcje.push(
+            { id: 9510 + k, date: `2026-10-0${k + 2}`, amount: -150, desc: 'Zakupy', category: 'Hobby', account_id: 1, contractor_id: 777, contractor_name: 'Sklep hobby' }));
+        const hobby = znajdz(wnioski('2026-10', { transakcje }).lista, 'trend-Hobby');
+        expect(hobby.ton).toBe('gorzej');
+        expect(hobby.delta).toBe('');
+        expect(hobby.krotko + hobby.opis).not.toMatch(/%|×/);
+        expect(hobby.opis).toContain('prawie nic');
     });
 });
 

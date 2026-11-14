@@ -235,3 +235,24 @@ describe('dymek „i” i menu rozbijania', () => {
         expect(document.getElementById('wn-note').textContent).toBe('');
     });
 });
+
+describe('„Cała historia konta” z listy kont', () => {
+    it('konto z operacjami otwiera Wnioski z jego całą historią', () => {
+        wnPokazKonto(1);
+        expect(wnCfg.konta).toEqual([1]);
+        expect(wnCfg.okres).toEqual({ typ: 'calosc' });
+    });
+
+    it('konto z samymi przelewami (np. zamknięte oszczędnościowe) otwiera Transakcje tego konta', () => {
+        inactiveAccounts = [{ id: 40, name: 'Stara lokata', currency: 'PLN' }];
+        transactions = [...transactions,
+            { id: 9600, date: '2026-03-02', amount: 500, desc: 'Na lokatę', category: 'Przelew wewnętrzny', account_id: 40 },
+            { id: 9601, date: '2026-05-02', amount: -500, desc: 'Z lokaty', category: 'Przelew wewnętrzny', account_id: 40 }];
+        const otwarte = [];
+        globalThis.viewAccountTransactions = id => otwarte.push(id);
+        wnCfg = { ...WN_PUSTY };
+        wnPokazKonto(40);
+        expect(otwarte).toEqual([40]);
+        expect(wnCfg.konta).toEqual([]);
+    });
+});

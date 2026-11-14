@@ -14,6 +14,8 @@ const PALETA = {
     sliwka: '#8b6a8f',   // IKZE
     popiel: '#9b9797',   // konta bez typu
     umbra: '#8a6b55',    // kredyty i karty (zobowiązania)
+    oliwka: '#7f8a3f',   // 9. i 10. linia wykresu sald we Wnioskach (do 10 ulubionych kont)
+    grafit: '#3d4451',
 };
 
 // Tekst do porównań: małe litery, bez polskich znaków („Żabka" = „zabka").
@@ -66,6 +68,13 @@ function sumaSaldPLN(konta) {
 function walutaKonta(id) {
     const a = accounts.find(x => x.id == id) || inactiveAccounts.find(x => x.id == id);
     return (a && a.currency) || 'PLN';
+}
+
+// Kwota transakcji w PLN po kursie NBP z końca jej miesiąca; null = brak kursu
+// (transakcja wypada z sumy jawnie, jak konto bez kursu z Majątku netto).
+function kwotaPLN(t) {
+    const kurs = kursPLN(walutaKonta(t.account_id), t.date.slice(0, 7));
+    return kurs === null ? null : t.amount * kurs;
 }
 
 // Enter/spacja na elemencie z onclick, który nie jest przyciskiem (nagłówek

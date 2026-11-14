@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='classical.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='wnioski.css') }}">
 </head>
 <body class="text-slate-800 antialiased pb-20">
     <div id="toast-container"></div>
@@ -95,6 +96,7 @@
                 Import <span id="staging-badge" class="hidden bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
             </button>
             <button onclick="switchTab('summary')" id="btn-tab-summary" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Podsumowanie</button>
+            <button onclick="switchTab('wnioski')" id="btn-tab-wnioski" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Wnioski</button>
             <button onclick="switchTab('budget')" id="btn-tab-budget" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Budżet</button>
             <button onclick="switchTab('categories')" id="btn-tab-categories" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Słowniki</button>
             <!-- Ukryta na telefonie: wykresy i tabela raportow zakladaja szeroki ekran,
@@ -548,6 +550,81 @@
             </div>
 
             <!-- ZAKŁADKA: BUDŻET -->
+            <!-- Wnioski (23_wnioski.js): wnioski z wybranego miesiąca i widoki z filtrami. Widoczna
+                 też na telefonie, ale tam tylko do oglądania (filtry i zapis chowa wnioski.css). -->
+            <div id="tab-wnioski" class="tab-hidden">
+                <div class="wn">
+                    <div class="wn-monthbar">
+                        <h2 id="wn-tytul">Najważniejsze</h2>
+                        <div class="wn-monthpick" role="group" aria-label="Wybrany miesiąc">
+                            <button type="button" id="wn-mies-prev" aria-label="Poprzedni miesiąc">‹</button>
+                            <span id="wn-mies-label" aria-live="polite"></span>
+                            <button type="button" id="wn-mies-next" aria-label="Następny miesiąc">›</button>
+                        </div>
+                    </div>
+
+                    <section class="wn-card" id="wn-wnioski-sekcja" aria-labelledby="wn-tytul">
+                        <p class="wn-small wn-muted" id="wn-opis"></p>
+                        <details class="wn-reguly" id="wn-reguly">
+                            <summary>Jak powstają wnioski</summary>
+                            <ul>
+                                <li><b>Typowy miesiąc</b> to mediana z 6 poprzednich pełnych miesięcy (przy krótszej historii z tylu, ile jest, ale co najmniej z 3). Mediana, bo jeden wyjazd albo naprawa auta zawyżyłyby średnią. Miesiąc, w którym brakuje operacji z konta, które zwykle ma ich sporo (niezaimportowany wyciąg), wypada z porównań.</li>
+                                <li><b>Trend kategorii</b>: wydatki w kategorii różnią się od typowych o co najmniej 25% i 200 zł. Kategoria młodsza niż 3 miesiące milczy. „Mniej niż zwykle” tylko w kategoriach z wydatkami w każdym miesiącu. Dopisek „rośnie od N miesięcy”, gdy każdy kolejny miesiąc jest wyższy od poprzedniego.</li>
+                                <li><b>Jednorazowe zdarzenie</b>: pojedynczy wydatek wynoszący co najmniej 20% typowych miesięcznych wydatków (i co najmniej 500 zł), który nie jest stałą opłatą ani regularnym dużym wydatkiem (np. comiesięczną wypłatą gotówki); przy co najmniej 6 miesiącach historii pierwsza płatność u nowego kontrahenta od 200 zł; wpływ od 300 zł od nadawcy, od którego nic nie przyszło przez 6 miesięcy.</li>
+                                <li><b>Stała opłata</b>: ten sam kontrahent raz w miesiącu, przez co najmniej 3 miesiące z rzędu, z podobną kwotą (±15%) i w podobnym dniu (±5 dni). Wniosek przy zmianie kwoty o co najmniej 3%, przy nowej opłacie (do 3 miesięcy od pierwszej płatności) i gdy opłaty nie ma 2 miesiące z rzędu.</li>
+                                <li><b>Bilans</b>: odsetek przychodów, który został, różni się od typowego o co najmniej 10 punktów; przychody różnią się od typowych o co najmniej 5% i 300 zł.</li>
+                                <li><b>Jedna przyczyna, jeden wniosek</b>: skok kategorii albo przychodów, który w 70% wyjaśnia jedna operacja, pokazuje się tylko jako ta operacja.</li>
+                                <li><b>Kolejność</b>: według kwoty, o którą chodzi; stałe opłaty liczone w skali roku, bo powtarzają się co miesiąc. Przelewy między Twoimi kontami i uzgodnienia salda nie wchodzą do żadnej sumy. Konta walutowe przeliczane na PLN po kursie NBP z końca miesiąca.</li>
+                            </ul>
+                        </details>
+                        <div id="wn-lista"></div>
+                        <div class="wn-ins-foot" id="wn-stopka"></div>
+                    </section>
+
+                    <section class="wn-card" id="wn-widoki-sekcja" aria-labelledby="wn-widoki-tytul">
+                        <div class="wn-card-head">
+                            <h2 id="wn-widoki-tytul">Widoki</h2>
+                            <span class="wn-small wn-muted" id="wn-widok-okres"></span>
+                        </div>
+                        <div class="wn-views" id="wn-widoki" role="group" aria-label="Zapisane widoki"></div>
+                        <div class="wn-viewacts" id="wn-akcje"></div>
+                        <div class="wn-note" id="wn-note" aria-live="polite"></div>
+
+                        <div class="wn-filters" id="wn-filtry">
+                            <label class="wn-inl" for="wn-okres">Okres
+                                <select id="wn-okres">
+                                    <option value="miesiac">Wybrany miesiąc</option>
+                                    <option value="n3">3 miesiące do wybranego</option>
+                                    <option value="n6">6 miesięcy do wybranego</option>
+                                    <option value="n12">12 miesięcy do wybranego</option>
+                                    <option value="rok">Od początku roku</option>
+                                    <option value="calosc">Cała historia</option>
+                                </select>
+                            </label>
+                            <span class="wn-sep"></span>
+                            <details class="wn-dd" id="wn-dd-konta"><summary id="wn-dd-konta-sum">Konta</summary><div class="wn-dd-panel"><label class="wn-opt"><input type="checkbox" id="wn-tylko-ulubione"> <b>Tylko ulubione</b>&nbsp;<span class="wn-hint" id="wn-ile-ulubionych"></span></label><label class="wn-opt wn-wszystkie"><input type="checkbox" id="wn-wsz-konta"> <b>Wszystkie</b></label><div class="wn-opts" id="wn-dd-konta-lista"></div></div></details>
+                            <details class="wn-dd" id="wn-dd-kategorie"><summary id="wn-dd-kategorie-sum">Kategorie</summary><div class="wn-dd-panel"><label class="wn-opt wn-wszystkie"><input type="checkbox" id="wn-wsz-kategorie"> <b>Wszystkie</b></label><div class="wn-opts" id="wn-dd-kategorie-lista"></div></div></details>
+                            <details class="wn-dd" id="wn-dd-kontrahenci"><summary id="wn-dd-kontrahenci-sum">Kontrahenci</summary><div class="wn-dd-panel"><input type="text" id="wn-dd-kontrahenci-szukaj" placeholder="Szukaj kontrahenta" aria-label="Szukaj kontrahenta"><label class="wn-opt wn-wszystkie"><input type="checkbox" id="wn-wsz-kontrahenci"> <b>Wszyscy</b></label><div class="wn-opts" id="wn-dd-kontrahenci-lista"></div></div></details>
+                            <span class="wn-sep"></span>
+                            <span class="wn-seg" id="wn-liczy" role="group" aria-label="Co liczyć"><button type="button" data-v="oba">Oba</button><button type="button" data-v="wydatki">Wydatki</button><button type="button" data-v="przychody">Przychody</button></span>
+                            <span class="wn-seg" id="wn-pokaz" role="group" aria-label="Pokaż jako"><button type="button" data-v="czas">W czasie</button><button type="button" data-v="kategorie">Wg kategorii</button><button type="button" data-v="kontrahenci">Wg kontrahentów</button><button type="button" data-v="salda">Salda kont</button></span>
+                            <span class="wn-seg" id="wn-sald" role="group" aria-label="Wykres sald" hidden></span>
+                        </div>
+
+                        <nav class="wn-sciezka" id="wn-sciezka" aria-label="Ścieżka rozbicia" hidden></nav>
+                        <div class="wn-kpis" id="wn-kpi"></div>
+                        <div class="wn-chartbox" id="wn-chartbox"><canvas id="wn-wykres" aria-label="Wykres widoku"></canvas></div>
+                        <div class="wn-tabbar" id="wn-tabbar" role="group" aria-label="Tabela">
+                            <button type="button" id="wn-tab-zest" aria-pressed="true">Zestawienie</button>
+                            <button type="button" id="wn-tab-ops" aria-pressed="false">Operacje</button>
+                        </div>
+                        <div class="wn-tablewrap" id="wn-tabela"></div>
+                        <div id="wn-karta" hidden></div>
+                    </section>
+                    <div class="wn-drill-menu" id="wn-drill-menu" role="menu" aria-label="Co zrobić z tym elementem" hidden></div>
+                </div>
+            </div>
+
             <div id="tab-budget" class="tab-hidden space-y-6">
                 <div class="flex flex-col md:flex-row gap-4 justify-between md:items-center bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                     <div class="flex items-center gap-3">
@@ -1384,6 +1461,8 @@
     <script src="{{ url_for('static', filename='js/19_bulk_edit.js') }}"></script>
     <script src="{{ url_for('static', filename='js/20_budget.js') }}"></script>
     <script src="{{ url_for('static', filename='js/21_szybki_wpis.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/22_wnioski_reguly.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/23_wnioski.js') }}"></script>
     <script src="{{ url_for('static', filename='js/99_bootstrap.js') }}"></script>
 </body>
 </html>

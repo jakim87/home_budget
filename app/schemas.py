@@ -1,5 +1,5 @@
 from decimal import Decimal
-from marshmallow import EXCLUDE, Schema, fields, validate, post_load
+from marshmallow import EXCLUDE, Schema, ValidationError, fields, post_load, validate, validates_schema
 from app.models import Frequency # Import models for nested schemas or enums
 
 # Kolumny kwot to Numeric(10, 2): |kwota| < 10^8. Bez tej granicy za duża liczba
@@ -181,3 +181,60 @@ class BudgetPlanSchema(Schema):
 
     amount = fields.Decimal(required=True, as_string=False,
                             validate=validate.Range(min=0, max=99999999))
+
+
+class OkresWidokuSchema(Schema):
+    """Okres widoku Wniosków — zawsze względny do miesiąca wybranego na zakładce."""
+    typ = fields.String(required=True, validate=validate.OneOf(['miesiac', 'n', 'rok', 'calosc']))
+    n = fields.Integer(strict=True, validate=validate.OneOf([3, 6, 12]))
+
+    @validates_schema
+    def _n_tylko_przy_n(self, data, **kwargs):
+        if (data['typ'] == 'n') != ('n' in data):
+            raise ValidationError('Liczba miesięcy tylko (i zawsze) przy okresie „N miesięcy”.', 'n')
+
+
+# ID w zakresie kolumny INTEGER. Bez górnej granicy json przyjmuje liczby do 4300 cyfr,
+# więc 3 listy po 500 takich ID to megabajty na widok — w bazie i w każdym /api/init.
+_ID = fields.Integer(strict=True, validate=validate.Range(min=1, max=2**31 - 1))
+_LISTA_ID = dict(load_default=list, validate=validate.Length(max=500))
+
+
+class _ScislyBool(fields.Boolean):
+    """Tylko true/false z JSON-a. `truthy={True}` przepuszczało 1 i 0, bo 1 == True w Pythonie."""
+    def _deserialize(self, value, attr, data, **kwargs):
+        if not isinstance(value, bool):
+            raise ValidationError('Oczekiwano wartości true albo false.')
+        return value
+
+
+class WidokConfigSchema(Schema):
+    """Konfiguracja zapisanego widoku. Nieznany klucz = błąd (domyślne RAISE), bo konfiguracja
+    przychodzi od klienta i trafia do bazy jako tekst — zapisujemy tylko to, co tu opisane.
+    Filtr dnia (`dzien`) celowo nie istnieje: w okresie względnym dzień nic nie znaczy
+    w innym miesiącu (decyzja 16)."""
+    okres = fields.Nested(OkresWidokuSchema, load_default=lambda: {'typ': 'miesiac'})
+    konta = fields.List(_ID, **_LISTA_ID)
+    kategorie = fields.List(_ID, **_LISTA_ID)
+    kontrahenci = fields.List(_ID, **_LISTA_ID)
+    liczy = fields.String(load_default='oba', validate=validate.OneOf(['oba', 'wydatki', 'przychody']))
+    pokaz = fields.String(load_default='kategorie',
+                          validate=validate.OneOf(['czas', 'kategorie', 'kontrahenci', 'salda']))
+    sald = fields.String(load_default='auto', validate=validate.OneOf(['auto', 'konta', 'typy', 'razem']))
+    ulubione = _ScislyBool(load_default=False)
+
+    @post_load
+    def _posortuj(self, data, **kwargs):
+        # Posortowane listy: front porównuje konfigurację tekstowo („widok zmieniony?").
+        for pole in ('konta', 'kategorie', 'kontrahenci'):
+            data[pole] = sorted(set(data[pole]))
+        return data
+
+
+class SavedViewSchema(Schema):
+    name = fields.String(required=True, validate=validate.Length(min=1, max=60))
+    config = fields.Nested(WidokConfigSchema, required=True)
+
+
+class FavoriteSchema(Schema):
+    is_favorite = _ScislyBool(required=True)

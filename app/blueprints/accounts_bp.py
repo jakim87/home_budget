@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify
 from marshmallow import ValidationError
 from flask_login import login_required, current_user
-from app.schemas import AccountSchema, ReconcileSchema
-from app.services.account_service import create_account, update_account, delete_or_archive_account, reorder_accounts
+from app.schemas import AccountSchema, FavoriteSchema, ReconcileSchema
+from app.services.account_service import create_account, update_account, delete_or_archive_account, reorder_accounts, set_favorite, BrakKonta
 from app.services.budget_service import reconcile_account_balance
 
 accounts_bp = Blueprint('accounts', __name__, url_prefix='/api/accounts')
@@ -55,6 +55,22 @@ def reorder_accounts_endpoint():
         return jsonify({'message': 'Kolejność kont zapisana.'}), 200
     except ValueError as err:
         return jsonify({'error': str(err)}), 400
+
+@accounts_bp.route('/<int:a_id>/favorite', methods=['PUT'])
+@login_required
+def toggle_favorite(a_id):
+    """Ulubione konto (filtr „Tylko ulubione” we Wnioskach) — bez formularza edycji konta."""
+    try:
+        data = FavoriteSchema().load(request.get_json() or {})
+    except ValidationError as err:
+        return jsonify({'error': err.messages}), 400
+    try:
+        acc = set_favorite(current_user.token, a_id, data['is_favorite'])
+    except BrakKonta as err:
+        return jsonify({'error': str(err)}), 404
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+    return jsonify({'id': acc.id, 'is_favorite': acc.is_favorite}), 200
 
 @accounts_bp.route('/<int:a_id>', methods=['DELETE'])
 @login_required

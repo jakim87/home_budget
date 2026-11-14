@@ -508,7 +508,7 @@ const panelWpisuOtwarty = () => !document.getElementById('tx-sheet')?.classList.
 function odswiezPrzyciskWpisu(zakladka) {
     const fab = document.getElementById('tx-fab');
     if (!fab) return;
-    const aktywna = zakladka || (['dashboard', 'transactions', 'summary', 'budget', 'categories', 'staging', 'reports']
+    const aktywna = zakladka || (['dashboard', 'transactions', 'summary', 'wnioski', 'budget', 'categories', 'staging', 'reports']
         .find(n => !document.getElementById(`tab-${n}`)?.classList.contains('tab-hidden')));
     fab.classList.toggle('hidden', !ekranDotykowy() || aktywna === 'transactions' || !accounts.length);
 }

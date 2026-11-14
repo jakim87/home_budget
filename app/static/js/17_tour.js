@@ -111,6 +111,29 @@ const TOURS = {
         },
     ],
 
+    wnioski: [
+        {
+            el: '#wn-mies-label',
+            akcja: 'Wybierz miesiąc strzałkami',
+            efekt: 'Wnioski i widoki poniżej liczą się do tego miesiąca. Domyślnie to ostatni pełny miesiąc — trwający nie daje wniosków, bo porównanie niepełnego miesiąca z pełnymi wyszłoby fałszywie.',
+        },
+        {
+            el: '#wn-lista',
+            akcja: 'Przejrzyj karty wniosków i kliknij „Pokaż operacje”',
+            efekt: 'Każda karta porównuje miesiąc z typowym, czyli medianą z 6 poprzednich. „Pokaż operacje” ustawia poniżej widok z operacjami, z których wniosek powstał.',
+        },
+        {
+            el: '#wn-filtry',
+            akcja: 'Zmień okres, konta, kategorie albo sposób pokazania',
+            efekt: 'Kliknięcie słupka wykresu albo nazwy w tabeli rozbija element dalej: na kontrahentów, dni albo kartę kategorii. Przelewy między Twoimi kontami nie wchodzą do sum, a konta walutowe liczą się w PLN po kursie NBP.',
+        },
+        {
+            el: '#wn-widoki',
+            akcja: 'Zapisz zmieniony widok przyciskiem „Zapisz jako nowy widok”',
+            efekt: 'Widok zapisuje się na koncie razem z filtrami, więc zobaczysz go też na telefonie. Okres jest względny („6 miesięcy do wybranego”), dlatego widok się nie starzeje.',
+        },
+    ],
+
     categories: [
         {
             el: '#dict-btn-categories',

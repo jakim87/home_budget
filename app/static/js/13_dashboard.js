@@ -94,54 +94,65 @@ function renderDashboard() {
 let netWorthSeriesFull = [];
 let netWorthChart = null;
 
-function computeNetWorthSeries() {
-    const sorted = transactions
+// Saldo każdego konta na koniec każdego miesiąca, w walucie konta: narastająca suma jego
+// transakcji (stan początkowy konta to transakcja „Uzgadnianie salda”). Jedno źródło dla
+// Majątku netto i widoku „Saldo na koniec miesiąca” we Wnioskach — suma sald w widoku ma
+// się równać Majątkowi z tego samego miesiąca.
+// Wynik: { miesiace: ['RRRR-MM'…], salda: { idKonta: [saldo na koniec każdego miesiąca] },
+// start: { idKonta: indeks miesiąca pierwszej transakcji } }.
+function saldaKontMiesiecznie(txs) {
+    const sorted = txs
         .filter(t => t.date)
         .sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
-    if (sorted.length === 0) { netWorthSeriesFull = []; return; }
+    if (sorted.length === 0) return { miesiace: [], salda: {}, start: {} };
 
     const firstYM = sorted[0].date.slice(0, 7);
     const todayYM = dzisiejszyMiesiac();
     const lastTxYM = sorted[sorted.length - 1].date.slice(0, 7);
     const lastYM = lastTxYM > todayYM ? lastTxYM : todayYM;
 
-    // Konta zamknięte też — ich historia nadal składa się na majątek z przeszłości.
-    const kontoById = {};
-    [...accounts, ...inactiveAccounts].forEach(a => { kontoById[a.id] = a; });
-
-    // Saldo narasta osobno w każdym typie i walucie, a dopiero na koniec miesiąca jest
-    // wyceniane po ówczesnym kursie — konto EUR bez ruchu i tak zmienia wartość w PLN.
     let idx = 0;
-    const narastajaco = {};   // typ -> waluta -> suma
-    const kontaTypu = {};     // typ -> Set(id konta)
-    const series = [];
+    const miesiace = [], salda = {}, start = {}, biezace = {};
     for (let ym = firstYM; ym <= lastYM; ym = przesunMiesiac(ym, 1)) {
+        const j = miesiace.push(ym) - 1;
         const [yy, mm] = ym.split('-').map(Number);
         const monthEndStr = `${ym}-${String(new Date(yy, mm, 0).getDate()).padStart(2, '0')}`;
         while (idx < sorted.length && sorted[idx].date <= monthEndStr) {
             const t = sorted[idx];
-            const konto = kontoById[t.account_id];
-            const typ = (konto && konto.account_type) || 'Bez typu';
-            const waluta = (konto && konto.currency) || 'PLN';
-            narastajaco[typ] = narastajaco[typ] || {};
-            narastajaco[typ][waluta] = (narastajaco[typ][waluta] || 0) + t.amount;
-            (kontaTypu[typ] = kontaTypu[typ] || new Set()).add(t.account_id);
+            if (!(t.account_id in start)) { start[t.account_id] = j; salda[t.account_id] = new Array(j).fill(0); }
+            biezace[t.account_id] = (biezace[t.account_id] || 0) + t.amount;
             idx++;
         }
-        const typy = {};
-        let value = 0;
-        for (const [typ, waluty] of Object.entries(narastajaco)) {
-            for (const [waluta, suma] of Object.entries(waluty)) {
-                const kurs = kursPLN(waluta, ym);
-                if (kurs === null) continue;
-                typy[typ] = (typy[typ] || 0) + suma * kurs;
-                value += suma * kurs;
-            }
-        }
-        const konta = Object.fromEntries(Object.entries(kontaTypu).map(([typ, s]) => [typ, s.size]));
-        series.push({ month: ym, value, typy, konta });
+        for (const id of Object.keys(biezace)) salda[id].push(biezace[id]);
     }
-    netWorthSeriesFull = series;
+    return { miesiace, salda, start };
+}
+
+function computeNetWorthSeries() {
+    const { miesiace, salda, start } = saldaKontMiesiecznie(transactions);
+    if (miesiace.length === 0) { netWorthSeriesFull = []; return; }
+
+    // Konta zamknięte też — ich historia nadal składa się na majątek z przeszłości.
+    const kontoById = {};
+    [...accounts, ...inactiveAccounts].forEach(a => { kontoById[a.id] = a; });
+
+    // Saldo narasta osobno w każdym koncie (w jego walucie), a dopiero na koniec miesiąca jest
+    // wyceniane po ówczesnym kursie — konto EUR bez ruchu i tak zmienia wartość w PLN.
+    netWorthSeriesFull = miesiace.map((ym, j) => {
+        const typy = {}, konta = {};
+        let value = 0;
+        for (const id of Object.keys(salda)) {
+            if (start[id] > j) continue;
+            const konto = kontoById[id];
+            const typ = (konto && konto.account_type) || 'Bez typu';
+            konta[typ] = (konta[typ] || 0) + 1;
+            const kurs = kursPLN((konto && konto.currency) || 'PLN', ym);
+            if (kurs === null) continue;
+            typy[typ] = (typy[typ] || 0) + salda[id][j] * kurs;
+            value += salda[id][j] * kurs;
+        }
+        return { month: ym, value, typy, konta };
+    });
 }
 
 // Porównanie dzisiejszego majątku z końcem poprzedniego miesiąca i z końcem tego samego
@@ -349,22 +360,25 @@ function renderStrukturaMajatku() {
 const dashKategorie = new Set();   // id kategorii z filtra wykresu; pusty = wszystkie przychody i wydatki
 let obrotyChart = null;
 
-// Sumy przychodów i wydatków per miesiąc liczone DOKŁADNIE jak w Raportach (applyRptFilters +
-// rptGroupByMonth w 16_reports.js), żeby „Szczegółowy raport" pokazał te same liczby: po kategorii
-// rodzica, stronę wyznacza znak kwoty, bez przeliczania walut i bez przelewów wewnętrznych.
-// Bez wybranych kategorii — domyślny zestaw Raportów (przychody i wydatki; kategorie systemowe
-// odpadają). Transakcja z kategorią spoza słownika przechodzi filtr, jak w Raportach.
+// Sumy przychodów i wydatków per miesiąc liczone DOKŁADNIE jak widok we Wnioskach, do którego
+// prowadzi „Szczegółowy raport" (wnPokazOkres w 23_wnioski.js): po kategorii rodzica, stronę
+// wyznacza znak kwoty, w PLN po kursie NBP z końca miesiąca (transakcja bez kursu wypada), bez
+// przelewów wewnętrznych i uzgodnień salda. Bez wybranych kategorii — przychody i wydatki,
+// a transakcja z kategorią spoza słownika liczy się po znaku; z wybranymi — tylko one.
 function obrotyMiesieczne(txs, wybrane) {
     const wynik = {};
     txs.forEach(t => {
         if (!t.date) return;
         const cat = categories.find(c => c.name === t.category);
-        if (cat && cat.type === 'transfer') return;
-        if (cat && (wybrane.size ? !wybrane.has(cat.id) : (cat.type !== 'income' && cat.type !== 'expense'))) return;
+        if (cat && cat.type !== 'income' && cat.type !== 'expense') return;
+        if (wybrane.size && !(cat && wybrane.has(cat.id))) return;
+        if (normalizujTekst(t.desc || '').trim() === 'uzgadnianie salda') return;
+        const kwota = kwotaPLN(t);
+        if (kwota === null) return;
         const ym = t.date.slice(0, 7);
         wynik[ym] = wynik[ym] || { przychody: 0, wydatki: 0 };
-        if (t.amount > 0) wynik[ym].przychody += t.amount;
-        else wynik[ym].wydatki += Math.abs(t.amount);
+        if (kwota > 0) wynik[ym].przychody += kwota;
+        else wynik[ym].wydatki += Math.abs(kwota);
     });
     return wynik;
 }
@@ -483,13 +497,12 @@ window.pokazTransakcjeMiesiaca = async function(ym) {
     switchTab('transactions');
 };
 
+// „Szczegółowy raport": Wnioski z niezapisanym widokiem tego miesiąca i kategorii z filtra wykresu.
 window.pokazRaportMiesiaca = function(ym) {
-    const [y, m] = ym.split('-').map(Number);
-    rptPokazOkres(`${ym}-01`, `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`, [...dashKategorie]);
+    wnPokazOkres(ym, [...dashKategorie]);
 };
 
 // Pasek pod wykresami: który miesiąc jest wybrany, przejścia do szczegółów i powrót do bieżącego.
-// Raporty są ukryte na telefonie (06_tabs / base.html), więc ich przycisk też.
 function renderWyborMiesiaca() {
     document.querySelectorAll('.dashboard-wybor').forEach(el => {
         el.classList.toggle('hidden', !dashWybranyMiesiac);
@@ -499,7 +512,7 @@ function renderWyborMiesiaca() {
         el.innerHTML = `
             <span class="text-sm font-medium text-slate-700 mr-auto">Wybrany miesiąc: ${escapeHtml(nazwaMiesiaca(dashWybranyMiesiac))}</span>
             <button type="button" onclick="pokazTransakcjeMiesiaca('${ym}')" class="${przycisk}">Pokaż transakcje →</button>
-            <button type="button" onclick="pokazRaportMiesiaca('${ym}')" class="${przycisk} hidden sm:inline-block">Szczegółowy raport →</button>
+            ${dashWybranyMiesiac <= dzisiejszyMiesiac() ? `<button type="button" onclick="pokazRaportMiesiaca('${ym}')" class="${przycisk}">Szczegółowy raport →</button>` : ''}
             <button type="button" onclick="wybierzMiesiacDashboardu(null)" class="text-sm text-slate-500 hover:text-slate-700 underline">Wyczyść ×</button>`;
     });
 }

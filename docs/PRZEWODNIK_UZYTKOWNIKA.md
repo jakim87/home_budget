@@ -12,7 +12,7 @@
 5. Przelewy wewnętrzne *(do uzupełnienia)*
 6. Transakcje cykliczne vs zaplanowane *(do uzupełnienia)*
 7. Splity *(do uzupełnienia)*
-8. Dashboard i raporty *(do uzupełnienia)*
+8. **Wnioski** ✅ *(Dashboard i raporty do uzupełnienia)*
 9. Usuwanie *(do uzupełnienia)*
 10. FAQ / typowe pułapki *(do uzupełnienia)*
 
@@ -80,3 +80,18 @@ Mimo że w drugiej transakcji pole „dane kontrahenta” jest bezużyteczne (to
 ### Co zrobić, gdy appka źle dopasuje albo nie dopasuje wcale
 
 To normalne przy zupełnie nowym sklepie/kontrahencie. Przy zatwierdzaniu w zakładce „Import” po prostu popraw nazwę na czystą i krótką (np. „Żabka” zamiast „Żabka Z1234 Warszawa”) — od tego momentu appka będzie rozpoznawać ten sklep poprawnie przy każdej kolejnej transakcji, niezależnie od numeru placówki czy miasta.
+
+---
+
+## 8. Wnioski
+
+Zakładka „Wnioski” sama podpowiada, co w danym miesiącu odbiegało od normy. Otwiera się na ostatnim **pełnym** miesiącu — trwający miesiąc nie daje wniosków, bo niepełny zawsze wyglądałby taniej.
+
+- **Typowy miesiąc** to mediana z 6 poprzednich. Mediana, a nie średnia: jedna droga naprawa nie zawyża „normy” na pół roku.
+- **Karty wniosków** mówią o czterech rzeczach: kategoria wyraźnie wyżej albo niżej niż zwykle, jednorazowy duży wydatek albo nowy kontrahent, zmiana w stałej opłacie (podwyżka, nowa subskrypcja, opłata, która przestała się pojawiać) i odsetek przychodów, który został. Progi rozpisuje „Jak powstają wnioski”.
+- **„Pokaż operacje”** przy karcie ustawia poniżej widok z operacjami, z których wniosek powstał.
+- **Widoki** to zapisane filtry: okres (zawsze względem wybranego miesiąca), konta, kategorie, kontrahenci. Trzy wbudowane („Miesiąc w liczbach”, „Przychody i wydatki w czasie”, „Saldo na koniec miesiąca”) i do 7 własnych — zapisanych na koncie, więc widać je też na telefonie.
+- **Kliknięcie słupka albo nazwy w tabeli** otwiera menu: pokaż operacje, rozbij na kontrahentów, dni albo kategorie, wyklucz, karta kategorii. Ścieżka nad kafelkami cofa do każdego wcześniejszego kroku.
+- **Gwiazdka** przy koncie w widoku sald dodaje je do ulubionych (najwyżej 10); filtr „Tylko ulubione” zawęża wtedy każdy widok.
+
+Przelewy między Twoimi kontami nie wchodzą do sum (poza saldami kont), a konta walutowe liczą się w złotych po kursie NBP z końca miesiąca. Jeśli brakuje wyciągu z konta, które zwykle ma dużo operacji, wniosków za ten miesiąc nie ma — wyszłyby fałszywe.

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/jakim87/home_budget/compare/v1.4.2...v1.5.0) (2026-11-14)
+
+
+### Funkcje
+
+* zakładka Wnioski — wnioski z miesiąca i zapisywane widoki z filtrami ([#265](https://github.com/jakim87/home_budget/issues/265)) ([617fdcf](https://github.com/jakim87/home_budget/commit/617fdcf00cad4e692f704e928c63f957bf59be54))
+
 ## [1.4.2](https://github.com/jakim87/home_budget/compare/v1.4.1...v1.4.2) (2026-11-11)
 
 

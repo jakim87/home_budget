@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/jakim87/home_budget/compare/v1.5.0...v1.5.1) (2026-11-14)
+
+
+### Poprawki
+
+* wersja mobilna mieści się na ekranie 375 px (iPhone 13 mini) ([#267](https://github.com/jakim87/home_budget/issues/267)) ([cd198c4](https://github.com/jakim87/home_budget/commit/cd198c4378e15ac337b1ae1fcd8d3794ec86b6c8))
+* Wnioski rozpoznają niepełny import, podwyżki stałych opłat mimo luki i nie biorą wypłat gotówki za zakupy ([#268](https://github.com/jakim87/home_budget/issues/268)) ([adaabd2](https://github.com/jakim87/home_budget/commit/adaabd2c7d76894e5ec6a9d18627cff9d086ba65))
+
 ## [1.5.0](https://github.com/jakim87/home_budget/compare/v1.4.2...v1.5.0) (2026-11-14)
 
 

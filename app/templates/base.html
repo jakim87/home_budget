@@ -85,7 +85,7 @@
         </header>
 
         <!-- Nawigacja Zakładek -->
-        <nav class="flex flex-wrap gap-x-3 gap-y-0.5 sm:gap-6 border-b border-slate-200 mb-4 md:mb-6">
+        <nav class="flex flex-wrap gap-x-2 gap-y-0.5 sm:gap-6 border-b border-slate-200 mb-4 md:mb-6">
             <button onclick="switchTab('dashboard')" id="btn-tab-dashboard" class="tab-active pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Dashboard</button>
             <button onclick="switchTab('transactions')" id="btn-tab-transactions" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none">Transakcje</button>
             <!-- Ukryta na telefonie, jak Raporty: import zakłada plik z banku na dysku,
@@ -184,7 +184,7 @@
                 </div>
 
                 <!-- Udział majątku wg typu kont — bieżący miesiąc albo wybrany kliknięciem w wykres. -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm" id="dashboard-struktura">
+                <div class="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm" id="dashboard-struktura">
                     <h2 class="font-bold text-slate-800">Udział majątku wg typu kont</h2>
                     <p class="text-xs text-slate-500 mt-1">Stan na koniec <span id="dashboard-struktura-miesiac"></span>. Udział liczony w aktywach (sumie sald dodatnich); kredyty i karty to zobowiązania, więc mają udział ujemny i nie wchodzą na pasek.</p>
                     <div id="dashboard-struktura-pasek" class="flex gap-0.5 h-5 my-4 rounded overflow-hidden bg-slate-100" role="img" aria-label="Udział typów kont w aktywach"></div>
@@ -194,8 +194,8 @@
                                 <tr class="text-xs text-slate-500">
                                     <th class="py-2 pr-3 font-medium border-b border-slate-200">Typ konta</th>
                                     <th class="py-2 pr-3 font-medium border-b border-slate-200 text-right hidden sm:table-cell">Konta</th>
-                                    <th class="py-2 pr-3 font-medium border-b border-slate-200 text-right">Saldo</th>
-                                    <th class="py-2 font-medium border-b border-slate-200 text-right">Udział w aktywach</th>
+                                    <th class="py-2 pr-3 font-medium border-b border-slate-200 text-right">Saldo<span class="sm:hidden"> (PLN)</span></th>
+                                    <th class="py-2 font-medium border-b border-slate-200 text-right">Udział<span class="hidden sm:inline"> w aktywach</span></th>
                                 </tr>
                             </thead>
                             <tbody id="dashboard-struktura-body"></tbody>

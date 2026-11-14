@@ -43,10 +43,10 @@ function renderAccounts() {
     list.innerHTML = '';
     accounts.forEach((a, idx) => {
         const li = document.createElement('li');
-        li.className = 'py-3 px-3 flex justify-between items-center group';
+        li.className = 'py-3 px-3 flex justify-between items-center gap-2 group';
         li.innerHTML = `
-            <div>
-                <span class="font-medium text-slate-700 flex items-center gap-2">
+            <div class="min-w-0">
+                <span class="font-medium text-slate-700 flex flex-wrap items-center gap-x-2">
                     ${escapeHtml(a.name)} ${a.bank_name ? `<span class="text-xs text-slate-400 font-normal">(${escapeHtml(a.bank_name)})</span>` : ''}
                     ${accountTypeBadge(a.account_type)}
                     ${a.is_default ? '<svg class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>' : ''}
@@ -54,7 +54,7 @@ function renderAccounts() {
                 ${a.account_number ? `<span class="text-xs text-slate-500 block break-all font-mono mt-0.5">${formatAccountNumber(a.account_number)}</span>` : ''}
                 ${(a.owner || a.co_owner) ? `<span class="text-xs text-slate-400 block mt-0.5">${escapeHtml([a.owner, a.co_owner].filter(Boolean).join(' / '))}</span>` : ''}
             </div>
-            <div class="flex gap-1 items-center">
+            <div class="flex gap-1 items-center shrink-0">
                 <div class="flex flex-col opacity-0 group-hover:opacity-100">
                     <button onclick="moveAccount(${a.id}, -1)" ${idx === 0 ? 'disabled' : ''} class="text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 p-0.5 rounded-md hover:bg-indigo-50 transition-colors" title="Przesuń wyżej">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
@@ -68,7 +68,7 @@ function renderAccounts() {
                 </button>
                 <button onclick="deleteAccount(${a.id})" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-1" title="Archiwizuj konto — transakcje zostają">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                    <span class="text-xs">Archiwum</span>
+                    <span class="text-xs hidden sm:inline">Archiwum</span>
                 </button>
                 <button onclick="openReconcileModal(${a.id}, ${escapeHtml(JSON.stringify(a.name))})" class="text-slate-400 hover:text-green-600 p-1.5 rounded-md hover:bg-green-50 transition-colors opacity-0 group-hover:opacity-100" title="Uzgadniaj saldo">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>

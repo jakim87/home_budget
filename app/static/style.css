@@ -84,6 +84,9 @@ body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
 @keyframes wysunPanel { from { transform: translateY(100%); } to { transform: none; } }
 /* Na telefonie komunikaty nad przyciskiem „+", nie pod nim. */
 @media (pointer: coarse) { #toast-container { bottom: 88px; } }
+/* Akcje wierszy (edycja, archiwum, przesuwanie) pojawiają się po najechaniu myszą.
+   Ekran dotykowy nie ma najechania — bez tej reguły byłyby tam niewidoczne. */
+@media (hover: none) { .group .group-hover\:opacity-100 { opacity: 1; } }
 
 @keyframes slideIn {
     to { opacity: 1; transform: translateY(0); }
@@ -133,7 +136,11 @@ body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
         border-bottom: 0 !important;
         min-width: 0 !important;
     }
-    .tabela-karty td[colspan] { display: block; padding: 0 !important; }
+    /* Nagłówek dnia albo grupy (Przychody, Wydatki) i komunikat o pustej liście:
+       bez marginesu tekst dotykał krawędzi, a ogólne text-align: right kart
+       przerzucał nagłówek grupy pod prawą krawędź. */
+    .tabela-karty td[colspan] { display: block; padding: 0.5rem 0.75rem !important; text-align: left !important; }
+    .tabela-karty td[colspan].text-center { text-align: center !important; }
 
     .tabela-karty td[data-label]::before {
         content: attr(data-label);

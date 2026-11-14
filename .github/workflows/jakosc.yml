@@ -1,4 +1,4 @@
-# CI jakości: trzy bramki uzupełniające pakiet testów (tests.yml).
+# CI jakości: cztery bramki uzupełniające pakiet testów (tests.yml).
 #   1. ruff          — linter (E9 + Pyflakes); łapie nieużywane importy,
 #                      niezdefiniowane nazwy i błędy składni. Konfiguracja: ruff.toml.
 #   2. migracje-drift — pilnuje, że modele SQLAlchemy są zgodne z migracjami
@@ -8,6 +8,9 @@
 #                      liczą sumy w przeglądarce, więc pytest tej ścieżki nie
 #                      dotyka w ogóle — bez tej bramki liczby oglądane przez
 #                      użytkownika nie są pokryte niczym.
+#   4. audyt-zaleznosci — pip-audit sprawdza przypięte wersje z requirements.txt
+#                      w bazie znanych podatności (PyPI Advisory). Pilnuje też
+#                      zależności tranzytywnych, bo wszystkie są przypięte.
 name: Jakość
 
 on:
@@ -15,6 +18,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '17 5 * * 1'
 
 jobs:
   ruff:
@@ -88,3 +93,20 @@ jobs:
 
       - name: vitest
         run: npm test
+
+  audyt-zaleznosci:
+    name: pip-audit (podatności)
+    runs-on: ubuntu-latest
+    # Co tydzień także bez zmian w kodzie — nowe CVE pojawiają się po wydaniu paczki.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalacja pip-audit
+        run: pip install pip-audit
+
+      - name: pip-audit
+        run: pip-audit -r requirements.txt --no-deps --disable-pip

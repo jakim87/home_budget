@@ -351,7 +351,7 @@ function renderStrukturaMajatku() {
         <tr>
             <td class="py-2 pr-3 border-b border-slate-100"><span class="inline-flex items-center gap-2"><span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style="background:${kolor(w.typ)}"></span>${escapeHtml(etykieta(w.typ))}</span></td>
             <td class="py-2 pr-3 border-b border-slate-100 text-right tabular-nums hidden sm:table-cell">${w.konta}</td>
-            <td class="py-2 pr-3 border-b border-slate-100 text-right tabular-nums whitespace-nowrap ${w.saldo < 0 ? 'text-rose-600' : ''}">${formatKwota(w.saldo)} PLN</td>
+            <td class="py-2 pr-3 border-b border-slate-100 text-right tabular-nums whitespace-nowrap ${w.saldo < 0 ? 'text-rose-600' : ''}">${formatKwota(w.saldo)}<span class="hidden sm:inline"> PLN</span></td>
             <td class="py-2 border-b border-slate-100 text-right tabular-nums whitespace-nowrap">${procent(w.udzial)}</td>
         </tr>`).join('');
 }

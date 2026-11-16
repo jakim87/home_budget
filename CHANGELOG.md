@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/jakim87/home_budget/compare/v1.5.1...v1.6.0) (2026-11-16)
+
+
+### Funkcje
+
+* wyszukiwarka kontrahentów w Słownikach, szybka zmiana kategorii i przejście do Wniosków ([#271](https://github.com/jakim87/home_budget/issues/271)) ([9332844](https://github.com/jakim87/home_budget/commit/933284453979d3b2b7c528a5e6acb526a0f33a13))
+
 ## [1.5.1](https://github.com/jakim87/home_budget/compare/v1.5.0...v1.5.1) (2026-11-14)
 
 

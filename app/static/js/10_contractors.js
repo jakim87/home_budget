@@ -53,11 +53,14 @@ window.zmienKategorieKontrahenta = async function(id, selectEl) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: c.name, rules: c.rules || '', category: kategoria })
         });
-        if (!res.ok) throw new Error();
+        if (!res.ok) {
+            const blad = await res.json().catch(() => ({}));
+            throw new Error(typeof blad.error === 'string' ? blad.error : `błąd serwera (${res.status})`);
+        }
         contractors[contractors.findIndex(x => x.id === id)] = await res.json();
     } catch (e) {
         selectEl.value = wczesniej;
-        showToast('Nie udało się zmienić kategorii kontrahenta.', 'error');
+        showToast('Nie udało się zmienić kategorii kontrahenta' + (e.message ? `: ${e.message}` : '.'), 'error');
         return;
     }
     showToast('Zmieniono domyślną kategorię kontrahenta.');

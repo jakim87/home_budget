@@ -133,3 +133,10 @@ async function changeMonth(offset) {
     }
 }
 
+// Wyszukiwarka słownika kontrahentów: fraza po nazwie, regułach i nazwie domyślnej kategorii,
+// bez rozróżniania wielkości liter i polskich znaków. Puste pole = cała lista.
+function filtrujKontrahentow(lista, fraza) {
+    const f = normalizujTekst((fraza || '').trim());
+    if (!f) return lista;
+    return lista.filter(c => normalizujTekst([c.name, c.rules, c.default_category_name].filter(Boolean).join(' ')).includes(f));
+}

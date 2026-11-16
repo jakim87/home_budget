@@ -1,16 +1,31 @@
 // --- KONTRAHENCI (SŁOWNIK) ---
 function renderContractors() {
     const list = document.getElementById('contractor-list');
+    const szukaj = document.getElementById('cont-search');
+    const wynik = filtrujKontrahentow(contractors, szukaj ? szukaj.value : '');
+    const licznik = document.getElementById('cont-search-count');
+    if (licznik) licznik.textContent = wynik.length === contractors.length ? `${contractors.length}` : `${wynik.length} z ${contractors.length}`;
     list.innerHTML = '';
-    contractors.forEach(c => {
+    if (wynik.length === 0) {
+        list.innerHTML = '<li class="py-6 text-center text-sm text-slate-400">Brak kontrahentów pasujących do wyszukiwania.</li>';
+        return;
+    }
+    const opcje = categories.map(k => `<option value="${escapeHtml(k.name)}">${escapeHtml(k.name)}</option>`).join('');
+    wynik.forEach(c => {
         const li = document.createElement('li');
-        li.className = 'py-3 px-3 flex justify-between items-center group';
+        li.className = 'py-3 px-3 flex flex-wrap justify-between items-center gap-2 group';
         li.innerHTML = `
-            <div>
+            <div class="min-w-0">
                 <span class="font-medium text-slate-700 block">${escapeHtml(c.name)}</span>
                 <span class="text-xs text-slate-400 block break-all">Reguły: ${escapeHtml(c.rules || '-')}</span>
             </div>
-            <div class="flex gap-1">
+            <div class="flex gap-1 items-center">
+                <select onchange="zmienKategorieKontrahenta(${c.id}, this)" class="text-xs p-1.5 border border-slate-200 rounded-md bg-white max-w-[9rem] cursor-pointer" title="Domyślna kategoria kontrahenta" aria-label="Domyślna kategoria: ${escapeHtml(c.name)}">
+                    <option value="">Brak kategorii</option>${opcje}
+                </select>
+                <button onclick="pokazKontrahentaWeWnioskach(${c.id})" class="text-slate-400 hover:text-emerald-700 p-1.5 rounded-md hover:bg-emerald-50 transition-colors" title="Pokaż we Wnioskach (ostatnie 12 miesięcy)">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                </button>
                 <button onclick="editContractor(${c.id})" class="text-slate-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100" title="Edytuj kontrahenta">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                 </button>
@@ -19,9 +34,66 @@ function renderContractors() {
                 </button>
             </div>
         `;
+        li.querySelector('select').value = c.default_category_name || '';
         list.appendChild(li);
     });
 }
+
+// Zmiana domyślnej kategorii z listy. Stare transakcje kontrahenta zmienia dopiero zgoda
+// użytkownika — przez tę samą trasę co edycja zbiorcza (przelewy wewnętrzne pomija).
+window.zmienKategorieKontrahenta = async function(id, selectEl) {
+    const c = contractors.find(x => x.id === id);
+    if (!c) return;
+    const kategoria = selectEl.value;
+    const wczesniej = c.default_category_name || '';
+    if (kategoria === wczesniej) return;
+    try {
+        const res = await fetch(`/api/contractors/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: c.name, rules: c.rules || '', category: kategoria })
+        });
+        if (!res.ok) throw new Error();
+        contractors[contractors.findIndex(x => x.id === id)] = await res.json();
+    } catch (e) {
+        selectEl.value = wczesniej;
+        showToast('Nie udało się zmienić kategorii kontrahenta.', 'error');
+        return;
+    }
+    showToast('Zmieniono domyślną kategorię kontrahenta.');
+    const stare = kategoria ? transactions.filter(t => t.contractor_id === id && t.category !== kategoria) : [];
+    if (stare.length && confirm(`Zmienić też kategorię istniejących transakcji tego kontrahenta (${stare.length}) na „${kategoria}”?\nPrzelewy wewnętrzne zostaną pominięte.`)) {
+        await przepiszKategorieTransakcji(stare.map(t => t.id), kategoria);
+    }
+    renderContractors();
+    updateContractorSelects();
+};
+
+// Porcje po 500 (limit trasy). Przerwana w środku zostawia część zmienioną — ponowna zmiana
+// kategorii kontrahenta dokończy resztę, bo transakcje już zmienione są pomijane.
+async function przepiszKategorieTransakcji(ids, kategoria) {
+    let zmienione = 0, pominiete = 0;
+    try {
+        for (let i = 0; i < ids.length; i += 500) {
+            const res = await fetch('/api/transactions/bulk/category', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: ids.slice(i, i + 500), category: kategoria })
+            });
+            const wynik = await res.json();
+            if (!res.ok) throw new Error(typeof wynik.error === 'string' ? wynik.error : '');
+            zmienione += wynik.zmienione; pominiete += wynik.pominiete_przelewy || 0;
+        }
+    } catch (e) {
+        showToast(`Zmieniono ${zmienione} z ${ids.length} transakcji${e.message ? ': ' + e.message : '.'}`, 'error');
+        await fetchInitialData();
+        return;
+    }
+    showToast(`Zmieniono kategorię transakcji: ${zmienione}.` + (pominiete ? ` Pominięto przelewy wewnętrzne: ${pominiete}.` : ''));
+    await fetchInitialData();
+}
+
+window.pokazKontrahentaWeWnioskach = function(id) { wnPokazKontrahenta(id); };
 
 window.editContractor = function(id) {
     const c = contractors.find(cont => cont.id === id);

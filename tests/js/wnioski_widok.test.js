@@ -256,3 +256,25 @@ describe('„Cała historia konta” z listy kont', () => {
         expect(wnCfg.konta).toEqual([]);
     });
 });
+
+describe('„Pokaż we Wnioskach” z listy kontrahentów', () => {
+    it('kontrahent z operacjami otwiera 12 miesięcy w czasie i tabelę operacji', () => {
+        const id = wnD().ops.find(o => o.kontrId).kontrId;
+        wnPokazKontrahenta(id);
+        expect(wnCfg.kontrahenci).toEqual([id]);
+        expect(wnCfg.okres).toEqual({ typ: 'n', n: 12 });
+        expect(wnCfg.pokaz).toBe('czas');
+        expect(wnTabela).toBe('operacje');
+        expect(wnAktywnyId).toBeNull();
+    });
+
+    it('kontrahent bez operacji we Wnioskach nie zmienia widoku, tylko mówi dlaczego', () => {
+        const komunikaty = [];
+        globalThis.showToast = (t) => komunikaty.push(t);
+        contractors = [...contractors, { id: 9999, name: 'Moje konto: X' }];
+        wnCfg = { ...WN_PUSTY };
+        wnPokazKontrahenta(9999);
+        expect(wnCfg.kontrahenci).toEqual([]);
+        expect(komunikaty.length).toBe(1);
+    });
+});

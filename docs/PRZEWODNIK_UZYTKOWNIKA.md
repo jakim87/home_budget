@@ -81,6 +81,15 @@ Mimo że w drugiej transakcji pole „dane kontrahenta” jest bezużyteczne (to
 
 To normalne przy zupełnie nowym sklepie/kontrahencie. Przy zatwierdzaniu w zakładce „Import” po prostu popraw nazwę na czystą i krótką (np. „Żabka” zamiast „Żabka Z1234 Warszawa”) — od tego momentu appka będzie rozpoznawać ten sklep poprawnie przy każdej kolejnej transakcji, niezależnie od numeru placówki czy miasta.
 
+### Szukanie i poprawianie w słownikach
+
+W zakładce „Słowniki” nad listą kategorii i kontrahentów jest pole **„Szukaj…”**. Lista zawęża się już w trakcie pisania; wielkość liter i polskie znaki nie mają znaczenia („zabka” znajdzie „Żabkę”). Kontrahentów szukasz po nazwie, regułach i nazwie kategorii, kategorie po nazwie albo typie („wydatek”, „przychód”, „przelew”).
+
+- **Kategoria kontrahenta** zmienia się wprost na liście, rozwijaną listą przy jego nazwie. Zmiana dotyczy od razu nowych importów i wpisów. Jeśli kontrahent ma już transakcje w innej kategorii, aplikacja zapyta, czy poprawić też je. Przelewy między Twoimi kontami są przy tym pomijane, a po zgodzie zmiana dotyczy wszystkich jego transakcji naraz.
+- **Ikona wykresu** przy kontrahencie lub kategorii otwiera zakładkę „Wnioski” z jego operacjami z ostatnich 12 miesięcy: wykres w czasie i lista operacji. Kontrahent albo kategoria bez operacji widocznych we Wnioskach (np. „Moje konto: …” albo kategoria przelewów) pokaże komunikat zamiast pustego widoku.
+
+Samych kategorii nie da się przemianować ani scalić — można usunąć tylko te, których nie użyto w żadnej transakcji.
+
 ---
 
 ## 8. Wnioski

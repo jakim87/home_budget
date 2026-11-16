@@ -929,6 +929,35 @@ function wnPokazKonto(id) {
     wnOtworzZWidokiem(wnD().miesiace[wnD().biezacy], { konta: [id], okres: { typ: 'calosc' }, pokaz: 'czas' }, wnKontoNazwa(id) || 'Konto');
 }
 
+// „Pokaż we Wnioskach” z listy kontrahentów w Słownikach: ostatnie 12 miesięcy, wykres w czasie
+// i od razu lista operacji. Przelewy są poza Wnioskami, więc kontrahent bez operacji (np.
+// „Moje konto: X”) dałby pusty widok — wtedy mówimy to wprost.
+function wnPokazKontrahenta(id) {
+    const k = wnKontrahent(id);
+    if (!k) return;
+    if (!wnD().ops.some(o => o.kontrId === id)) {
+        showToast('Ten kontrahent nie ma operacji widocznych we Wnioskach (przelewy wewnętrzne są poza nimi).', 'error');
+        return;
+    }
+    wnOtworzZWidokiem(wnD().miesiace[Math.max(0, wnD().biezacy - 1)], { kontrahenci: [id], okres: { typ: 'n', n: 12 }, pokaz: 'czas' }, k.name);
+    wnTabela = 'operacje';
+    renderWidok();
+}
+
+// „Pokaż we Wnioskach” z listy kategorii w Słownikach — jak dla kontrahenta. Wnioski liczą tylko
+// przychody i wydatki, więc kategoria przelewów, techniczna albo bez operacji dałaby pusty widok.
+function wnPokazKategorie(id) {
+    const k = wnKategoria(id);
+    if (!k) return;
+    if (!wnD().ops.some(o => o.katId === id)) {
+        showToast('Ta kategoria nie ma operacji widocznych we Wnioskach (przelewy i uzgodnienia salda są poza nimi).', 'error');
+        return;
+    }
+    wnOtworzZWidokiem(wnD().miesiace[Math.max(0, wnD().biezacy - 1)], { kategorie: [id], okres: { typ: 'n', n: 12 }, pokaz: 'czas' }, k.name);
+    wnTabela = 'operacje';
+    renderWidok();
+}
+
 document.addEventListener('click', e => {
     if (!e.target.closest('.wn-info-wrap')) wnZamknijInfo();
     if (!e.target.closest('details.wn-dd')) document.querySelectorAll('details.wn-dd').forEach(x => { x.open = false; });

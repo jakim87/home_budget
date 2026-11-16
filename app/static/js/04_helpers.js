@@ -133,3 +133,19 @@ async function changeMonth(offset) {
     }
 }
 
+// Wyszukiwarka słownika kontrahentów: fraza po nazwie, regułach i nazwie domyślnej kategorii,
+// bez rozróżniania wielkości liter i polskich znaków. Puste pole = cała lista.
+function filtrujKontrahentow(lista, fraza) {
+    const f = normalizujTekst((fraza || '').trim());
+    if (!f) return lista;
+    return lista.filter(c => normalizujTekst([c.name, c.rules, c.default_category_name].filter(Boolean).join(' ')).includes(f));
+}
+
+// Wyszukiwarka słownika kategorii: fraza po nazwie albo typie (wydatek / przychód / przelew),
+// z tą samą normalizacją co wyszukiwarka kontrahentów.
+const TYP_KATEGORII_PL = { expense: 'wydatek', income: 'przychod', transfer: 'przelew' };
+function filtrujKategorie(lista, fraza) {
+    const f = normalizujTekst((fraza || '').trim());
+    if (!f) return lista;
+    return lista.filter(c => normalizujTekst(`${c.name} ${TYP_KATEGORII_PL[c.type] || ''}`).includes(f));
+}

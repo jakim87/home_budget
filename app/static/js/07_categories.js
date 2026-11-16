@@ -209,9 +209,16 @@ function updateAccountSelects() {
 
 function renderCategories() {
     const list = document.getElementById('category-list');
+    const szukaj = document.getElementById('cat-search');
+    const wynik = filtrujKategorie(categories, szukaj ? szukaj.value : '');
+    const licznik = document.getElementById('cat-search-count');
+    if (licznik) licznik.textContent = wynik.length === categories.length ? `${categories.length}` : `${wynik.length} z ${categories.length}`;
     list.innerHTML = '';
-    
-    categories.forEach(c => {
+    if (wynik.length === 0) {
+        list.innerHTML = '<li class="py-6 text-center text-sm text-slate-400">Brak kategorii pasujących do wyszukiwania.</li>';
+        return;
+    }
+    wynik.forEach(c => {
         const isUsed = transactions.some(t => t.category === c.name || (t.splits && t.splits.some(s => s.category === c.name)));
         let typeLabel;
         if (c.type === 'expense') {
@@ -229,6 +236,9 @@ function renderCategories() {
                 <span class="font-medium text-slate-700">${escapeHtml(c.name)}</span>
                 ${typeLabel}
             </div>
+            ${c.id ? `<button onclick="pokazKategorieWeWnioskach(${c.id})" class="text-slate-400 hover:text-emerald-700 p-1.5 rounded-md hover:bg-emerald-50 transition-colors ml-auto" title="Pokaż we Wnioskach (ostatnie 12 miesięcy)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            </button>` : ''}
             <button onclick="deleteCategory(${escapeHtml(JSON.stringify(c.name))})" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 ${isUsed ? 'hidden' : ''}" title="Usuń kategorię">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
             </button>
@@ -272,6 +282,8 @@ document.getElementById('category-form').addEventListener('submit', async functi
         showToast('Kategoria o tej nazwie już istnieje!', 'error');
     }
 });
+
+window.pokazKategorieWeWnioskach = function(id) { wnPokazKategorie(id); };
 
 window.deleteCategory = async function(name) {
     if (!confirm(`Czy na pewno chcesz usunąć kategorię: ${name}?`)) return;

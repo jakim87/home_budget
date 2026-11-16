@@ -424,6 +424,8 @@ Algorytm `normalize_contractor_name` przetwarza surowy tekst z banku (np. `BIEDR
 2. **Dokładne dopasowanie nazwy/reguł** — iteracja po aktywnych kontrahentach użytkownika; sprawdza czy nazwa kontrahenta (≥3 znaki) lub któraś reguła mapowania zawiera się w tekście transakcji
 3. **Fuzzy match** — `SequenceMatcher` z progiem 0.72; normalizowana nazwa z banku porównywana z nazwami kontrahentów i ich regułami
 
+**Słownik w interfejsie (zakładka „Słowniki”):** listy kategorii i kontrahentów mają wyszukiwarkę liczoną w przeglądarce (nazwa, reguły, nazwa kategorii albo typ; bez rozróżniania wielkości liter i polskich znaków). Przy kontrahencie domyślną kategorię zmienia się z listy (`PUT /api/contractors/<id>` z samym polem `category`). Jeśli kontrahent ma transakcje w innej kategorii, front pyta, czy zmienić także je — przez `POST /api/transactions/bulk/category` w porcjach po 500, z pominięciem przelewów wewnętrznych (zasady jak przy edycji zbiorczej). Ikona wykresu przy kontrahencie lub kategorii otwiera Wnioski z filtrem tego elementu i okresem 12 miesięcy; element bez operacji we Wnioskach (przelewy, uzgodnienia salda) dostaje komunikat.
+
 ---
 
 ### 4.9 Usuwanie transakcji

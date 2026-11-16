@@ -140,3 +140,12 @@ function filtrujKontrahentow(lista, fraza) {
     if (!f) return lista;
     return lista.filter(c => normalizujTekst([c.name, c.rules, c.default_category_name].filter(Boolean).join(' ')).includes(f));
 }
+
+// Wyszukiwarka słownika kategorii: fraza po nazwie albo typie (wydatek / przychód / przelew),
+// z tą samą normalizacją co wyszukiwarka kontrahentów.
+const TYP_KATEGORII_PL = { expense: 'wydatek', income: 'przychod', transfer: 'przelew' };
+function filtrujKategorie(lista, fraza) {
+    const f = normalizujTekst((fraza || '').trim());
+    if (!f) return lista;
+    return lista.filter(c => normalizujTekst(`${c.name} ${TYP_KATEGORII_PL[c.type] || ''}`).includes(f));
+}

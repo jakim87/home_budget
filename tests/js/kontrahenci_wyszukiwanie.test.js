@@ -30,3 +30,17 @@ it('brak trafień daje pustą listę, a kontrahent bez reguł i kategorii nie wy
     expect(filtrujKontrahentow(LISTA, 'xyz')).toEqual([]);
     expect(filtrujKontrahentow([{ id: 9, name: 'A' }], 'a').length).toBe(1);
 });
+
+const KATEGORIE = [
+    { id: 1, name: 'Jedzenie', type: 'expense' },
+    { id: 2, name: 'Wypłata', type: 'income' },
+    { id: 3, name: 'Przelew wewnętrzny', type: 'transfer' },
+];
+
+it('kategorie: szuka po nazwie i po typie, bez rozróżniania polskich znaków', () => {
+    expect(filtrujKategorie(KATEGORIE, '')).toEqual(KATEGORIE);
+    expect(filtrujKategorie(KATEGORIE, 'wyplata').map(c => c.id)).toEqual([2]);
+    expect(filtrujKategorie(KATEGORIE, 'przychód').map(c => c.id)).toEqual([2]);
+    expect(filtrujKategorie(KATEGORIE, 'wydatek').map(c => c.id)).toEqual([1]);
+    expect(filtrujKategorie(KATEGORIE, 'xyz')).toEqual([]);
+});

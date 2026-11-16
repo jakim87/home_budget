@@ -944,6 +944,20 @@ function wnPokazKontrahenta(id) {
     renderWidok();
 }
 
+// „Pokaż we Wnioskach” z listy kategorii w Słownikach — jak dla kontrahenta. Wnioski liczą tylko
+// przychody i wydatki, więc kategoria przelewów, techniczna albo bez operacji dałaby pusty widok.
+function wnPokazKategorie(id) {
+    const k = wnKategoria(id);
+    if (!k) return;
+    if (!wnD().ops.some(o => o.katId === id)) {
+        showToast('Ta kategoria nie ma operacji widocznych we Wnioskach (przelewy i uzgodnienia salda są poza nimi).', 'error');
+        return;
+    }
+    wnOtworzZWidokiem(wnD().miesiace[Math.max(0, wnD().biezacy - 1)], { kategorie: [id], okres: { typ: 'n', n: 12 }, pokaz: 'czas' }, k.name);
+    wnTabela = 'operacje';
+    renderWidok();
+}
+
 document.addEventListener('click', e => {
     if (!e.target.closest('.wn-info-wrap')) wnZamknijInfo();
     if (!e.target.closest('details.wn-dd')) document.querySelectorAll('details.wn-dd').forEach(x => { x.open = false; });

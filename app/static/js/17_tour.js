@@ -141,9 +141,14 @@ const TOURS = {
             efekt: 'Zobaczysz swoje kategorie razem z systemowymi. Systemowych nie da się usunąć — są wspólne dla całej aplikacji i pilnują spójności raportów.',
         },
         {
+            el: '#cat-search',
+            akcja: 'Wpisz fragment nazwy kategorii albo słowo „wydatek” czy „przychód”',
+            efekt: 'Lista zawęża się od razu. Ikona wykresu przy kategorii otwiera Wnioski z jej operacjami z ostatnich 12 miesięcy.',
+        },
+        {
             el: '#dict-btn-contractors',
             akcja: 'Przejdź do „Kontrahenci"',
-            efekt: 'W polu reguł dopasowania wpisujesz fragmenty tekstu wyszukiwane w opisie operacji przy imporcie. Trafiony fragment sam ustawia kontrahenta i jego kategorię — im lepsze reguły, tym mniej pracy w poczekalni.',
+            efekt: 'W polu reguł dopasowania wpisujesz fragmenty tekstu wyszukiwane w opisie operacji przy imporcie. Trafiony fragment sam ustawia kontrahenta i jego kategorię — im lepsze reguły, tym mniej pracy w poczekalni. Kategorię zmienisz wprost na liście (aplikacja zapyta, czy poprawić też dotychczasowe operacje), a ikona wykresu pokazuje kontrahenta we Wnioskach.',
         },
         {
             el: '#dict-btn-accounts',

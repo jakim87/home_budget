@@ -15,11 +15,11 @@ function renderContractors() {
         const li = document.createElement('li');
         li.className = 'py-3 px-3 flex flex-wrap justify-between items-center gap-2 group';
         li.innerHTML = `
-            <div class="min-w-0">
+            <div class="flex-1 min-w-[11rem]">
                 <span class="font-medium text-slate-700 block">${escapeHtml(c.name)}</span>
                 <span class="text-xs text-slate-400 block break-all">Reguły: ${escapeHtml(c.rules || '-')}</span>
             </div>
-            <div class="flex gap-1 items-center">
+            <div class="flex gap-1 items-center shrink-0">
                 <select onchange="zmienKategorieKontrahenta(${c.id}, this)" class="text-xs p-1.5 border border-slate-200 rounded-md bg-white max-w-[9rem] cursor-pointer" title="Domyślna kategoria kontrahenta" aria-label="Domyślna kategoria: ${escapeHtml(c.name)}">
                     <option value="">Brak kategorii</option>${opcje}
                 </select>

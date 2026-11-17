@@ -396,6 +396,52 @@ function skrotNumeru(numer) {
     return n.length >= 6 ? `${n.slice(0, 2)}…${n.slice(-4)}` : n;
 }
 
+// Komentarz do operacji: ikonka przy wierszu, po kliknięciu dymek z polem tekstowym.
+// Trzymany tylko w przeglądarce (t.comment) i wysyłany przy zatwierdzeniu — jak
+// pozostałe wybory użytkownika w poczekalni. Para przelewu dzieli jeden komentarz.
+const stagingKomentarz = new Set();
+const KOMENTARZ_MAX = 255;
+
+function przyciskKomentarza(t) {
+    const ma = !!(t.comment && t.comment.trim());
+    return `<button type="button" onclick="przelaczKomentarz(${t.id})" aria-expanded="${stagingKomentarz.has(t.id)}"
+        aria-label="Komentarz" title="${ma ? 'Pokaż komentarz' : 'Dodaj komentarz'}"
+        class="inline-flex p-1 rounded-md hover:bg-slate-100 align-middle ${ma ? 'text-amber-700' : 'text-slate-400 hover:text-slate-600'}">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="${ma ? 'currentColor' : 'none'}" fill-opacity="${ma ? '.25' : '0'}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>
+    </button>`;
+}
+
+function dymekKomentarza(nogi) {
+    const t = nogi[0];
+    if (!stagingKomentarz.has(t.id)) return '';
+    const ids = nogi.map(n => n.id).join(',');
+    const tekst = t.comment || '';
+    return `<div class="mt-2 p-2 bg-slate-50 border border-slate-300 rounded-xl">
+        <textarea id="staging-komentarz-${t.id}" maxlength="${KOMENTARZ_MAX}" rows="2" placeholder="Np. za co jest ta płatność"
+            oninput="ustawKomentarz([${ids}], this)" class="w-full p-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">${escapeHtml(tekst)}</textarea>
+        <div class="flex justify-between items-center mt-1 text-xs text-slate-500">
+            <span id="staging-komentarz-licznik-${t.id}">${tekst.length} / ${KOMENTARZ_MAX}</span>
+            <button type="button" onclick="przelaczKomentarz(${t.id})" class="${KLASY_LINKU}">Zamknij</button>
+        </div></div>`;
+}
+
+window.przelaczKomentarz = function(id) {
+    if (stagingKomentarz.has(id)) stagingKomentarz.delete(id); else stagingKomentarz.add(id);
+    renderStaging();
+    const pole = document.getElementById(`staging-komentarz-${id}`);
+    if (pole) pole.focus();
+};
+
+// Bez renderStaging() przy pisaniu — przebudowa tabeli zabrałaby polu fokus.
+window.ustawKomentarz = function(ids, pole) {
+    ids.forEach(id => {
+        const t = pendingStaging.find(x => x.id === id);
+        if (t) t.comment = pole.value;
+    });
+    const licznik = document.getElementById(`staging-komentarz-licznik-${ids[0]}`);
+    if (licznik) licznik.textContent = `${pole.value.length} / ${KOMENTARZ_MAX}`;
+};
+
 function htmlPrzelewu(nogi) {
     const t = nogi[0];
     const para = nogi.length === 2;
@@ -437,7 +483,8 @@ function htmlPrzelewu(nogi) {
         <td data-label="Data" class="p-3 border-l-4 ${pasek} text-sm text-slate-500 whitespace-nowrap align-top">${t.date}</td>
         <td data-label="Przelew" class="p-3 align-top break-words">
             <div class="flex flex-wrap items-center gap-1.5 text-sm text-slate-800">${konto(trasa.z, 'z')}<span class="text-slate-400">→</span>${konto(trasa.na, 'na')}</div>
-            <div class="text-xs text-slate-500 mt-0.5">„${escapeHtml(t.title)}” · tytuł z banku</div>
+            <div class="text-xs text-slate-500 mt-0.5">„${escapeHtml(t.title)}” · tytuł z banku ${przyciskKomentarza(t)}</div>
+            ${dymekKomentarza(nogi)}
             ${status === 'dup' ? htmlKandydatowPrzelewu(nogi) : ''}
             ${wyborKategorii}
             <div class="flex flex-wrap gap-3 mt-1.5">${akcjeNogi}</div>
@@ -494,7 +541,8 @@ function htmlOperacji(t) {
         <td data-label="Z wyciągu" class="p-3 align-top break-words">
             <div class="text-sm font-medium text-slate-800">${escapeHtml(t.title)}</div>
             ${t.contractor ? `<div class="text-xs text-slate-500 mt-0.5 break-all">${escapeHtml(t.contractor)}</div>` : ''}
-            <div class="mt-1"><span class="${KLASY_TAGU} ${tag[0]}">${tag[1]}</span>${porownaj}</div>
+            <div class="mt-1"><span class="${KLASY_TAGU} ${tag[0]}">${tag[1]}</span>${porownaj} ${przyciskKomentarza(t)}</div>
+            ${dymekKomentarza([t])}
         </td>
         <td data-label="Kontrahent" class="p-3 align-top">
             ${hasSuggestion ? `
@@ -751,7 +799,7 @@ async function zatwierdzWiersz(t) {
     const res = await fetch(`/api/staging/${t.id}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: t.proposed_category, contractor_id })
+        body: JSON.stringify({ category: t.proposed_category, contractor_id, comment: (t.comment || '').trim() || null })
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));

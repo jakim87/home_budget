@@ -274,6 +274,50 @@ def test_approve_failure_keeps_staging_and_balance(logged_in_client, app, test_u
     assert db.session.query(Transaction).count() == 0
 
 
+def _wiersz_do_zatwierdzenia(test_user):
+    account = Account(name="Konto Komentarz", bank_name="Bank", balance=Decimal("100.00"), user_token=test_user.token)
+    cat = Category(name="Jedzenie", type="expense")
+    db.session.add_all([account, cat])
+    db.session.commit()
+    cont = Contractor(name="Sklep", user_token=test_user.token)
+    stg = TransactionStaging(date=date(2024, 3, 12), amount=Decimal("-20.00"), title="Zakup",
+                             status="pending", user_token=test_user.token, account_id=account.id)
+    db.session.add_all([cont, stg])
+    db.session.commit()
+    return stg.id, cont.id
+
+
+def test_approve_przenosi_komentarz_do_transakcji(logged_in_client, app, test_user):
+    stg_id, cont_id = _wiersz_do_zatwierdzenia(test_user)
+
+    resp = logged_in_client.post(f'/api/staging/{stg_id}/approve',
+                                 json={'category': 'Jedzenie', 'contractor_id': cont_id,
+                                       'comment': '  Zaliczka dla ekipy  '})
+
+    assert resp.status_code == 200
+    assert db.session.query(Transaction).one().comment == "Zaliczka dla ekipy"
+
+
+def test_approve_bez_komentarza_zostawia_pusty(logged_in_client, app, test_user):
+    stg_id, cont_id = _wiersz_do_zatwierdzenia(test_user)
+
+    resp = logged_in_client.post(f'/api/staging/{stg_id}/approve',
+                                 json={'category': 'Jedzenie', 'contractor_id': cont_id, 'comment': '   '})
+
+    assert resp.status_code == 200
+    assert db.session.query(Transaction).one().comment is None
+
+
+def test_approve_za_dlugi_komentarz_odrzucony(logged_in_client, app, test_user):
+    stg_id, cont_id = _wiersz_do_zatwierdzenia(test_user)
+
+    resp = logged_in_client.post(f'/api/staging/{stg_id}/approve',
+                                 json={'category': 'Jedzenie', 'contractor_id': cont_id, 'comment': 'x' * 256})
+
+    assert resp.status_code == 400
+    assert db.session.query(Transaction).count() == 0
+
+
 def test_approve_to_inactive_account_rejected(logged_in_client, app, test_user):
     """Konto dezaktywowane między importem a zatwierdzeniem → odmowa, staging zostaje."""
     account = Account(name="Konto Zamknięte", bank_name="Bank", balance=Decimal("0.00"),

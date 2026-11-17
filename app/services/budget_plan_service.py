@@ -98,19 +98,17 @@ def wykonanie_per_kategoria(user_token: str, year: int, month: int) -> dict:
 def rezerwacje_per_kategoria(user_token: str, year: int, month: int) -> dict:
     """Kwoty zajęte przez harmonogram, których jeszcze nie zaksięgowano (ze znakiem).
 
-    Liczymy wyłącznie wystąpienia od dziś w przód. Wystąpienie z przeszłości albo już
-    ma swoją transakcję (i policzyłoby się drugi raz), albo jest zaległością
-    harmonogramu — a zaległość to problem `flask process-scheduled`, nie budżetu.
+    Projekcja zaczyna się od kursora harmonogramu (`next_run_date`), więc wystąpienie
+    z przeszłości jest w niej tylko wtedy, gdy czeka na potwierdzenie — potwierdzone
+    ma już swoją transakcję i przesunęło kursor. Oczekujące zajmuje budżet tak samo
+    jak przyszłe, dopóki użytkownik go nie potwierdzi albo nie pominie.
     """
-    dzis = date.today()
     pierwszy, ostatni = _granice_miesiaca(year, month)
     rez = defaultdict(lambda: ZERO)
 
     harmonogramy = {rt.id: rt for rt in db.session.query(RecurringTransaction)
                     .filter_by(user_token=user_token).all()}
     for proj in get_recurring_preview(user_token, year, month):
-        if date.fromisoformat(proj['date']) < dzis:
-            continue
         rt = harmonogramy.get(proj['recurring_id'])
         if rt is not None and rt.category_id is not None:
             rez[rt.category_id] += rt.amount
@@ -118,7 +116,7 @@ def rezerwacje_per_kategoria(user_token: str, year: int, month: int) -> dict:
     planowane = (db.session.query(PlannedTransaction)
                  .filter(PlannedTransaction.user_token == user_token,
                          PlannedTransaction.status == 'pending',
-                         PlannedTransaction.execution_date >= max(dzis, pierwszy),
+                         PlannedTransaction.execution_date >= pierwszy,
                          PlannedTransaction.execution_date <= ostatni)
                  .all())
     for p in planowane:

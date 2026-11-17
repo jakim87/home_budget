@@ -37,8 +37,8 @@
 - **Import wyciągów bankowych** — ING Bank Śląski, mBank i Pekao SA, w formatach CSV, PDF i HTML, z automatycznym rozpoznaniem banku i formatu po zawartości pliku; dwuetapowy przepływ: parsowanie → staging → zatwierdzenie przez użytkownika
 - **Automatyczne rozpoznawanie kontrahentów** — trójstopniowy algorytm dopasowania: numer rachunku kontrahenta → reguły mapowania → dopasowanie rozmyte (fuzzy match)
 - **Kategoryzacja transakcji** — własne kategorie wydatków, przychodów i transferów; obsługa podziałów transakcji (split) na wiele kategorii
-- **Transakcje cykliczne** — definicje automatycznie wykonywanych transakcji wg harmonogramu (dziennie, tygodniowo, miesięcznie, rocznie)
-- **Transakcje zaplanowane** — jednorazowe transakcje z określoną datą wykonania w przyszłości
+- **Transakcje cykliczne** — definicje powtarzających się transakcji wg harmonogramu (dziennie, tygodniowo, miesięcznie, rocznie); każde wystąpienie czeka na potwierdzenie użytkownika
+- **Transakcje zaplanowane** — jednorazowe transakcje z określoną datą wykonania w przyszłości; po nadejściu daty czekają na potwierdzenie
 - **Przelewy wewnętrzne** — przelew między własnymi kontami to dwie powiązane operacje (nogi); druga strona pochodzi z wyciągu drugiego konta albo, gdy to konto nie dostaje wyciągów, jest dopisywana automatycznie jako lustro (patrz 4.4)
 - **Dashboard** — Net Worth z porównaniem do poprzedniego miesiąca i roku, majątek w czasie (razem albo wg typu kont), przychody i wydatki wg wybranych kategorii, udział majątku wg typu kont; klik w miesiąc prowadzi do jego transakcji albo widoku we Wnioskach
 - **Wnioski** — automatyczne wnioski z wybranego pełnego miesiąca (trendy kategorii, jednorazowe zdarzenia, stałe opłaty, bilans) liczone regułami w przeglądarce względem typowego miesiąca (mediana z 6 poprzednich), a pod nimi widoki: filtry okresu, kont, kategorii i kontrahentów z wykresem i tabelą, rozbijaniem elementów (menu, ścieżka, karta kategorii) i saldami kont na koniec miesiąca; do 7 własnych widoków zapisanych na koncie i do 10 ulubionych kont jako filtr. Kwoty w PLN po kursie NBP z końca miesiąca, przelewy wewnętrzne zawsze poza sumami (poza widokiem sald)
@@ -61,7 +61,7 @@
 | **Noga przelewu** | Jedna z dwóch transakcji przelewu wewnętrznego; nogi wiąże `linked_transaction_id` |
 | **Lustro** | Noga dopisana przez aplikację (`origin = 'mirror'`) na koncie, które nie dostaje własnych wyciągów; zastępowana prawdziwą nogą, gdy ta przyjdzie z wyciągu |
 | **Do zmapowania** | Znacznik nogi przelewu bez pary — czeka na drugą stronę z wyciągu drugiego konta |
-| **Transakcja cykliczna** | Definicja automatycznie powtarzającej się transakcji (np. czynsz co miesiąc) |
+| **Transakcja cykliczna** | Definicja powtarzającej się transakcji (np. czynsz co miesiąc); wystąpienia potwierdza użytkownik |
 | **Transakcja zaplanowana** | Jednorazowa transakcja zaplanowana na konkretną datę w przyszłości |
 | **Uzgadnianie salda** | Korekta salda konta przez transakcję systemową, gdy saldo w aplikacji rozmija się z rzeczywistym |
 | **Reguły mapowania** | Lista słów kluczowych przypisanych do kontrahenta, używana przy auto-kategoryzacji importu |
@@ -76,7 +76,7 @@ Aplikacja obsługuje wielu użytkowników w izolacji — każdy użytkownik widz
 | Rola | Opis |
 |------|------|
 | **Użytkownik zarejestrowany** | Pełny dostęp do własnych danych: konta, transakcje, import wyciągów, kontrahenci, kategorie, budżety |
-| **System** | Automatyczne wykonywanie transakcji cyklicznych i zaplanowanych przez `flask process-scheduled` |
+| **System** | Nocne wyłączanie zakończonych harmonogramów przez `flask process-scheduled` (bez księgowania) |
 
 Konto zakłada się samodzielnie — rejestracja jest publiczna i kończy się kreatorem pierwszego konta oraz zestawem kategorii startowych. Liczba prób logowania i rejestracji jest ograniczana per adres IP.
 
@@ -317,7 +317,7 @@ Akcje na wierszu: „Zatwierdź obie”, „Rozdziel” (pokazuje nogi osobno), 
 
 ### 4.5 Transakcje cykliczne
 
-**Cel:** Automatyczne generowanie regularnych transakcji (czynsz, abonament, pensja) bez ręcznej ingerencji.
+**Cel:** Przypominanie o regularnych transakcjach (czynsz, abonament, pensja) i księgowanie ich jednym kliknięciem — dopiero gdy użytkownik potwierdzi, że płatność naprawdę wyszła.
 
 **Konfiguracja:**
 
@@ -330,22 +330,27 @@ Akcje na wierszu: „Zatwierdź obie”, „Rozdziel” (pokazuje nogi osobno), 
 | Data początkowa | data od której obowiązuje harmonogram |
 | Data końcowa | opcjonalna; po jej przekroczeniu transakcja cykliczna jest dezaktywowana |
 
-**Przepływ wykonania (`flask process-scheduled`):**
+**Przepływ wykonania — potwierdzanie:**
+
+Harmonogram nie księguje się sam. `next_run_date` jest kursorem: wskazuje najstarsze wystąpienie, którego jeszcze nie rozstrzygnięto. Każde wystąpienie z datą do dziś (od kursora) pokazuje się na liście operacji z plakietką **„Do potwierdzenia”** i nie zmienia salda; przyszłe mają plakietkę „Zaplanowana”. Licznik na zakładce **Transakcje** podaje liczbę oczekujących ze wszystkich miesięcy, a kliknięcie go przenosi do miesiąca najstarszego.
 
 ```
-Pobranie wszystkich aktywnych transakcji cyklicznych
-gdzie next_run_date <= dziś
+Użytkownik przy najstarszym oczekującym wystąpieniu wybiera:
+  ✓ Potwierdź           → transakcja z kwotą i datą z harmonogramu
+  ✎ Popraw i potwierdź  → transakcja z poprawioną kwotą (znak z harmonogramu) i datą;
+                          sam harmonogram bez zmian
+  ✕ Pomiń               → bez transakcji („nie wykonała się”)
          │
          ▼
-  Dla każdej:
-  1. Sprawdź czy nie przekroczono end_date → dezaktywuj jeśli tak
-  2. Utwórz standardową transakcję (z aktualizacją salda)
-  3. Przelicz next_run_date na kolejny termin
+  next_run_date przesuwa się na kolejny termin;
+  po ostatnim terminie przed end_date harmonogram jest dezaktywowany
 ```
 
-**Obliczanie pierwszego terminu:** pierwszym terminem jest pierwszy wybrany dzień (tygodnia albo miesiąca) od daty początkowej — nie sama data początkowa. Harmonogram „10. dnia miesiąca” założony 25. wykona się pierwszy raz 10. następnego miesiąca. Jeśli ten dzień jest już w przeszłości, system wyznacza najbliższy przyszły termin zgodny z harmonogramem — nie wykonuje zaległych iteracji.
+Wystąpienia rozstrzyga się po kolei — serwer odrzuca każde inne niż najstarsze, dzięki czemu podwójne kliknięcie nie zaksięguje dwa razy. Nocne `flask process-scheduled` już niczego nie księguje; wyłącza tylko harmonogramy, którym minęła data końca.
 
-**Usunięta kategoria i zarchiwizowane konto.** Harmonogram księguje z kategorią, którą miał przy zakładaniu, także gdy później ją usunięto. Archiwizacja konta wyłącza jego transakcje cykliczne i usuwa oczekujące zaplanowane — na zamkniętym koncie nie mogłyby się wykonać, a nocne przetwarzanie stawałoby co noc z błędem widocznym tylko w logu.
+**Obliczanie pierwszego terminu:** pierwszym terminem jest pierwszy wybrany dzień (tygodnia albo miesiąca) od daty początkowej — nie sama data początkowa. Harmonogram „10. dnia miesiąca” założony 25. wykona się pierwszy raz 10. następnego miesiąca. Jeśli ten dzień jest już w przeszłości, system wyznacza najbliższy przyszły termin zgodny z harmonogramem — nie tworzy zaległych wystąpień do potwierdzenia. Tak samo po zmianie daty początkowej, częstotliwości albo interwału: oczekujące wystąpienia znikają, a kursor startuje od nowa.
+
+**Usunięta kategoria i zarchiwizowane konto.** Harmonogram księguje z kategorią, którą miał przy zakładaniu, także gdy później ją usunięto. Archiwizacja konta wyłącza jego transakcje cykliczne i usuwa oczekujące zaplanowane — na zamkniętym koncie nie mogłyby się wykonać, a potwierdzenie wystąpienia kończyłoby się błędem.
 
 ---
 
@@ -353,21 +358,11 @@ gdzie next_run_date <= dziś
 
 **Cel:** Jednorazowe transakcje z z góry ustaloną datą wykonania (np. planowana rata, spodziewana faktura).
 
-**Różnica względem cyklicznych:** brak harmonogramu — transakcja wykonuje się dokładnie raz w podanym `execution_date`.
+**Różnica względem cyklicznych:** brak harmonogramu — jedno wystąpienie w podanym `execution_date`.
 
-**Przepływ wykonania (`flask process-scheduled`):**
+**Przepływ wykonania — potwierdzanie:** jak przy cyklicznych. Zaplanowana ze statusem `pending` widnieje na liście operacji w swoim miesiącu; od `execution_date` jest „Do potwierdzenia” i wlicza się do licznika na zakładce Transakcje. Potwierdzenie (także z poprawioną kwotą i datą) tworzy transakcję i ustawia status `processed`, pominięcie — status `skipped` bez transakcji.
 
-```
-Pobranie zaplanowanych transakcji gdzie:
-  execution_date <= dziś AND status = 'pending'
-         │
-         ▼
-  Dla każdej:
-  1. Utwórz standardową transakcję
-  2. Ustaw status = 'processed'
-```
-
-Przetworzone transakcje zaplanowane pozostają w tabeli `planned_transactions` ze statusem `processed` (nie są usuwane).
+Rozstrzygnięte transakcje zaplanowane pozostają w tabeli `planned_transactions` (nie są usuwane).
 
 ---
 
@@ -460,7 +455,7 @@ Usuniętej transakcji nie da się przywrócić — pomyłkę poprawia się, wpis
 1. Użytkownik otwiera zakładkę **Budżet** i wybiera miesiąc (również przyszły).
 2. Przy każdej kategorii przychodów i wydatków wpisuje kwotę planu. Puste pole = brak planu.
 3. Pod polem aplikacja pokazuje, ile w tej kategorii wydawano dotychczas — **medianę** miesięcznych sum wraz z zakresem min–max. Kliknięcie podpowiedzi wstawia tę kwotę.
-4. Aplikacja zestawia plan z trzema liczbami: **wykonane** (zaksięgowane transakcje), **zarezerwowane** (cykliczne i zaplanowane, które jeszcze się nie wykonały) oraz procent zajęcia planu.
+4. Aplikacja zestawia plan z trzema liczbami: **wykonane** (zaksięgowane transakcje), **zarezerwowane** (cykliczne i zaplanowane, które jeszcze nie zostały potwierdzone) oraz procent zajęcia planu.
 5. Nagłówek podsumowuje plan przychodów, plan wydatków i ich różnicę. Ujemny bilans jest sygnalizowany banerem, ale **nie blokuje zapisu** — to decyzja użytkownika.
 
 **Reguły szczegółowe:**
@@ -468,7 +463,7 @@ Usuniętej transakcji nie da się przywrócić — pomyłkę poprawia się, wpis
 | Zagadnienie | Zachowanie |
 |---|---|
 | Podziały transakcji | Kwota liczy się do kategorii **podziałów**, nie rodzica. Reszta nieopisana podziałami zostaje na kategorii rodzica, więc suma po kategoriach zawsze równa się sumie transakcji. Raporty liczą to inaczej (po kategorii rodzica) — rozjazd jest świadomy |
-| Rezerwacje | Liczone są wyłącznie wystąpienia **od dziś w przód**. Wystąpienie z przeszłości ma już swoją transakcję albo jest zaległością `flask process-scheduled` |
+| Rezerwacje | Liczone są wystąpienia przyszłe **i oczekujące na potwierdzenie**. Potwierdzone ma już swoją transakcję (liczy się jako wykonane), pominięte nie zajmuje budżetu |
 | Kategorie transferowe | Nie podlegają planowaniu — przelew między własnymi kontami nie jest ani przychodem, ani wydatkiem |
 | Próg sugestii | Poniżej 3 miesięcy historii danej kategorii aplikacja nie proponuje kwoty, tylko mówi wprost, że danych jest za mało. Od 12 miesięcy dokłada osobno „rok temu w tym miesiącu" |
 | Jeden plan na kategorię | Unikalny indeks `(user_token, year, month, category_id)` — ponowny zapis nadpisuje, nie dubluje |
@@ -490,7 +485,7 @@ Usuniętej transakcji nie da się przywrócić — pomyłkę poprawia się, wpis
 | 7 | Kontrahent może mieć tylko jedną domyślną kategorię; zmiana kategorii kontrahenta dotyczy tylko przyszłych importów |
 | 8 | Staging transakcji należy do konkretnego użytkownika i konta; rekord bez `account_id` (starszy import) nie może być zatwierdzony — należy go odrzucić i reimportować |
 | 9 | Zatwierdzenie transakcji ze stagingu wymaga jednocześnie kategorii i kontrahenta — nie można zatwierdzić bez obu |
-| 10 | Transakcja zaplanowana po wykonaniu ma status `processed` i pozostaje w tabeli jako zapis historyczny |
+| 10 | Transakcja zaplanowana po rozstrzygnięciu ma status `processed` (potwierdzona) albo `skipped` (pominięta) i pozostaje w tabeli jako zapis historyczny |
 | 11 | Plan budżetu zapisywany jest kwotą dodatnią niezależnie od typu kategorii; kierunek niesie typ kategorii (`income` / `expense`) |
 | 12 | Plan wydatków wolno ustawić ponad plan przychodów — aplikacja informuje o ujemnym bilansie, ale nie blokuje zapisu |
 
@@ -514,7 +509,6 @@ Usuniętej transakcji nie da się przywrócić — pomyłkę poprawia się, wpis
 | **Brak wielodostępu współbieżnego** | Brak mechanizmu blokad optymistycznych — równoczesna edycja tej samej transakcji przez dwóch użytkowników może prowadzić do wyścigu |
 | **Brak zarządzania rolami w UI** | Nie ma panelu administracyjnego; rejestracja jest samoobsługowa, ale każda inna operacja na kontach wymaga dostępu do serwera |
 | **Brak resetu hasła przez e-mail** | Aplikacja nie wysyła wiadomości; zapomniane hasło ustawia administrator komendą `flask reset-password` |
-| **Transakcje cykliczne bez obsługi zaległości** | Jeśli `flask process-scheduled` nie był uruchamiany przez dłuższy czas, zaległe iteracje nie są nadrabiane — wykonywana jest tylko bieżąca |
 | **Waluta stała (PLN)** | Konta mogą mieć pole `currency`, ale logika sald i raportowania zakłada PLN; brak przeliczania kursów walut |
 | **Brak eksportu danych** | Aplikacja nie oferuje eksportu transakcji do CSV/PDF/Excel |
 | **Nazwy kontrahentów „Moje konto: …” po zmianie nazwy konta** | Zmiana nazwy konta nie zmienia nazwy jego kontrahenta. Przelewy działają dalej (kontrahent jest powiązany z kontem), ale w słowniku i na starych wpisach zostaje stara nazwa; poprawia się ją ręcznie |

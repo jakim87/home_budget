@@ -4,6 +4,7 @@ from app import db
 from app.models import Account, Contractor, Transaction, TransactionSplit
 from app.services.category_service import list_active as list_active_categories
 from app.services.exchange_rate_service import latest_rates, monthly_rates
+from app.services import planned_transaction_service, recurring_service
 from app.services.saved_view_service import list_views, view_dict
 
 
@@ -85,6 +86,12 @@ def build_init_payload(user_token: str) -> dict:
             _account_dict(a, full=False) for a in inactive_accounts if a.id in accounts_with_tx
         ],
         'saved_views': [view_dict(w) for w in list_views(user_token)],
+        # Wystąpienia cyklicznych i zaplanowanych, których termin nadszedł — licznik
+        # na zakładce Transakcje liczy je ze wszystkich miesięcy, nie z oglądanego.
+        'do_potwierdzenia': sorted(
+            recurring_service.oczekujace_potwierdzenia(user_token)
+            + planned_transaction_service.oczekujace_potwierdzenia(user_token),
+            key=lambda w: w['date']),
     }
 
 

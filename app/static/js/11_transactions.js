@@ -476,10 +476,8 @@ function renderTransactions() {
                     <td data-label="Komentarz" class="p-4 border-b border-slate-100 text-sm">${commentHtml}</td>
                     <td data-label="Kwota" class="p-4 border-b border-slate-100 font-bold ${amountClass} text-right whitespace-nowrap">${amountText}</td>
                     ${balanceCellHtml}
-                    <td data-label="Akcje" class="p-4 border-b border-slate-100 text-center">
-                        ${isVirtual ? `
-                            <span class="text-xs font-semibold text-indigo-500 bg-indigo-100 px-2 py-1 rounded-md inline-block">Zaplanowana</span>
-                        ` : `
+                    <td data-label="Akcje" ${isVirtual ? `id="akcje-${t.id}"` : ''} class="p-4 border-b border-slate-100 text-center">
+                        ${isVirtual ? akcjeWystapienia(t) : `
                         <div class="flex justify-center items-center gap-1">
                             <button onclick="startInlineEdit(${t.id})" title="Edytuj" class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors focus:outline-none">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
@@ -501,6 +499,34 @@ function renderTransactions() {
             list.appendChild(row);
         });
     }
+}
+
+// Komórka akcji wiersza z harmonogramu. Przyszłe wystąpienie jest tylko zapowiedzią;
+// to, którego termin nadszedł, czeka na potwierdzenie (05_recurring.js). Kolejne
+// wystąpienia tej samej cyklicznej czekają, aż rozstrzygnie się najstarsze.
+function akcjeWystapienia(t) {
+    if (!t.do_potwierdzenia) {
+        return `<span class="text-xs font-semibold text-indigo-500 bg-indigo-100 px-2 py-1 rounded-md inline-block">Zaplanowana</span>`;
+    }
+    const plakietka = `<span class="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded-md inline-block whitespace-nowrap">Do potwierdzenia</span>`;
+    if (!t.najstarsze) {
+        return `<span title="Najpierw potwierdź albo pomiń wcześniejsze wystąpienie tej transakcji cyklicznej">${plakietka}</span>`;
+    }
+    return `
+        <div class="flex flex-col items-center gap-1">
+            ${plakietka}
+            <div class="flex justify-center items-center gap-1">
+                <button onclick="potwierdzWystapienie('${t.id}')" title="Potwierdź — wykonała się tak, jak zaplanowano" aria-label="Potwierdź" class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors focus:outline-none">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                </button>
+                <button onclick="poprawWystapienie('${t.id}')" title="Popraw kwotę lub datę i potwierdź" aria-label="Popraw i potwierdź" class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors focus:outline-none">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                </button>
+                <button onclick="pominWystapienie('${t.id}')" title="Pomiń — nie wykonała się" aria-label="Pomiń" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors focus:outline-none">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+        </div>`;
 }
 
 // Nazwa konta po ID — szuka wśród aktywnych i archiwalnych (do opisu w ostrzeżeniach).

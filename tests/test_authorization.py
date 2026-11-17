@@ -136,6 +136,27 @@ def test_intruder_cannot_delete_planned(intruder_client, owner_data):
     assert db.session.get(PlannedTransaction, planned.id) is not None
 
 
+@pytest.mark.parametrize('akcja', ['potwierdz', 'pomin'])
+def test_intruder_cannot_resolve_foreign_recurring_occurrence(intruder_client, owner_data, akcja):
+    rec = owner_data['rec']
+    resp = intruder_client.post(f'/api/recurring-transactions/{rec.id}/{akcja}',
+                                json={'occurrence_date': '2024-06-01'})
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(RecurringTransaction, rec.id).next_run_date == date(2024, 6, 1)
+    assert db.session.query(Transaction).filter_by(source_recurring_id=rec.id).count() == 0
+
+
+@pytest.mark.parametrize('akcja', ['potwierdz', 'pomin'])
+def test_intruder_cannot_resolve_foreign_planned(intruder_client, owner_data, akcja):
+    planned = owner_data['planned']
+    resp = intruder_client.post(f'/api/planned-transactions/{planned.id}/{akcja}', json={})
+    assert resp.status_code == 400
+    db.session.expire_all()
+    assert db.session.get(PlannedTransaction, planned.id).status == 'pending'
+    assert db.session.query(Transaction).filter_by(source_planned_id=planned.id).count() == 0
+
+
 def test_intruder_cannot_approve_staging(intruder_client, owner_data):
     stg = owner_data['stg']
     cont = owner_data['contractor']

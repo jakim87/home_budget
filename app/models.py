@@ -64,7 +64,7 @@ class PlannedTransaction(db.Model):
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
 
     execution_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String(20), default='pending', nullable=False) # pending, processed
+    status: Mapped[str] = mapped_column(String(20), default='pending', nullable=False) # pending, processed, skipped
     
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

@@ -11,7 +11,7 @@ from decimal import Decimal
 import pytest
 
 from app import db
-from app.models import (Account, Category, Frequency, RecurringTransaction,
+from app.models import (Account, Category, Frequency, PlannedTransaction, RecurringTransaction,
                         Transaction, TransactionSplit)
 from app.services import budget_plan_service as bps
 
@@ -161,6 +161,25 @@ def test_cykliczna_juz_wykonana_nie_liczy_sie_podwojnie(app, test_user_token, ko
         kategorie['jedzenie'].id, Decimal("0")) == Decimal("0")
     assert bps.wykonanie_per_kategoria(test_user_token, y, m)[
         kategorie['jedzenie'].id] == Decimal("-99.00")
+
+
+def test_cykliczna_do_potwierdzenia_nadal_rezerwuje(app, test_user_token, konto, kategorie):
+    """Termin minął, ale użytkownik nie potwierdził wystąpienia: nie ma transakcji, więc
+    bez rezerwacji kwota zniknęłaby z budżetu, choć płatność najpewniej wyszła."""
+    dzis = date.today()
+    pierwszy = dzis.replace(day=1)
+    db.session.add(RecurringTransaction(
+        user_token=test_user_token, account_id=konto.id, category_id=kategorie['jedzenie'].id,
+        title="Abonament", amount=Decimal("-99.00"), frequency=Frequency.MONTHLY,
+        interval=1, day_of_month=1, start_date=pierwszy, next_run_date=pierwszy))
+    db.session.add(PlannedTransaction(
+        user_token=test_user_token, account_id=konto.id, category_id=kategorie['jedzenie'].id,
+        title="Przegląd", amount=Decimal("-200.00"), execution_date=pierwszy, status="pending"))
+    db.session.commit()
+
+    rez = bps.rezerwacje_per_kategoria(test_user_token, dzis.year, dzis.month)
+
+    assert rez.get(kategorie['jedzenie'].id) == Decimal("-299.00")
 
 
 # --- D2: bilans planu ---

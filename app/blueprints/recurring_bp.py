@@ -1,11 +1,14 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from marshmallow import ValidationError
-from app.schemas import RecurringTransactionSchema
+from app.schemas import PotwierdzenieSchema, RecurringTransactionSchema
+from app.services.planned_transaction_service import planned_preview
 from app.services.recurring_service import (
     create_recurring_transaction,
     get_all_recurring_transactions,
     get_recurring_preview,
+    pomin_wystapienie,
+    potwierdz_wystapienie,
     update_recurring_transaction,
 )
 
@@ -58,8 +61,38 @@ def preview_recurring_transactions():
     except (KeyError, ValueError):
         return jsonify({'error': 'Wymagane parametry: year (int, 1900-2999) i month (int, 1-12)'}), 400
 
-    result = get_recurring_preview(current_user.token, year, month)
+    # Lista operacji pokazuje obok cyklicznych też oczekujące zaplanowane — jedne
+    # i drugie czekają tak samo na potwierdzenie.
+    result = (get_recurring_preview(current_user.token, year, month)
+              + planned_preview(current_user.token, year, month))
     return jsonify(result), 200
+
+
+@recurring_bp.route('/<int:rec_tx_id>/potwierdz', methods=['POST'])
+@login_required
+def confirm_occurrence(rec_tx_id):
+    try:
+        data = PotwierdzenieSchema().load(request.get_json() or {})
+        tx = potwierdz_wystapienie(current_user.token, rec_tx_id, data['occurrence_date'],
+                                   amount=data['amount'], transaction_date=data['date'])
+        return jsonify({'message': 'Potwierdzono', 'transaction_id': tx.id}), 201
+    except ValidationError as err:
+        return jsonify({'error': err.messages}), 400
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
+
+
+@recurring_bp.route('/<int:rec_tx_id>/pomin', methods=['POST'])
+@login_required
+def skip_occurrence(rec_tx_id):
+    try:
+        data = PotwierdzenieSchema().load(request.get_json() or {})
+        pomin_wystapienie(current_user.token, rec_tx_id, data['occurrence_date'])
+        return jsonify({'message': 'Pominięto'}), 200
+    except ValidationError as err:
+        return jsonify({'error': err.messages}), 400
+    except ValueError as err:
+        return jsonify({'error': str(err)}), 400
 
 
 @recurring_bp.route('/<int:rec_tx_id>', methods=['DELETE'])

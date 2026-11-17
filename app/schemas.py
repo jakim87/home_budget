@@ -113,6 +113,20 @@ class PlannedTransactionSchema(Schema):
     status = fields.String(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
 
+class PotwierdzenieSchema(Schema):
+    """Potwierdzenie albo pominięcie wystąpienia z harmonogramu.
+
+    `occurrence_date` wskazuje, KTÓRE wystąpienie rozstrzygamy — serwis odrzuca każde
+    inne niż najstarsze oczekujące, więc podwójne kliknięcie nie zaksięguje dwa razy.
+    `amount` i `date` to poprawka przed potwierdzeniem; kwota bez znaku (znak bierze
+    się z harmonogramu), pominięte = jak w harmonogramie.
+    """
+    occurrence_date = fields.Date(required=True, format='%Y-%m-%d')
+    amount = fields.Decimal(load_default=None, allow_none=True, as_string=True,
+                            validate=validate.Range(min=Decimal('0.01'), max=_MAX_KWOTA))
+    date = fields.Date(load_default=None, allow_none=True, format='%Y-%m-%d')
+
+
 class RecurringTransactionSchema(Schema):
     id = fields.Integer(dump_only=True)
     account_id = fields.Integer(required=True)

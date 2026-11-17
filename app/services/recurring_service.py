@@ -1,7 +1,8 @@
 from app import db
-from app.models import RecurringTransaction, Transaction, Account, Contractor, Frequency
+from app.models import RecurringTransaction, Account, Contractor, Frequency
 from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 from app.services.budget_service import create_transaction as create_standard_transaction
 from app.services.category_service import find_owned as find_category_owned
@@ -102,30 +103,63 @@ def get_recurring_preview(user_token, year: int, month: int) -> list:
         candidate = rt.next_run_date
         while candidate <= month_end:
             if candidate >= month_start:
-                # Kształt MUSI odpowiadać _transaction_dict() z init_service — front
-                # skleja projekcje z prawdziwymi transakcjami w jedną listę i renderuje
-                # je tym samym kodem. Rozjazd nie kończy się brzydkim wyglądem:
-                # `title` zamiast `desc` dawało pusty opis, `category_id` zamiast nazwy
-                # — pustą kategorię, a kwota jako tekst wywracała `toFixed()` i przez
-                # to NIE renderowała się cała tabela operacji.
-                result.append({
-                    'id': f'virt-{rt.id}-{candidate.strftime("%Y%m%d")}',
-                    'desc': rt.title,
-                    'amount': float(rt.amount),
-                    'date': candidate.isoformat(),
-                    'category': rt.category.name if rt.category else 'Inne',
-                    'contractor_id': rt.contractor_id,
-                    'contractor_name': rt.contractor.name if rt.contractor else None,
-                    'account_id': rt.account_id,
-                    'comment': '',
-                    'isVirtual': True,
-                    'recurring_id': rt.id,
-                })
+                result.append(_wystapienie_dict(rt, candidate))
             candidate = _calculate_next_run_date_for_recurring(rt, candidate)
             if rt.end_date and candidate > rt.end_date:
                 break
 
     return result
+
+
+def _wystapienie_dict(rt: RecurringTransaction, kiedy: date) -> dict:
+    """Wirtualne wystąpienie harmonogramu w kształcie wiersza transakcji.
+
+    Kształt MUSI odpowiadać _transaction_dict() z init_service — front skleja projekcje
+    z prawdziwymi transakcjami w jedną listę i renderuje je tym samym kodem. Rozjazd nie
+    kończy się brzydkim wyglądem: `title` zamiast `desc` dawało pusty opis, `category_id`
+    zamiast nazwy — pustą kategorię, a kwota jako tekst wywracała `toFixed()` i przez to
+    NIE renderowała się cała tabela operacji.
+
+    Wystąpienie z datą do dziś czeka na potwierdzenie. Rozstrzygnąć można tylko
+    najstarsze (`next_run_date`) — kursor harmonogramu posuwa się po jednym kroku.
+    """
+    return {
+        'id': f'virt-{rt.id}-{kiedy.strftime("%Y%m%d")}',
+        'desc': rt.title,
+        'amount': float(rt.amount),
+        'date': kiedy.isoformat(),
+        'category': rt.category.name if rt.category else 'Inne',
+        'contractor_id': rt.contractor_id,
+        'contractor_name': rt.contractor.name if rt.contractor else None,
+        'account_id': rt.account_id,
+        'comment': '',
+        'isVirtual': True,
+        'recurring_id': rt.id,
+        'do_potwierdzenia': kiedy <= date.today(),
+        'najstarsze': kiedy == rt.next_run_date,
+    }
+
+
+def oczekujace_potwierdzenia(user_token) -> list:
+    """Wszystkie wystąpienia harmonogramów z datą do dziś, jeszcze nierozstrzygnięte.
+
+    Kursor `next_run_date` stoi na najstarszym nierozstrzygniętym wystąpieniu, więc
+    oczekujące to kolejne terminy od kursora do dziś. Limit chroni przed długą listą
+    przy harmonogramie dziennym porzuconym na miesiące.
+    """
+    dzis = date.today()
+    wynik = []
+    for rt in get_all_recurring_transactions(user_token):
+        kiedy = rt.next_run_date
+        for _ in range(_MAX_CATCHUP_OCCURRENCES):
+            if kiedy is None or kiedy > dzis or (rt.end_date and kiedy > rt.end_date):
+                break
+            wynik.append(_wystapienie_dict(rt, kiedy))
+            nastepny = _calculate_next_run_date_for_recurring(rt, kiedy)
+            if nastepny <= kiedy:
+                break
+            kiedy = nastepny
+    return wynik
 
 
 def _validate_refs(user_token, account_id, contractor_id, category_id=None):
@@ -226,87 +260,105 @@ def update_recurring_transaction(user_token, rec_tx_id, data):
         db.session.rollback()
         raise
 
-# Górny limit zaległych wystąpień domykanych w jednym przebiegu. Chroni przed
-# zapętleniem na uszkodzonej definicji; 500 to ~1,5 roku dla harmonogramu dziennego,
-# czyli więcej niż jakakolwiek realna przerwa w działaniu crona.
+# Górny limit oczekujących wystąpień jednego harmonogramu na liście potwierdzeń.
+# Chroni przed zapętleniem na uszkodzonej definicji; 500 to ~1,5 roku dla
+# harmonogramu dziennego.
 _MAX_CATCHUP_OCCURRENCES = 500
 
 
 def process_recurring_transactions():
+    """Nocny porządek harmonogramów — od potwierdzania niczego już nie księguje.
+
+    Wystąpienie z nadchodzącą datą czeka na potwierdzenie użytkownika
+    (`potwierdz_wystapienie` / `pomin_wystapienie`), bo dopiero on wie, czy płatność
+    naprawdę wyszła i na jaką kwotę. Zostaje tylko wyłączenie harmonogramów, którym
+    minęła data końca i nie mają już nic do rozstrzygnięcia — inaczej wisiałyby na
+    liście aktywnych w oknie cyklicznych.
     """
-    Processes all due recurring transactions and creates standard transactions.
+    wylaczone = 0
+    zakonczone = db.session.query(RecurringTransaction).filter(
+        RecurringTransaction.is_active == True,
+        RecurringTransaction.end_date.isnot(None),
+        RecurringTransaction.next_run_date > RecurringTransaction.end_date,
+    ).all()
+    for rec_tx in zakonczone:
+        rec_tx.is_active = False
+        wylaczone += 1
+    db.session.commit()
+    logger.info("Harmonogramy: wyłączono %d zakończonych", wylaczone)
+    return wylaczone
 
-    Idempotentne i bezpieczne przy wielokrotnym/współbieżnym uruchomieniu:
-    - blokada wierszy (FOR UPDATE SKIP LOCKED na PostgreSQL) zapobiega równoległemu
-      przetworzeniu tej samej definicji przez dwa procesy;
-    - strażnik po source_recurring_id + data wykrywa transakcję już utworzoną
-      (np. po awarii przed przesunięciem next_run_date) i nie tworzy jej ponownie;
-    - utworzenie transakcji i przesunięcie next_run_date domykane są JEDNYM commitem.
+
+def _zablokuj_harmonogram(user_token, rec_tx_id) -> RecurringTransaction:
+    """Harmonogram do rozstrzygnięcia wystąpienia, z blokadą wiersza.
+
+    Blokada szereguje dwa równoległe potwierdzenia tego samego wystąpienia: drugie
+    czeka, po czym widzi przesunięty kursor i zostaje odrzucone.
     """
-    created_count = 0
-    today = date.today()
+    rec_tx = (db.session.query(RecurringTransaction)
+              .filter_by(id=rec_tx_id, user_token=user_token, is_active=True)
+              .with_for_update().populate_existing().first())
+    if not rec_tx:
+        raise ValueError("Nie znaleziono transakcji cyklicznej lub brak uprawnień.")
+    return rec_tx
 
-    query = db.session.query(RecurringTransaction).filter(
-        RecurringTransaction.next_run_date <= today,
-        RecurringTransaction.is_active == True
-    )
-    if db.session.get_bind().dialect.name == 'postgresql':
-        query = query.with_for_update(skip_locked=True)
-    due_recurring_transactions = query.all()
 
-    for rec_tx in due_recurring_transactions:
-        if rec_tx.end_date and rec_tx.next_run_date > rec_tx.end_date:
-            rec_tx.is_active = False
-            db.session.commit()
-            continue
+def _sprawdz_wystapienie(rec_tx: RecurringTransaction, occurrence_date: date):
+    if occurrence_date != rec_tx.next_run_date:
+        raise ValueError("To wystąpienie jest już rozstrzygnięte albo czeka przed nim wcześniejsze.")
+    if occurrence_date > date.today():
+        raise ValueError("Tego wystąpienia nie można jeszcze potwierdzić — jego termin nie nadszedł.")
 
-        try:
-            # Nadrabianie zaległości: jedno uruchomienie domyka WSZYSTKIE zaległe
-            # wystąpienia. Bez tego przerwa w cronie oznacza tyle dni niepoprawnego
-            # salda, ile brakuje wystąpień.
-            for _ in range(_MAX_CATCHUP_OCCURRENCES):
-                if rec_tx.next_run_date > today:
-                    break
-                if rec_tx.end_date and rec_tx.next_run_date > rec_tx.end_date:
-                    rec_tx.is_active = False
-                    break
 
-                already_created = db.session.query(Transaction).filter_by(
-                    source_recurring_id=rec_tx.id, date=rec_tx.next_run_date
-                ).first()
+def _przesun_kursor(rec_tx: RecurringTransaction):
+    """Kursor na następne wystąpienie; po ostatnim przed datą końca harmonogram gaśnie."""
+    rec_tx.next_run_date = _calculate_next_run_date_for_recurring(rec_tx, rec_tx.next_run_date)
+    if rec_tx.end_date and rec_tx.next_run_date > rec_tx.end_date:
+        rec_tx.is_active = False
+    rec_tx.updated_at = datetime.now(timezone.utc)
 
-                if not already_created:
-                    create_standard_transaction(
-                        user_token=rec_tx.user_token,
-                        account_id=rec_tx.account_id,
-                        amount=rec_tx.amount,
-                        title=rec_tx.title,
-                        transaction_date=rec_tx.next_run_date,
-                        category_id=rec_tx.category_id,
-                        contractor_id=rec_tx.contractor_id,
-                        source_recurring_id=rec_tx.id,
-                        commit=False
-                    )
-                    created_count += 1
 
-                next_date = _calculate_next_run_date_for_recurring(rec_tx, rec_tx.next_run_date)
-                if next_date <= rec_tx.next_run_date:
-                    # Harmonogram nie posuwa się do przodu (np. interval=0 w danych
-                    # historycznych) — przerywamy zamiast kręcić się w nieskończoność.
-                    logger.error(
-                        "Harmonogram ID %s nie posuwa się do przodu (next_run_date=%s, interval=%s) — pomijam.",
-                        rec_tx.id, rec_tx.next_run_date, rec_tx.interval
-                    )
-                    break
-                rec_tx.next_run_date = next_date
+def potwierdz_wystapienie(user_token, rec_tx_id, occurrence_date: date,
+                          amount: Decimal | None = None, transaction_date: date | None = None):
+    """Księguje najstarsze oczekujące wystąpienie harmonogramu.
 
-            rec_tx.updated_at = datetime.now(timezone.utc)
-            db.session.commit()
+    `amount` (bez znaku) i `transaction_date` to poprawka użytkownika — harmonogram
+    zostaje bez zmian. Znak kwoty bierze się z harmonogramu: wydatek nie stanie się
+    przychodem przez to, że formularz podaje wartość dodatnią.
+    """
+    try:
+        rec_tx = _zablokuj_harmonogram(user_token, rec_tx_id)
+        _sprawdz_wystapienie(rec_tx, occurrence_date)
+        kwota = rec_tx.amount if amount is None else abs(Decimal(str(amount))).copy_sign(rec_tx.amount)
+        transakcja = create_standard_transaction(
+            user_token=user_token,
+            account_id=rec_tx.account_id,
+            amount=kwota,
+            title=rec_tx.title,
+            transaction_date=transaction_date or occurrence_date,
+            category_id=rec_tx.category_id,
+            contractor_id=rec_tx.contractor_id,
+            source_recurring_id=rec_tx.id,
+            commit=False,
+        )
+        _przesun_kursor(rec_tx)
+        db.session.commit()
+        logger.info("Potwierdzono wystąpienie harmonogramu ID %s, transakcja ID %s", rec_tx.id, transakcja.id)
+        return transakcja
+    except Exception:
+        db.session.rollback()
+        raise
 
-        except Exception as e:
-            logger.error("Błąd przetwarzania transakcji cyklicznej ID %s: %s", rec_tx.id, e)
-            db.session.rollback()
-            continue
 
-    logger.info("Przetwarzanie transakcji cyklicznych: utworzono %d nowych transakcji", created_count)
-    return created_count
+def pomin_wystapienie(user_token, rec_tx_id, occurrence_date: date):
+    """Rozstrzyga najstarsze oczekujące wystąpienie bez księgowania („nie wykonało się")."""
+    try:
+        rec_tx = _zablokuj_harmonogram(user_token, rec_tx_id)
+        _sprawdz_wystapienie(rec_tx, occurrence_date)
+        _przesun_kursor(rec_tx)
+        db.session.commit()
+        logger.info("Pominięto wystąpienie harmonogramu ID %s", rec_tx.id)
+        return rec_tx
+    except Exception:
+        db.session.rollback()
+        raise

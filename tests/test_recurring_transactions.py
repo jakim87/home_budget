@@ -7,6 +7,8 @@ from app.models import User, Account, Category, RecurringTransaction, Transactio
 from app.services.recurring_service import (
     _calculate_next_run_date_for_recurring,
     create_recurring_transaction,
+    oczekujace_potwierdzenia,
+    potwierdz_wystapienie,
     process_recurring_transactions,
 )
 from werkzeug.security import generate_password_hash
@@ -286,7 +288,7 @@ def test_harmonogram_ksieguje_z_usunieta_kategoria(app, setup_for_recurring):
     rec_id, kategoria_id = rec.id, kategoria.id
     soft_delete_category(user_token, "Subskrypcje")
 
-    assert process_recurring_transactions() == 1
+    potwierdz_wystapienie(user_token, rec_id, dzis)
     assert db.session.query(Transaction).filter_by(
         source_recurring_id=rec_id, category_id=kategoria_id).count() == 1
     assert db.session.get(RecurringTransaction, rec_id).next_run_date > dzis
@@ -306,19 +308,16 @@ def test_process_deactivates_recurring_after_end_date(app, setup_for_recurring):
     db.session.add(rec)
     db.session.commit()
 
-    created = process_recurring_transactions()
+    wylaczone = process_recurring_transactions()
 
-    assert created == 0
+    assert wylaczone == 1
     assert db.session.get(RecurringTransaction, rec.id).is_active is False
     assert db.session.query(Transaction).filter_by(source_recurring_id=rec.id).count() == 0
 
 
-def test_process_catches_up_all_overdue_occurrences(app, setup_for_recurring):
-    """Zaległe wystąpienia nadrabiane są w JEDNYM przebiegu, nie po jednym na uruchomienie.
-
-    Scenariusz z produkcji: cron nie działał przez kilka miesięcy. Bez nadrabiania
-    salda pozostają nieprawidłowe tak długo, ile brakuje wystąpień.
-    """
+def test_nocny_proces_nie_ksieguje_tylko_zostawia_do_potwierdzenia(app, setup_for_recurring):
+    """Zaległe wystąpienia czekają na potwierdzenie — nocny proces nie tworzy transakcji
+    ani nie rusza salda, a lista oczekujących podaje każde wystąpienie z osobna."""
     user_token, account_id, category_id = setup_for_recurring
     today = date.today()
     start = today - relativedelta(months=3)
@@ -332,16 +331,20 @@ def test_process_catches_up_all_overdue_occurrences(app, setup_for_recurring):
     db.session.add(rec)
     db.session.commit()
 
-    created = process_recurring_transactions()
+    assert process_recurring_transactions() == 0
 
-    # 3 miesiące wstecz + dzisiejsze wystąpienie = 4
-    assert created == 4
-    assert db.session.query(Transaction).filter_by(source_recurring_id=rec.id).count() == 4
-    assert db.session.get(RecurringTransaction, rec.id).next_run_date > today
+    assert db.session.query(Transaction).filter_by(source_recurring_id=rec.id).count() == 0
+    assert db.session.get(Account, account_id).balance == Decimal("1000.00")
+    oczekujace = oczekujace_potwierdzenia(user_token)
+    # 3 miesiące wstecz + dzisiejsze wystąpienie = 4; rozstrzygnąć można tylko najstarsze
+    assert len(oczekujace) == 4
+    assert [w['najstarsze'] for w in oczekujace] == [True, False, False, False]
+    assert all(w['do_potwierdzenia'] for w in oczekujace)
 
 
-def test_catchup_stops_at_end_date(app, setup_for_recurring):
-    """Nadrabianie nie przekracza end_date i dezaktywuje definicję."""
+def test_oczekujace_koncza_sie_na_dacie_konca(app, setup_for_recurring):
+    """Lista oczekujących nie wychodzi poza end_date, a rozstrzygnięcie ostatniego
+    wystąpienia wyłącza harmonogram."""
     user_token, account_id, category_id = setup_for_recurring
     today = date.today()
     start = today - relativedelta(months=5)
@@ -356,33 +359,13 @@ def test_catchup_stops_at_end_date(app, setup_for_recurring):
     db.session.add(rec)
     db.session.commit()
 
-    created = process_recurring_transactions()
-
+    oczekujace = oczekujace_potwierdzenia(user_token)
     # wystąpienia: start, +1m, +2m (= end). Kolejne wypada po end_date.
-    assert created == 3
+    assert len(oczekujace) == 3
+    for w in oczekujace:
+        potwierdz_wystapienie(user_token, rec.id, date.fromisoformat(w['date']))
     assert db.session.get(RecurringTransaction, rec.id).is_active is False
-
-
-def test_catchup_does_not_duplicate_already_created(app, setup_for_recurring):
-    """Ponowne uruchomienie po nadrobieniu nie tworzy niczego (idempotentność)."""
-    user_token, account_id, category_id = setup_for_recurring
-    start = date.today() - relativedelta(months=2)
-
-    rec = RecurringTransaction(
-        user_token=user_token, account_id=account_id, category_id=category_id,
-        title="Abonament", amount=Decimal("-15.00"),
-        frequency=Frequency.MONTHLY, day_of_month=start.day,
-        start_date=start, next_run_date=start,
-    )
-    db.session.add(rec)
-    db.session.commit()
-
-    first = process_recurring_transactions()
-    second = process_recurring_transactions()
-
-    assert first == 3
-    assert second == 0
-    assert db.session.query(Transaction).filter_by(source_recurring_id=rec.id).count() == 3
+    assert oczekujace_potwierdzenia(user_token) == []
 
 
 def test_preview_zwraca_kwote_jako_liczbe(logged_in_client, app, setup_for_recurring):

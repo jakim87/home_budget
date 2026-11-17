@@ -1,5 +1,5 @@
 [Unit]
-Description=Wykonanie zaplanowanych i cyklicznych transakcji aplikacji budzetowej
+Description=Wylaczanie zakonczonych harmonogramow aplikacji budzetowej
 After=postgresql.service
 Requires=postgresql.service
 

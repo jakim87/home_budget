@@ -67,6 +67,92 @@ function getFullTransactionsList(monthFilter, startFilter, endFilter) {
     return combined;
 }
 
+// --- POTWIERDZANIE WYSTĄPIEŃ ---
+// Harmonogram nie księguje się sam: wystąpienie, którego termin nadszedł, czeka
+// „do potwierdzenia”. Cykliczne rozstrzyga się po kolei (serwer przyjmuje tylko
+// najstarsze — `najstarsze` w wierszu), zaplanowane jednorazowe pojedynczo.
+
+function odswiezLicznikPotwierdzen() {
+    const el = document.getElementById('potwierdzenia-badge');
+    if (!el) return;
+    const n = doPotwierdzenia.length;
+    el.textContent = n;
+    el.classList.toggle('hidden', n === 0);
+    el.title = `Transakcje cykliczne i zaplanowane do potwierdzenia: ${n}. Kliknij, żeby przejść do najstarszej.`;
+}
+
+window.pokazDoPotwierdzenia = async function(event) {
+    event.stopPropagation();
+    if (doPotwierdzenia.length === 0) return;
+    const { date } = doPotwierdzenia[0];
+    await pokazTransakcjeMiesiaca(date.slice(0, 7));
+    // Na telefonie dni poza dzisiejszym startują zwinięte — oczekujący wiersz byłby ukryty.
+    if (collapsedDays.delete(date)) renderTransactions();
+};
+
+function adresWystapienia(t, akcja) {
+    return t.planned_id
+        ? `/api/planned-transactions/${t.planned_id}/${akcja}`
+        : `/api/recurring-transactions/${t.recurring_id}/${akcja}`;
+}
+
+async function rozstrzygnijWystapienie(id, akcja, poprawka = {}) {
+    const t = virtualTransactions.find(v => v.id === id);
+    if (!t) return;
+    try {
+        const res = await fetch(adresWystapienia(t, akcja), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ occurrence_date: t.date, ...poprawka }),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            showToast(typeof err.error === 'string' ? err.error : 'Sprawdź kwotę i datę.', 'error');
+            return;
+        }
+        showToast(akcja === 'pomin' ? 'Pominięto wystąpienie.' : 'Transakcja potwierdzona.', 'success');
+        await fetchInitialData();
+    } catch (e) {
+        showToast('Błąd połączenia z serwerem.', 'error');
+    }
+}
+
+window.potwierdzWystapienie = function(id) {
+    rozstrzygnijWystapienie(id, 'potwierdz');
+};
+
+window.pominWystapienie = function(id) {
+    if (!confirm('Pominąć to wystąpienie? Transakcja nie zostanie zapisana, a saldo się nie zmieni.')) return;
+    rozstrzygnijWystapienie(id, 'pomin');
+};
+
+// „Popraw i potwierdź”: kwota i data tylko dla tego wystąpienia, harmonogram bez zmian.
+window.poprawWystapienie = function(id) {
+    const t = virtualTransactions.find(v => v.id === id);
+    const komorka = document.getElementById(`akcje-${id}`);
+    if (!t || !komorka) return;
+    komorka.innerHTML = `
+        <div class="flex flex-col gap-1">
+            <input type="number" id="popr-kwota-${id}" value="${Math.abs(t.amount).toFixed(2)}" step="0.01" min="0.01" aria-label="Kwota" class="w-full p-1.5 border border-amber-300 rounded text-sm bg-white">
+            <input type="date" id="popr-data-${id}" value="${t.date}" aria-label="Data" class="w-full p-1.5 border border-amber-300 rounded text-sm bg-white">
+            <div class="flex gap-1 justify-center">
+                <button onclick="zapiszPoprawkeWystapienia('${id}')" class="px-2 py-1 text-xs font-medium rounded bg-amber-600 text-white hover:bg-amber-700">Potwierdź</button>
+                <button onclick="renderTransactions()" class="px-2 py-1 text-xs rounded text-slate-600 hover:bg-slate-200">Anuluj</button>
+            </div>
+        </div>`;
+    document.getElementById(`popr-kwota-${id}`).focus();
+};
+
+window.zapiszPoprawkeWystapienia = function(id) {
+    const kwota = document.getElementById(`popr-kwota-${id}`).value;
+    const data = document.getElementById(`popr-data-${id}`).value;
+    if (!(parseFloat(kwota) > 0) || !data) {
+        showToast('Podaj kwotę większą od zera i datę.', 'error');
+        return;
+    }
+    rozstrzygnijWystapienie(id, 'potwierdz', { amount: kwota, date: data });
+};
+
 // --- OKNO TRANSAKCJI CYKLICZNYCH ---
 window.openRecurringModal = function() {
     fetchRecurringTransactions(); // Pobierz najnowsze dane z backendu

@@ -99,6 +99,7 @@ class BulkTransactionSchema(Schema):
 class StagingApproveSchema(Schema):
     category = fields.String(required=True)
     contractor_id = fields.Integer(required=True)
+    comment = fields.String(load_default=None, allow_none=True, validate=validate.Length(max=255))
 
 class PlannedTransactionSchema(Schema):
     id = fields.Integer(dump_only=True)

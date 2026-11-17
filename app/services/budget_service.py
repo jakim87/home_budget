@@ -1297,7 +1297,8 @@ def approve_staging_record(user_token, stg_id, data):
             # Dane pochodzą z wyciągu — znak kwoty jest źródłem prawdy i nie wolno
             # wymuszać wypływu (noga wpływu przelewu wewnętrznego musi zostać dodatnia).
             preserve_sign=True,
-            origin='import'
+            origin='import',
+            comment=(data.get('comment') or '').strip() or None
         )
         db.session.delete(stg_tx)
         db.session.commit()

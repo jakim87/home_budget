@@ -20,6 +20,8 @@ let inlineEditingTxId = null;
 let recurringTransactions = [];
 let plannedTransactions = [];
 let virtualTransactions = [];
+// Wystąpienia cyklicznych i zaplanowanych, których termin nadszedł (ze wszystkich miesięcy) — licznik na zakładce Transakcje.
+let doPotwierdzenia = [];
 
 // Stan okna rozbijania
 let splitTxId = null;

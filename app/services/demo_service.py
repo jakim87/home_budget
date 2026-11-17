@@ -19,7 +19,7 @@ from werkzeug.security import generate_password_hash
 
 from app import db
 from app.models import (
-    Account, Category, Contractor, Frequency, RecurringTransaction, Transaction,
+    Account, Category, Contractor, Frequency, PlannedTransaction, RecurringTransaction, Transaction,
     TransactionStaging, User,
 )
 from app.services.budget_service import create_transaction, get_or_create_reconciliation_category
@@ -258,6 +258,13 @@ def seed_demo(username: str, password: str) -> dict:
             frequency=Frequency.MONTHLY, interval=1, day_of_month=5,
             start_date=date.today().replace(day=1),
             next_run_date=_next_monthly_run(5),
+        ))
+        # Zaplanowana z terminem sprzed dwóch dni: licznik „do potwierdzenia” na
+        # zakładce Transakcje jest widoczny od wejścia, bez czekania na termin.
+        db.session.add(PlannedTransaction(
+            user_token=utok, account_id=accounts['Konto osobiste'].id,
+            category_id=cats['Rachunki'].id, title='Wywóz śmieci za kwartał',
+            amount=Decimal('-97.00'), execution_date=date.today() - timedelta(days=2),
         ))
 
         db.session.commit()

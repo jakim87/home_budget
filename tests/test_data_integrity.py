@@ -9,8 +9,8 @@ from app.models import (
 )
 from app.services.budget_service import create_transaction
 from app.services.transaction_service import update_transaction
-from app.services.recurring_service import process_recurring_transactions
-from app.services.planned_transaction_service import process_planned_transactions
+from app.services.recurring_service import potwierdz_wystapienie
+from app.services.planned_transaction_service import potwierdz_zaplanowana
 
 
 def _make_user():
@@ -37,18 +37,15 @@ def test_update_amount_corrects_account_balance(app):
         assert db.session.get(Transaction, tx.id).amount == Decimal("-150.00")
 
 
-def test_recurring_processing_is_idempotent(app):
-    """Ponowne uruchomienie przetwarzania nie tworzy drugiej transakcji dla tej samej daty."""
+def test_recurring_confirmation_is_idempotent(app):
+    """Drugie potwierdzenie tego samego wystąpienia (podwójne kliknięcie) jest odrzucane."""
+    import pytest
     with app.app_context():
         user = _make_user()
         account = Account(name="Konto", bank_name="Bank", balance=Decimal("0.00"), user_token=user.token)
         db.session.add(account)
         db.session.commit()
 
-        # Termin na dziś, nie w przeszłości: przetwarzanie nadrabia WSZYSTKIE zaległe
-        # wystąpienia (patrz test_process_catches_up_all_overdue_occurrences), więc
-        # data wsteczna dałaby tu tyle transakcji, ile miesięcy minęło — co badałoby
-        # nadrabianie, nie idempotentność.
         dzis = date.today()
         rec = RecurringTransaction(
             user_token=user.token, account_id=account.id, title="Czynsz",
@@ -57,24 +54,18 @@ def test_recurring_processing_is_idempotent(app):
         )
         db.session.add(rec)
         db.session.commit()
-        due_date = rec.next_run_date
 
-        created = process_recurring_transactions()
-        assert created == 1
+        potwierdz_wystapienie(user.token, rec.id, dzis)
+        with pytest.raises(ValueError):
+            potwierdz_wystapienie(user.token, rec.id, dzis)
+
         assert db.session.query(Transaction).filter_by(source_recurring_id=rec.id).count() == 1
-
-        # Symulacja awarii: cofamy next_run_date na datę, dla której transakcja już istnieje.
-        rec = db.session.get(RecurringTransaction, rec.id)
-        rec.next_run_date = due_date
-        db.session.commit()
-
-        created_again = process_recurring_transactions()
-        assert created_again == 0  # strażnik idempotentności zablokował duplikat
-        assert db.session.query(Transaction).filter_by(source_recurring_id=rec.id, date=due_date).count() == 1
+        assert db.session.get(Account, account.id).balance == Decimal("-1000.00")
 
 
-def test_planned_processing_is_idempotent(app):
-    """Zaplanowana transakcja już wykonana dla danej daty nie powstaje ponownie."""
+def test_planned_confirmation_is_idempotent(app):
+    """Zaplanowana potwierdzona raz nie księguje się drugi raz."""
+    import pytest
     with app.app_context():
         user = _make_user()
         account = Account(name="Konto", bank_name="Bank", balance=Decimal("0.00"), user_token=user.token)
@@ -88,14 +79,11 @@ def test_planned_processing_is_idempotent(app):
         db.session.add(pt)
         db.session.commit()
 
-        assert process_planned_transactions() == 1
+        potwierdz_zaplanowana(user.token, pt.id)
+        with pytest.raises(ValueError):
+            potwierdz_zaplanowana(user.token, pt.id)
         assert db.session.query(Transaction).filter_by(source_planned_id=pt.id).count() == 1
-
-        # Ręczne cofnięcie statusu — mimo to duplikat nie powstaje (istnieje już transakcja z tej definicji).
-        db.session.get(PlannedTransaction, pt.id).status = "pending"
-        db.session.commit()
-        assert process_planned_transactions() == 0
-        assert db.session.query(Transaction).filter_by(source_planned_id=pt.id).count() == 1
+        assert db.session.get(Account, account.id).balance == Decimal("-300.00")
 
 
 def test_two_identical_transfers_create_two_mirrors(app):

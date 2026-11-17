@@ -176,7 +176,7 @@ const TOURS = {
         {
             el: '#budget-planned-expense',
             akcja: 'Zerknij na kolumnę „Zarezerwowane"',
-            efekt: 'To transakcje cykliczne i zaplanowane, które jeszcze się nie wykonały. Zajmują budżet z góry, więc przekroczenie widać, zanim pieniądze wyjdą z konta.',
+            efekt: 'To transakcje cykliczne i zaplanowane, których jeszcze nie potwierdzono. Zajmują budżet z góry, więc przekroczenie widać, zanim pieniądze wyjdą z konta.',
         },
     ],
 

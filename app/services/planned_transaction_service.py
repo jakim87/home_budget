@@ -1,8 +1,10 @@
 from app import db
-from app.models import PlannedTransaction, Transaction, Account, Contractor
+from app.models import PlannedTransaction, Account, Contractor
 from app.services.budget_service import create_transaction as create_standard_transaction
 from app.services.category_service import find_owned as find_category_owned
+from calendar import monthrange
 from datetime import date
+from decimal import Decimal
 import logging
 
 logger = logging.getLogger(__name__)
@@ -50,50 +52,96 @@ def delete_planned_transaction(user_token, pt_id):
         db.session.rollback()
         raise
 
-def process_planned_transactions():
-    """
-    Przetwarza wszystkie należne zaplanowane transakcje, tworząc z nich standardowe transakcje.
-    """
-    created_count = 0
-    today = date.today()
+def planned_dict(pt: PlannedTransaction) -> dict:
+    """Oczekująca zaplanowana w kształcie wiersza transakcji (jak _wystapienie_dict
+    w recurring_service) — front pokazuje ją na liście operacji obok cyklicznych."""
+    return {
+        'id': f'plan-{pt.id}',
+        'desc': pt.title,
+        'amount': float(pt.amount),
+        'date': pt.execution_date.isoformat(),
+        'category': pt.category.name if pt.category else 'Inne',
+        'contractor_id': pt.contractor_id,
+        'contractor_name': pt.contractor.name if pt.contractor else None,
+        'account_id': pt.account_id,
+        'comment': '',
+        'isVirtual': True,
+        'planned_id': pt.id,
+        'do_potwierdzenia': pt.execution_date <= date.today(),
+        'najstarsze': True,
+    }
 
-    query = db.session.query(PlannedTransaction).filter(
-        PlannedTransaction.execution_date <= today,
-        PlannedTransaction.status == 'pending'
-    )
-    if db.session.get_bind().dialect.name == 'postgresql':
-        query = query.with_for_update(skip_locked=True)
-    due_planned_txs = query.all()
 
-    for pt in due_planned_txs:
-        try:
-            # Strażnik idempotentności: jeśli transakcja z tej definicji na tę datę
-            # już istnieje (np. awaria przed zmianą statusu), nie twórz jej ponownie.
-            already_created = db.session.query(Transaction).filter_by(
-                source_planned_id=pt.id, date=pt.execution_date
-            ).first()
+def planned_preview(user_token, year: int, month: int) -> list:
+    """Oczekujące zaplanowane z datą w danym miesiącu."""
+    od = date(year, month, 1)
+    do = date(year, month, monthrange(year, month)[1])
+    return [planned_dict(pt) for pt in db.session.query(PlannedTransaction).filter(
+        PlannedTransaction.user_token == user_token,
+        PlannedTransaction.status == 'pending',
+        PlannedTransaction.execution_date >= od,
+        PlannedTransaction.execution_date <= do,
+    ).all()]
 
-            if not already_created:
-                # commit=False → utworzenie transakcji i zmiana statusu jednym commitem.
-                create_standard_transaction(
-                    user_token=pt.user_token,
-                    account_id=pt.account_id,
-                    amount=pt.amount,
-                    title=pt.title,
-                    transaction_date=pt.execution_date,
-                    category_id=pt.category_id,
-                    contractor_id=pt.contractor_id,
-                    source_planned_id=pt.id,
-                    commit=False
-                )
-                created_count += 1
 
-            pt.status = 'processed'
-            db.session.commit()
-        except Exception as e:
-            logger.error("Błąd podczas przetwarzania zaplanowanej transakcji ID %s: %s", pt.id, e)
-            db.session.rollback()
-            continue
+def oczekujace_potwierdzenia(user_token) -> list:
+    """Zaplanowane, których termin nadszedł, a użytkownik ich nie rozstrzygnął."""
+    return [planned_dict(pt) for pt in db.session.query(PlannedTransaction).filter(
+        PlannedTransaction.user_token == user_token,
+        PlannedTransaction.status == 'pending',
+        PlannedTransaction.execution_date <= date.today(),
+    ).all()]
 
-    logger.info("Przetwarzanie zaplanowanych transakcji: utworzono %d nowych transakcji", created_count)
-    return created_count
+
+def _zablokuj_oczekujaca(user_token, pt_id) -> PlannedTransaction:
+    """Zaplanowana do rozstrzygnięcia, z blokadą wiersza — drugie równoległe
+    potwierdzenie czeka, po czym widzi zmieniony status i zostaje odrzucone."""
+    pt = (db.session.query(PlannedTransaction)
+          .filter_by(id=pt_id, user_token=user_token)
+          .with_for_update().populate_existing().first())
+    if not pt:
+        raise ValueError("Nie znaleziono zaplanowanej transakcji lub brak uprawnień.")
+    if pt.status != 'pending':
+        raise ValueError("Ta zaplanowana transakcja jest już rozstrzygnięta.")
+    if pt.execution_date > date.today():
+        raise ValueError("Tej transakcji nie można jeszcze potwierdzić — jej termin nie nadszedł.")
+    return pt
+
+
+def potwierdz_zaplanowana(user_token, pt_id, amount: Decimal | None = None,
+                          transaction_date: date | None = None):
+    """Księguje zaplanowaną; poprawka kwoty (bez znaku) i daty jak w cyklicznych."""
+    try:
+        pt = _zablokuj_oczekujaca(user_token, pt_id)
+        kwota = pt.amount if amount is None else abs(Decimal(str(amount))).copy_sign(pt.amount)
+        transakcja = create_standard_transaction(
+            user_token=user_token,
+            account_id=pt.account_id,
+            amount=kwota,
+            title=pt.title,
+            transaction_date=transaction_date or pt.execution_date,
+            category_id=pt.category_id,
+            contractor_id=pt.contractor_id,
+            source_planned_id=pt.id,
+            commit=False,
+        )
+        pt.status = 'processed'
+        db.session.commit()
+        logger.info("Potwierdzono zaplanowaną ID %s, transakcja ID %s", pt.id, transakcja.id)
+        return transakcja
+    except Exception:
+        db.session.rollback()
+        raise
+
+
+def pomin_zaplanowana(user_token, pt_id):
+    """Rozstrzyga zaplanowaną bez księgowania („nie wykonała się")."""
+    try:
+        pt = _zablokuj_oczekujaca(user_token, pt_id)
+        pt.status = 'skipped'
+        db.session.commit()
+        logger.info("Pominięto zaplanowaną ID %s", pt.id)
+        return pt
+    except Exception:
+        db.session.rollback()
+        raise

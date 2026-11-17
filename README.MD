@@ -115,7 +115,7 @@ flask db upgrade                    # Zastosuj oczekujące migracje
 flask db downgrade                  # Cofnij ostatnią migrację (tylko development)
 
 # Zadania cykliczne
-flask process-scheduled             # Wykonaj zaplanowane i cykliczne transakcje
+flask process-scheduled             # Wyłącz zakończone harmonogramy (wystąpienia potwierdza użytkownik)
 flask fetch-rates                   # Dociągnij kursy NBP (tabela A); pierwsze uruchomienie pobiera historię od 2002
 
 # Dane początkowe
@@ -162,7 +162,7 @@ app/
 │   ├── import_history_service.py     # Ewidencja importów, wykrywanie nakładających się zakresów
 │   ├── init_service.py               # Payload dla GET /api/init (cały stan frontu)
 │   ├── transaction_service.py        # Edycja i usuwanie transakcji
-│   ├── recurring_service.py          # Wykonywanie transakcji cyklicznych
+│   ├── recurring_service.py          # Transakcje cykliczne: projekcja, potwierdzanie, pomijanie
 │   ├── planned_transaction_service.py
 │   └── *.py                          # Serwisy kategorii, kontrahentów, kont, auth
 ├── blueprints/         # Warstwa HTTP — obsługuje żądania, wywołuje serwisy

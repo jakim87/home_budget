@@ -114,7 +114,7 @@ def test_zaplanowana_ksieguje_sie_z_usunieta_kategoria(app, test_user, planned_s
     """Jak przy cyklicznych: usunięta kategoria nie może zostawić zaplanowanej na zawsze
     w 'pending' z błędem tylko w logu."""
     from app.services.category_service import soft_delete_category
-    from app.services.planned_transaction_service import process_planned_transactions
+    from app.services.planned_transaction_service import potwierdz_zaplanowana
     account, _ = planned_setup
     kategoria = Category(name="Wakacje", type="expense", user_token=test_user.token)
     db.session.add(kategoria)
@@ -126,5 +126,5 @@ def test_zaplanowana_ksieguje_sie_z_usunieta_kategoria(app, test_user, planned_s
     pt_id = pt.id
     soft_delete_category(test_user.token, "Wakacje")
 
-    assert process_planned_transactions() == 1
+    potwierdz_zaplanowana(test_user.token, pt_id)
     assert db.session.get(PlannedTransaction, pt_id).status == 'processed'

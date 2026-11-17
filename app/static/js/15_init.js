@@ -22,6 +22,8 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
         currencies = data.currencies || {};
         monthlyRates = data.monthly_rates || {};
         savedViews = data.saved_views || [];
+        doPotwierdzenia = data.do_potwierdzenia || [];
+        odswiezLicznikPotwierdzen();
 
         updateCategorySelects();
         updateContractorSelects();

@@ -470,6 +470,9 @@ def detect_bank_and_format(raw: bytes, filename: str = '') -> tuple[Optional[str
     # Pekao ma 'Data księgowania', Millennium 'Data transakcji' — tak jak ING.
     if text.startswith(_REVOLUT_HEADER_MARKER):
         return 'revolut', 'csv'
+    # PKO przed mBankiem i ING: 'Data operacji' i tytuły z 'Data transakcji' bywają w danych.
+    if text.startswith(_PKO_HEADER_MARKER):
+        return 'pko', 'csv'
     if _PEKAO_HEADER_MARKER in text[:500]:
         return 'pekao', 'csv'
     if _MILLENNIUM_HEADER_MARKER in text[:500]:
@@ -1279,6 +1282,99 @@ def parse_revolut_csv(content: str, user_token: str, main_account_id: Optional[i
     dates = [t['date'] for t in transactions]
     logger.info(
         "Import CSV Revolut zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
+        user_token, len(transactions), skipped_count
+    )
+    return {
+        'transactions': transactions,
+        'csv_accounts': [],
+        'skipped_count': skipped_count,
+        'period_start': min(dates, default=None),
+        'period_end': max(dates, default=None),
+        'statement_ibans': [],
+    }
+
+
+_PKO_HEADER_MARKER = '"Data operacji","Data waluty","Typ transakcji","Kwota","Waluta","Saldo po transakcji"'
+_PKO_LOKALIZACJA_RE = re.compile(r'^Adres:\s*(.*?)(?:\s+Miasto:.*)?$')
+_PKO_TELEFONY_RE = re.compile(r'\s+OD:\s*[\d*]+\s+DO:\s*[\d*]+\s*$')  # numer bywa maskowany: 485*****588
+
+
+def _pko_pola(opis: list[str]) -> dict[str, str]:
+    """Kolumny opisu PKO ('Etykieta: wartość') jako słownik; puste pomija."""
+    pola = {}
+    for komorka in opis:
+        etykieta, sep, wartosc = komorka.partition(':')
+        if sep:
+            pola.setdefault(etykieta.strip(), wartosc.strip())
+    return pola
+
+
+def parse_pko_csv(content: str, user_token: str, main_account_id: Optional[int] = None) -> dict:
+    """Parsuje historię rachunku PKO BP w CSV (windows-1250, przecinek).
+
+    - Plik nie ma numeru własnego rachunku ('Rachunek odbiorcy/nadawcy' to druga
+      strona) — konto wybiera użytkownik, a kolumna 'Waluta' musi zgadzać się z
+      walutą konta (jedyna kontrola, że wyciąg trafia na właściwe konto).
+    - Data = 'Data waluty': to dzień transakcji (przy kartach równy 'Data wykonania
+      operacji'), a 'Data operacji' — dzień zaksięgowania, 1–2 dni później.
+    - Znak bierzemy z kwoty — typ 'Przelew na telefon przychodz.' bywa wydatkiem.
+    - Operacje kartą i BLIK-iem w sieci mają w 'Tytuł' numer referencyjny, więc
+      tytułem jest typ transakcji, a kontrahentem adres z 'Lokalizacja'.
+    - Z tytułu przelewu na telefon wycinamy dopisek z numerami telefonów.
+    - Saldo po transakcji pomijamy (jak w pozostałych parserach). Brak kategorii z banku.
+    """
+    if main_account_id is None:
+        raise BrakKontaError("Wyciąg PKO BP nie zawiera numeru rachunku — proszę wybrać konto docelowe przed importem.")
+    konto = db.session.query(Account).filter_by(id=main_account_id, user_token=user_token).first()
+    if konto is None:
+        raise ValueError("Wybrane konto nie istnieje lub brak uprawnień.")
+    waluta_konta = konto.currency or 'PLN'
+
+    transactions: list[dict] = []
+    skipped_count = 0
+
+    reader = csv.reader(io.StringIO(content))
+    next(reader, None)  # nagłówek
+    for row in reader:
+        if len(row) < 7 or not _DATE_RE.match(row[0].strip()):
+            continue
+        data_operacji, data_waluty, typ, kwota, waluta = (c.strip() for c in row[:5])
+        if waluta != waluta_konta:
+            raise ValueError(
+                f"Wyciąg jest w {waluta}, a konto '{konto.name}' prowadzone jest w "
+                f"{waluta_konta}. Wybierz konto w walucie wyciągu."
+            )
+        try:
+            amount = Decimal(kwota)
+            tx_date = datetime.strptime(data_waluty or data_operacji, '%Y-%m-%d').date()
+        except (InvalidOperation, ValueError):
+            logger.warning("Odrzucono wiersz PKO CSV — nieprawidłowa kwota lub data (user_token=%s)", user_token)
+            skipped_count += 1
+            continue
+
+        pola = _pko_pola(row[6:])
+        lokalizacja = _PKO_LOKALIZACJA_RE.match(pola.get('Lokalizacja', ''))
+        if lokalizacja:
+            contractor = lokalizacja.group(1)
+            title = typ
+        else:
+            contractor = pola.get('Nazwa odbiorcy') or pola.get('Nazwa nadawcy')
+            title = _PKO_TELEFONY_RE.sub('', pola.get('Tytuł', '')).strip() or typ
+        rachunek = pola.get('Rachunek odbiorcy') or pola.get('Rachunek nadawcy') or ''
+
+        transactions.append({
+            'date': tx_date,
+            'contractor': re.sub(r'\s+', ' ', contractor or '').strip() or None,
+            'title': re.sub(r'\s+', ' ', title),
+            'amount': amount,
+            'counterparty_account': rachunek.replace(' ', '') or None,
+            'account_id': main_account_id,
+            'bank_category': None,
+        })
+
+    dates = [t['date'] for t in transactions]
+    logger.info(
+        "Import CSV PKO zakończony (user_token=%s): sparsowano %d transakcji, pominięto %d",
         user_token, len(transactions), skipped_count
     )
     return {

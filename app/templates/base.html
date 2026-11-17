@@ -361,7 +361,7 @@
                 <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                     <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-4">
                         <h2 id="import-heading" class="font-semibold text-slate-800">Import wyciągów</h2>
-                        <p class="text-xs text-slate-500">ING (CSV, PDF), mBank (CSV, HTML, PDF), Pekao, Millennium i Revolut (CSV) — bank rozpoznaje się po zawartości pliku.</p>
+                        <p class="text-xs text-slate-500">ING (CSV, PDF), mBank (CSV, HTML, PDF), Pekao, Millennium, Revolut i PKO BP (CSV) — bank rozpoznaje się po zawartości pliku.</p>
                     </div>
                     {% if config.DEMO_ENABLED %}
                     <!-- Tryb demo: zwiedzający nie ma pod ręką wyciągu z banku, więc podsuwamy
@@ -402,13 +402,14 @@
                                     <option value="pekao/csv">Pekao SA (CSV)</option>
                                     <option value="millennium/csv">Bank Millennium (CSV)</option>
                                     <option value="revolut/csv">Revolut (CSV)</option>
+                                    <option value="pko/csv">PKO BP (CSV)</option>
                                 </select>
                             </label>
                             <label class="block text-slate-700">Konto
                                 <select id="import-account-select" class="mt-1 w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"></select>
                             </label>
                         </div>
-                        <p class="text-xs text-slate-500 mt-2">Konto wskaż, gdy plik nie zawiera numeru rachunku (Revolut, wyciąg ING z jednym kontem). Ustawienia działają przy wgrywaniu jednego pliku — przy kilku naraz o konto dla pliku bez numeru aplikacja zapyta na liście wyników. Dla mBanku najczytelniejsze opisy ma format HTML („Zestawienie operacji”).</p>
+                        <p class="text-xs text-slate-500 mt-2">Konto wskaż, gdy plik nie zawiera numeru rachunku (Revolut, PKO BP, wyciąg ING z jednym kontem). Ustawienia działają przy wgrywaniu jednego pliku — przy kilku naraz o konto dla pliku bez numeru aplikacja zapyta na liście wyników. Dla mBanku najczytelniejsze opisy ma format HTML („Zestawienie operacji”).</p>
                     </details>
                     <div id="import-results" class="hidden mt-3 border border-slate-200 rounded-lg divide-y divide-slate-100 text-sm"></div>
                     <p id="importError" class="text-rose-500 text-sm mt-2 hidden"></p>

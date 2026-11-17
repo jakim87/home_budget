@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.7.0](https://github.com/jakim87/home_budget/compare/v1.6.0...v1.7.0) (2026-11-17)
+
+
+### Funkcje
+
+* import historii rachunku PKO BP z pliku CSV ([#273](https://github.com/jakim87/home_budget/issues/273)) ([52a35e2](https://github.com/jakim87/home_budget/commit/52a35e2e3a2f3fdae1e6ee51732320308e69b49d))
+* komentarz do operacji w poczekalni importu ([#277](https://github.com/jakim87/home_budget/issues/277)) ([c3fd93f](https://github.com/jakim87/home_budget/commit/c3fd93f03e8bb0ac1b73f67696ced9666bcd4468))
+* transakcje cykliczne i zaplanowane czekają na potwierdzenie zamiast księgować się same ([#276](https://github.com/jakim87/home_budget/issues/276)) ([79684de](https://github.com/jakim87/home_budget/commit/79684de9e264bed46b5fe68c72e57a93ed30d29a))
+
+
+### Poprawki
+
+* ikonka komentarza w poczekalni w kolorze ochry z palety Noble ([#278](https://github.com/jakim87/home_budget/issues/278)) ([a6a84bd](https://github.com/jakim87/home_budget/commit/a6a84bd63dd088d952e574ab8e281570b2389780))
+* odrzucony import zostawia w logu bank, format i rodzaj błędu ([#275](https://github.com/jakim87/home_budget/issues/275)) ([cf399fd](https://github.com/jakim87/home_budget/commit/cf399fdef372198145924ae247a77e3241b000ed))
+
 ## [1.6.0](https://github.com/jakim87/home_budget/compare/v1.5.1...v1.6.0) (2026-11-16)
 
 

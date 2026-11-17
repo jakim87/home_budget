@@ -556,7 +556,11 @@ MILLENNIUM_PDF_LINES = [
      ('millennium', 'html')),
     ('Rodzaj,Produkt,Data rozpoczęcia,Data zrealizowania,Opis,Kwota,Opłata,Waluta,State,Saldo\n'.encode('utf-8'),
      ('revolut', 'csv')),
-], ids=['ing-csv', 'mbank-csv', 'mbank-html', 'mbank-html-zest', 'pekao-csv', 'millennium-csv', 'millennium-html', 'revolut-csv'])
+    ('"Data operacji","Data waluty","Typ transakcji","Kwota","Waluta","Saldo po transakcji","Opis transakcji","","","",""\n'
+     '"2026-11-12","2026-11-10","Płatność kartą","-9.00","PLN","+1.00","Tytuł: Data transakcji","","","",""\n'.encode('windows-1250'),
+     ('pko', 'csv')),
+], ids=['ing-csv', 'mbank-csv', 'mbank-html', 'mbank-html-zest', 'pekao-csv', 'millennium-csv', 'millennium-html', 'revolut-csv',
+        'pko-csv'])
 def test_detekcja_kazdy_bank_rozpoznany_jako_swoj(raw, oczekiwane):
     """Każda próbka musi trafić do swojego banku. Nowy bank = nowy wiersz tutaj;
     kolizja znaczników (jak 'Data transakcji' u ING i Millennium) wyjdzie w teście."""

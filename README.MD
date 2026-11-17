@@ -10,7 +10,7 @@ Projekt jest budowany jako aplikacja edukacyjna, rozwijana krok po kroku z wykor
 
 Zrealizowane:
 
-- Import transakcji z wyciągów bankowych (ING, mBank, Pekao, Millennium, Revolut — CSV, PDF, HTML) z automatyczną detekcją banku i formatu
+- Import transakcji z wyciągów bankowych (ING, mBank, Pekao, Millennium, Revolut, PKO BP — CSV, PDF, HTML) z automatyczną detekcją banku i formatu
 - Publiczny kalkulator kredytu (`/kalkulator-kredytu`): harmonogram rat równych i malejących, prowizja, opłaty, RRSO, nadpłaty i test wzrostu stóp — liczony w przeglądarce
 - Historia importów z ostrzeżeniem o nakładających się zakresach dat
 - Kategoryzacja transakcji z automatycznym dopasowywaniem kontrahentów
@@ -44,6 +44,7 @@ Aktualnie obsługiwane formaty wyciągów:
 | **Pekao SA**          | ✅ |  —  |  —  |
 | **Bank Millennium**   | ✅ |  —  |  —  |
 | **Revolut**           | ✅ |  —  |  —  |
+| **PKO BP**            | ✅ |  —  |  —  |
 
 Pliki CSV i HTML są dekodowane z UTF-8-sig lub Windows-1250 (oba warianty eksportu z banku).
 
@@ -157,7 +158,7 @@ app/
 ├── cli.py              # Komendy Flask CLI
 ├── services/           # Logika biznesowa — oddzielona od warstwy HTTP
 │   ├── budget_service.py             # Główne CRUD, staging, uzgadnianie salda
-│   ├── statement_parsers.py          # Parsery wyciągów (ING/mBank/Pekao/Millennium/Revolut, CSV/PDF/HTML) + detekcja
+│   ├── statement_parsers.py          # Parsery wyciągów (ING/mBank/Pekao/Millennium/Revolut/PKO BP, CSV/PDF/HTML) + detekcja
 │   ├── import_history_service.py     # Ewidencja importów, wykrywanie nakładających się zakresów
 │   ├── init_service.py               # Payload dla GET /api/init (cały stan frontu)
 │   ├── transaction_service.py        # Edycja i usuwanie transakcji

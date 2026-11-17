@@ -148,7 +148,7 @@ Użytkownik wybiera plik wyciągu
   Powiadomienie: "Zaimportowano N transakcji do weryfikacji"
 ```
 
-Wgrywanie i zatwierdzanie są w jednej zakładce **Import** (na telefonie ukrytej). Kilka plików naraz: konto każdego rozpoznaje się po numerze rachunku z wyciągu; plik bez numeru (Revolut CSV, wyciąg ING z jednym kontem) dostaje na liście wyników wybór konta i „Wgraj ponownie”.
+Wgrywanie i zatwierdzanie są w jednej zakładce **Import** (na telefonie ukrytej). Kilka plików naraz: konto każdego rozpoznaje się po numerze rachunku z wyciągu; plik bez numeru (Revolut CSV, PKO BP CSV, wyciąg ING z jednym kontem) dostaje na liście wyników wybór konta i „Wgraj ponownie”.
 
 **Stany transakcji w stagingu:**
 
@@ -500,7 +500,7 @@ Usuniętej transakcji nie da się przywrócić — pomyłkę poprawia się, wpis
 
 | Funkcja | Opis |
 |---------|------|
-| **Obsługa kolejnych banków** | Rozszerzenie o formaty PKO BP, Revolut i innych — obecnie obsługiwane są ING Bank Śląski, mBank i Pekao SA. Nowy format wymaga parsera i jednego wpisu w mapie `STATEMENT_PARSERS` |
+| **Obsługa kolejnych banków** | Rozszerzenie o formaty kolejnych banków — obecnie obsługiwane są ING Bank Śląski, mBank, Pekao SA, Bank Millennium, Revolut i PKO BP. Nowy format wymaga parsera i jednego wpisu w mapie `STATEMENT_PARSERS` |
 | **Masowa zmiana kontrahenta** | Edycja zbiorcza obejmuje dziś kategorię i usuwanie; zmiana kontrahenta dla wielu transakcji naraz nie jest zrealizowana |
 | **Rollover budżetu** | Niewykorzystana kwota planu nie przenosi się na kolejny miesiąc; nie ma też projektów wielomiesięcznych ani kopiowania planu na kilka miesięcy naprzód |
 

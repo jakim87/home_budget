@@ -120,7 +120,7 @@ function godzinaTeraz() {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-const NAZWY_BANKOW = { ing: 'ING', mbank: 'mBank', pekao: 'Pekao', millennium: 'Millennium', revolut: 'Revolut' };
+const NAZWY_BANKOW = { ing: 'ING', mbank: 'mBank', pekao: 'Pekao', millennium: 'Millennium', revolut: 'Revolut', pko: 'PKO BP' };
 
 // „2026-10-01" → „01.10.2026"
 function dataPL(iso) {

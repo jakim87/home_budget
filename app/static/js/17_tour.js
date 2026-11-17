@@ -62,7 +62,7 @@ const TOURS = {
         {
             el: '#import-dropzone',
             akcja: 'Przeciągnij tu wyciągi ze wszystkich swoich kont naraz',
-            efekt: 'Bank rozpozna się po zawartości pliku, a konto po numerze rachunku z wyciągu; o plik bez numeru (Revolut, wyciąg ING z jednym kontem) aplikacja zapyta na liście wyników. Operacje wszystkich kont trafią do poczekalni poniżej, pogrupowane po kontach — salda jeszcze się nie zmienią.',
+            efekt: 'Bank rozpozna się po zawartości pliku, a konto po numerze rachunku z wyciągu; o plik bez numeru (Revolut, PKO BP, wyciąg ING z jednym kontem) aplikacja zapyta na liście wyników. Operacje wszystkich kont trafią do poczekalni poniżej, pogrupowane po kontach — salda jeszcze się nie zmienią.',
         },
         {
             // Filtr zamiast nagłówka sekcji przelewów: nagłówek buduje JS, a selektory

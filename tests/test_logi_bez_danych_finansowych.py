@@ -129,3 +129,59 @@ def test_niejednoznaczna_nazwa_konta_nie_trafia_do_logu(logi, test_user_token, k
 
     assert logi.records, "ostrzeżenie o niejednoznacznej nazwie powinno powstać"
     assert _w_logach(logi, "Konto Tajne") == []
+
+
+# --- odrzucone importy: w logu bank, format i powód, ale bez danych z pliku ---
+
+_PKO_NAGLOWEK = ('"Data operacji","Data waluty","Typ transakcji","Kwota","Waluta",'
+                 '"Saldo po transakcji","Opis transakcji","","","",""\n')
+
+
+def _wgraj_pko(client, tresc, **form):
+    import io
+    return client.post('/api/import/auto',
+                       data={'file': (io.BytesIO(tresc.encode('windows-1250')), 'pko.csv'), **form},
+                       content_type='multipart/form-data')
+
+
+def _komunikaty(caplog):
+    return "\n".join(r.getMessage() for r in caplog.records)
+
+
+def test_plik_bez_poprawnych_wierszy_loguje_bank_format_i_liczniki(logi, logged_in_client, konto):
+    """Zmiana formatu daty w eksporcie nie może znikać bez śladu: wiersze bez daty liczą się
+    jako pominięte, a log mówi, ile ich było — bez treści wiersza."""
+    tresc = _PKO_NAGLOWEK + (
+        '"13.11.2026","13.11.2026","Płatność kartą","-4321.09","PLN","+1.00","Tytuł: x",'
+        '"Lokalizacja: Adres: SKLEP TAJNY Miasto: Warszawa","","",""\n')
+
+    resp = _wgraj_pko(logged_in_client, tresc, account_id=konto.id)
+
+    assert resp.status_code == 400
+    tekst = _komunikaty(logi)
+    assert "pko" in tekst and "csv" in tekst and "pominięto 1" in tekst
+    assert _w_logach(logi, "4321", "SKLEP TAJNY", "Skarbonka Zielona") == []
+
+
+def test_blad_parsera_loguje_bank_format_i_rodzaj_bez_nazwy_konta(logi, logged_in_client, konto):
+    """Waluta wyciągu ≠ waluta konta: komunikat dla użytkownika wymienia nazwę konta, log nie."""
+    tresc = _PKO_NAGLOWEK + (
+        '"2026-11-13","2026-11-13","Płatność kartą","-1.00","EUR","+1.00","Tytuł: x","","","",""\n')
+
+    resp = _wgraj_pko(logged_in_client, tresc, account_id=konto.id)
+
+    assert resp.status_code == 400
+    assert "Skarbonka Zielona" in resp.get_json()['error']
+    tekst = _komunikaty(logi)
+    assert "pko" in tekst and "ValueError" in tekst
+    assert _w_logach(logi, "Skarbonka Zielona") == []
+
+
+def test_brak_konta_jest_oznaczony_w_logu(logi, logged_in_client, konto):
+    tresc = _PKO_NAGLOWEK + (
+        '"2026-11-13","2026-11-13","Płatność kartą","-1.00","PLN","+1.00","Tytuł: x","","","",""\n')
+
+    resp = _wgraj_pko(logged_in_client, tresc)
+
+    assert resp.status_code == 400
+    assert "BrakKontaError" in _komunikaty(logi)

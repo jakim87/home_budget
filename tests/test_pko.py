@@ -137,6 +137,14 @@ def test_cudze_konto_odrzucone(pko, other_user):
         parse_pko_csv(PKO_CSV, token, main_account_id=obce.id)
 
 
+def test_wiersz_bez_poprawnej_daty_liczy_sie_jako_pominiety_a_pusty_nie(pko):
+    token, konto = pko
+    tresc = PKO_CSV + '"13.11.2026","13.11.2026","Płatność kartą","-1.00","PLN","+1.00","Tytuł: x","","","",""\n\n'
+    result = parse_pko_csv(tresc, token, main_account_id=konto.id)
+    assert len(result['transactions']) == 5
+    assert result['skipped_count'] == 1
+
+
 def test_wiersz_z_bledna_kwota_pominiety(pko):
     token, konto = pko
     zly = NAGLOWEK + '"2026-11-12","2026-11-10","Płatność kartą","abc","PLN","+1.00","Tytuł: x","","","",""\n'

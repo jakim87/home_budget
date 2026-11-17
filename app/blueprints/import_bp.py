@@ -1,3 +1,5 @@
+import logging
+
 from flask import Blueprint, Response, current_app, request, jsonify
 from flask_login import login_required, current_user
 from marshmallow import ValidationError
@@ -9,6 +11,8 @@ from app.services.budget_service import save_transactions_to_staging, approve_st
 from app.services.statement_parsers import BrakKontaError, detect_bank_and_format, parse_ing_csv, parse_mbank_csv, decode_statement_bytes, extract_statement_ibans, parse_mbank_html, parse_mbank_zestawienie_html, parse_mbank_pdf, parse_ing_pdf, parse_pekao_csv, parse_millennium_csv, parse_revolut_csv, parse_pko_csv
 from app.services.import_history_service import list_import_history, podsumuj_plik, record_batch
 from app import limiter
+
+logger = logging.getLogger(__name__)
 
 import_bp = Blueprint('import', __name__)
 
@@ -47,8 +51,13 @@ def _read_upload():
     return file.read(), None
 
 
-def _blad_parsera(e: ValueError):
-    """Odpowiedź na błąd parsera; plik bez numeru rachunku dostaje needs_account."""
+def _blad_parsera(e: ValueError, bank: str, fmt: str):
+    """Odpowiedź na błąd parsera; plik bez numeru rachunku dostaje needs_account.
+
+    Do logu idzie bank, format i rodzaj wyjątku — nie treść komunikatu, bo ta
+    wymienia nazwy kont (A10). Treść widzi użytkownik i może ją przekazać."""
+    logger.warning("Import odrzucony przez parser %s/%s (%s) user=%s",
+                   bank, fmt, type(e).__name__, current_user.token)
     body = {'error': str(e)}
     if isinstance(e, BrakKontaError):
         body['needs_account'] = True
@@ -63,6 +72,8 @@ def _stage_and_respond(result: dict, user_token: str, extra: dict | None = None,
     meta = meta or {}
 
     if not transactions:
+        logger.warning("Import %s/%s bez poprawnych transakcji (pominięto %d, user=%s)",
+                       meta.get('bank'), meta.get('format'), skipped_count, user_token)
         msg = 'Plik nie zawiera poprawnych transakcji lub jest uszkodzony.'
         if skipped_count:
             msg += f' Pominięto {skipped_count} transakcji z kont nieznanych aplikacji.'
@@ -159,7 +170,7 @@ def import_auto():
             main_account_id=int(account_id) if account_id else None
         )
     except ValueError as e:
-        return _blad_parsera(e)
+        return _blad_parsera(e, bank, fmt)
 
     extra = {'detected': {'bank': bank, 'format': fmt}}
     if resolved_account:
@@ -217,7 +228,7 @@ def import_manual(bank, fmt='csv'):
             main_account_id=int(account_id) if account_id else None
         )
     except ValueError as e:
-        return _blad_parsera(e)
+        return _blad_parsera(e, bank, fmt)
 
     return _stage_and_respond(result, user_token,
                               meta={'filename': request.files['file'].filename,

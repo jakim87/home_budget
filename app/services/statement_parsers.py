@@ -1335,8 +1335,15 @@ def parse_pko_csv(content: str, user_token: str, main_account_id: Optional[int] 
 
     reader = csv.reader(io.StringIO(content))
     next(reader, None)  # nagłówek
-    for row in reader:
+    for numer, row in enumerate(reader, start=2):
+        if not any(c.strip() for c in row):
+            continue
+        # Wiersz bez daty w znanym formacie liczymy jako pominięty — inaczej zmiana
+        # formatu daty w eksporcie kończyłaby się „plik pusty” bez żadnego śladu.
         if len(row) < 7 or not _DATE_RE.match(row[0].strip()):
+            logger.warning("Odrzucono wiersz %d PKO CSV — brak poprawnej daty lub kolumn (user_token=%s)",
+                           numer, user_token)
+            skipped_count += 1
             continue
         data_operacji, data_waluty, typ, kwota, waluta = (c.strip() for c in row[:5])
         if waluta != waluta_konta:

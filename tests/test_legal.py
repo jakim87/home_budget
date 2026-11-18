@@ -17,7 +17,8 @@ def test_regulamin_zawiera_kluczowe_postanowienia(client):
     html = client.get('/regulamin').get_data(as_text=True)
 
     assert 'Regulamin aplikacji' in html
-    assert 'licencji MIT' in html
+    assert 'Business Source License 1.1' in html
+    assert 'licencji MIT' not in html    # obowiązuje BSL; MIT dopiero od Change Date
     # Aplikacja nie laczy sie z bankami i nie doradza finansowo — to musi byc napisane wprost.
     assert 'nie łączy się z bankami' in html
     assert 'doradztwa finansowego' in html

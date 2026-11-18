@@ -49,6 +49,25 @@ def test_polityka_wskazuje_dostawce_poczty_dla_gmaila(client, app):
     assert 'Google Ireland Limited' not in client.get('/polityka-prywatnosci').get_data(as_text=True)
 
 
+def test_skrypt_przesuwa_change_date_o_4_lata():
+    """Workflow wydań przesuwa datę BSL przy MINOR — logika siedzi w .github/scripts."""
+    import importlib.util
+    from datetime import date
+    from pathlib import Path
+
+    sciezka = Path(__file__).resolve().parent.parent / '.github' / 'scripts' / 'przesun_change_date.py'
+    spec = importlib.util.spec_from_file_location('przesun_change_date', sciezka)
+    modul = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modul)
+
+    wynik = modul.przesun('Licensor: x\nChange Date:          2028-01-01\nChange License: MIT\n', date(2026, 12, 3))
+    assert 'Change Date:          2030-12-03\n' in wynik
+    assert 'Change License: MIT' in wynik          # reszta pliku nietknięta
+
+    licencja = Path(__file__).resolve().parent.parent / 'LICENSE'
+    assert modul.WZORZEC.search(licencja.read_text(encoding='utf-8'))   # wzorzec pasuje do prawdziwego pliku
+
+
 def test_strona_o_aplikacji_wskazuje_autora(client, app):
     html = client.get('/o-aplikacji').get_data(as_text=True)
 

@@ -5,7 +5,7 @@
 
 {% block content %}
 <h2>Autor</h2>
-<p>Autorem i twórcą aplikacji „Ile mam kasy” jest <strong>{{ config.APP_AUTHOR }}</strong> — profil: <a href="{{ config.APP_AUTHOR_URL }}" target="_blank" rel="noopener noreferrer">{{ config.APP_AUTHOR_URL }}</a>.</p>
+<p>Autorem i twórcą aplikacji „Ile mam kasy” jest <strong>{{ config.APP_AUTHOR }}</strong> — <a href="{{ config.APP_AUTHOR_URL }}" target="_blank" rel="noopener noreferrer">profil autora na GitHubie</a>.</p>
 <p>Kontakt w sprawach aplikacji, błędów i danych osobowych: <a href="mailto:{{ config.APP_CONTACT_EMAIL }}">{{ config.APP_CONTACT_EMAIL }}</a>.</p>
 <p>Administratorem tej instancji aplikacji jest <strong>{{ config.APP_ADMIN_NAME }}</strong>. Jeśli aplikacja została uruchomiona na cudzym serwerze, autor kodu i administrator danych to dwie różne role — szczegóły w <a href="{{ url_for('legal.polityka_prywatnosci') }}">Polityce prywatności</a>.</p>
 

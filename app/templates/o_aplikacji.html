@@ -5,7 +5,7 @@
 
 {% block content %}
 <h2>Autor</h2>
-<p>Autorem i twórcą aplikacji „Ile mam kasy” jest <strong>{{ config.APP_AUTHOR }}</strong> — profil: <a href="{{ config.APP_AUTHOR_URL }}" target="_blank" rel="noopener noreferrer">{{ config.APP_AUTHOR_URL }}</a>.</p>
+<p>Autorem i twórcą aplikacji „Ile mam kasy” jest <strong>{{ config.APP_AUTHOR }}</strong> — <a href="{{ config.APP_AUTHOR_URL }}" target="_blank" rel="noopener noreferrer">profil autora na GitHubie</a>.</p>
 <p>Kontakt w sprawach aplikacji, błędów i danych osobowych: <a href="mailto:{{ config.APP_CONTACT_EMAIL }}">{{ config.APP_CONTACT_EMAIL }}</a>.</p>
 <p>Administratorem tej instancji aplikacji jest <strong>{{ config.APP_ADMIN_NAME }}</strong>. Jeśli aplikacja została uruchomiona na cudzym serwerze, autor kodu i administrator danych to dwie różne role — szczegóły w <a href="{{ url_for('legal.polityka_prywatnosci') }}">Polityce prywatności</a>.</p>
 
@@ -14,7 +14,7 @@
 <p>Projekt powstaje jako aplikacja edukacyjna i niekomercyjna, rozwijana krok po kroku. Korzystanie z niej jest bezpłatne.</p>
 
 <h2>Licencja</h2>
-<p>Kod źródłowy udostępniany jest na <strong>licencji MIT</strong> (© {{ config.APP_AUTHOR }}). Oznacza to swobodę używania, modyfikowania i rozpowszechniania oprogramowania, przy zachowaniu informacji o autorstwie i licencji, oraz brak gwarancji — pełna treść znajduje się w pliku <code>LICENSE</code> w repozytorium.</p>
+<p>Kod źródłowy jest jawny i udostępniany na <strong>licencji Business Source License 1.1</strong> (© {{ config.APP_AUTHOR }}). Oznacza to, że możesz go czytać, kopiować i modyfikować, a używać na własny użytek osobisty i niekomercyjny (także uruchomić prywatną instancję dla siebie i domowników). Użytek komercyjny wymaga zgody autora. Po dacie wskazanej w pliku <code>LICENSE</code> (<em>Change Date</em>) dana wersja kodu przechodzi na licencję MIT. Licencja nie daje gwarancji — pełna treść znajduje się w pliku <code>LICENSE</code> w repozytorium.</p>
 
 <h2>Technologie</h2>
 <ul>

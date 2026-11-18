@@ -22,7 +22,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: googleapis/release-please-action@v4
+        id: rp
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # LICENSE (BSL 1.1): przy wydaniu MINOR/MAJOR `Change Date` jedzie o 4 lata do przodu
+      # (maksimum, jakie dopuszcza BSL). Commit trafia na gałąź PR-a wydania, więc wchodzi
+      # do main razem z nim. Przy PATCH data stoi w miejscu. release-please odtwarza gałąź
+      # przy każdym przebiegu, dlatego krok biegnie za każdym razem, gdy PR istnieje.
+      - name: Przesuń Change Date w LICENSE
+        if: steps.rp.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          PR_JSON: ${{ steps.rp.outputs.pr }}
+        run: |
+          set -euo pipefail
+          branch=$(jq -r '.headBranchName' <<< "$PR_JSON")
+          title=$(jq -r '.title' <<< "$PR_JSON")
+          nowa=$(grep -oE 'release [0-9]+\.[0-9]+\.[0-9]+' <<< "$title" | awk '{print $2}')
+
+          git clone --quiet "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
+          cd repo
+          obecna=$(git show origin/main:.release-please-manifest.json | jq -r '."."')
+          if [ "${nowa%.*}" = "${obecna%.*}" ]; then
+            echo "Wydanie $nowa to PATCH po $obecna — data licencji bez zmian."
+            exit 0
+          fi
+
+          git checkout --quiet "$branch"
+          python3 .github/scripts/przesun_change_date.py LICENSE
+          if git diff --quiet LICENSE; then
+            echo "Change Date już ustawiona."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --quiet -am "chore: Change Date w LICENSE przesunięta o 4 lata (wydanie $nowa)"
+          git push --quiet origin "$branch"

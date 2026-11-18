@@ -54,7 +54,7 @@ class Config:
     # Autor projektu jest stały (fakt o repozytorium), ale administratorem danych
     # w rozumieniu RODO jest osoba, która uruchomiła DANĄ instancję aplikacji —
     # dlatego nazwa i adres kontaktowy dają się nadpisać z .env.
-    APP_AUTHOR = 'jakim87'
+    APP_AUTHOR = 'Paweł Jakimiuk (jakim87)'
     APP_AUTHOR_URL = 'https://github.com/jakim87'
     # Lista zmian dla użytkownika: strona wydań na GitHubie (tworzy je release-please).
     APP_RELEASES_URL = 'https://github.com/jakim87/home_budget/releases'

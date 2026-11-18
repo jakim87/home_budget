@@ -32,7 +32,7 @@
     </tr>
     <tr>
         <td>Dane techniczne</td>
-        <td>logi serwera: data, metoda i ścieżka żądania, kod odpowiedzi, czas obsługi, nazwa zalogowanego użytkownika; przy logowaniu i nieudanych próbach logowania również adres IP; techniczne ciasteczko sesji</td>
+        <td>logi Aplikacji: data, metoda i ścieżka żądania, kod odpowiedzi, czas obsługi, nazwa zalogowanego użytkownika; przy logowaniu i nieudanych próbach logowania również adres IP; logi serwera WWW: przy każdym żądaniu — także od osób bez konta — adres IP, data, adres żądanej strony, kod odpowiedzi, identyfikator przeglądarki (User-Agent) i adres strony odsyłającej; techniczne ciasteczko sesji</td>
     </tr>
 </table>
 <p><strong>Plik wyciągu nie jest przechowywany</strong> — po przetworzeniu zostają wyłącznie transakcje i wymienione wyżej metadane importu. Hasło nie jest nigdzie zapisywane w postaci jawnej.</p>
@@ -51,6 +51,10 @@
         <td>art. 6 ust. 1 lit. f RODO — prawnie uzasadniony interes administratora polegający na ochronie danych przed nieuprawnionym dostępem</td>
     </tr>
     <tr>
+        <td>Ocena ruchu na stronie: przegląd logów serwera WWW na serwerze, bez zewnętrznych narzędzi analitycznych</td>
+        <td>art. 6 ust. 1 lit. f RODO — prawnie uzasadniony interes administratora polegający na utrzymaniu i rozwoju serwisu</td>
+    </tr>
+    <tr>
         <td>Obsługa zgłoszeń i reklamacji</td>
         <td>art. 6 ust. 1 lit. f RODO — prawnie uzasadniony interes polegający na komunikacji z Użytkownikiem</td>
     </tr>
@@ -64,15 +68,18 @@
 <h2>4. Okres przechowywania</h2>
 <ul>
     <li><strong>Dane konta i dane finansowe</strong> — do czasu usunięcia ich przez Użytkownika albo usunięcia konta na jego żądanie.</li>
-    <li><strong>Usunięte transakcje</strong> — są kasowane od razu i trwale; Aplikacja nie prowadzi ich archiwum.</li>
+    <li><strong>Usunięte transakcje</strong> — są kasowane od razu i trwale; Aplikacja nie prowadzi ich archiwum. Mogą jeszcze pozostawać w kopiach zapasowych bazy (patrz niżej).</li>
+    <li><strong>Kopie zapasowe bazy danych</strong> — powstają codziennie, są szyfrowane i przechowywane przez 14 dni, po czym są kasowane. Dane usunięte z Aplikacji (także po usunięciu konta) znikają więc z kopii najpóźniej po 14 dniach. Kopie służą wyłącznie odtworzeniu usługi po awarii.</li>
     <li><strong>Zgłoszenia o działaniu Aplikacji</strong> — do czasu rozpatrzenia przez administratora i usunięcia przez niego; nie są kasowane automatycznie wraz z danymi konta, bo stanowią korespondencję z administratorem, a nie zawartość budżetu Użytkownika.</li>
-    <li><strong>Logi serwera</strong> — podlegają rotacji raz w tygodniu; oprócz bieżącego pliku przechowywanych jest osiem poprzednich (skompresowanych), a starsze są kasowane — wpis w logu znika więc najpóźniej po ok. dziewięciu tygodniach.</li>
+    <li><strong>Logi Aplikacji</strong> — podlegają rotacji raz w tygodniu; oprócz bieżącego pliku przechowywanych jest osiem poprzednich (skompresowanych), a starsze są kasowane — wpis w logu znika więc najpóźniej po ok. dziewięciu tygodniach.</li>
+    <li><strong>Logi serwera WWW</strong> — podlegają rotacji codziennie i są przechowywane przez 14 dni, po czym są kasowane.</li>
 </ul>
 
 <h2>5. Odbiorcy danych</h2>
 <ul>
     <li>Dane <strong>nie są sprzedawane, wynajmowane ani udostępniane</strong> podmiotom trzecim w celach marketingowych. Aplikacja nie zawiera reklam ani narzędzi analitycznych śledzących Użytkownika.</li>
-    <li>Odbiorcą danych może być dostawca serwera (hostingu), na którym działa instancja Aplikacji — jako podmiot przetwarzający, w zakresie niezbędnym do jej utrzymania.</li>
+    <li>Odbiorcą danych może być dostawca serwera (hostingu), na którym działa instancja Aplikacji — jako podmiot przetwarzający, w zakresie niezbędnym do jej utrzymania. Logi serwera i kopie zapasowe nie opuszczają tego serwera.</li>
+    <li>Wiadomość e-mail wysłana na adres kontaktowy trafia do dostawcy skrzynki pocztowej administratora{% if config.APP_CONTACT_EMAIL.endswith('@gmail.com') %} — Google Ireland Limited (usługa Gmail){% endif %}, który przetwarza ją na zasadach określonych przez siebie.</li>
     <li>Interfejs Aplikacji ładuje biblioteki i czcionki z zewnętrznych sieci CDN: <em>cdn.tailwindcss.com</em>, <em>cdn.jsdelivr.net</em> (Chart.js, driver.js) oraz <em>fonts.googleapis.com</em> i <em>fonts.gstatic.com</em> (Google Fonts). Przy pobieraniu tych plików przeglądarka przekazuje ich dostawcom adres IP oraz standardowe informacje o żądaniu. Nie są im przekazywane żadne dane finansowe ani dane konta. Może się to wiązać z przekazaniem adresu IP poza Europejski Obszar Gospodarczy, na zasadach określonych przez tych dostawców.</li>
 </ul>
 

@@ -35,6 +35,17 @@ def test_polityka_prywatnosci_zawiera_elementy_wymagane_przez_rodo(client):
     assert '60 dni' not in html
     assert 'Prezesa Urzędu Ochrony Danych Osobowych' in html   # organ nadzorczy
     assert 'art. 22 RODO' in html                        # brak decyzji automatycznych
+    # Retencja wszystkiego, co trzyma serwer — także poza bazą aplikacji.
+    assert 'Logi serwera WWW' in html                    # IP każdej wizyty, 14 dni
+    assert 'Kopie zapasowe bazy danych' in html          # usunięte dane żyją w kopiach do 14 dni
+
+
+def test_polityka_wskazuje_dostawce_poczty_dla_gmaila(client, app):
+    app.config['APP_CONTACT_EMAIL'] = 'ktos@gmail.com'
+    assert 'Google Ireland Limited' in client.get('/polityka-prywatnosci').get_data(as_text=True)
+
+    app.config['APP_CONTACT_EMAIL'] = 'kontakt@example.com'
+    assert 'Google Ireland Limited' not in client.get('/polityka-prywatnosci').get_data(as_text=True)
 
 
 def test_strona_o_aplikacji_wskazuje_autora(client, app):

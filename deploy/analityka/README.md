@@ -6,10 +6,15 @@ z logu dostępowego nginx (`/var/log/nginx/access.log*`, 14 dni).
 | Plik | Rola |
 | ---- | ---- |
 | `goscie.py` | odsiewa skanery i wypisuje prawdopodobne wizyty ludzi (na żądanie) |
-| `raport_dobowy.py` | wizyty z ostatnich 24 h jako mail (`budget-report.timer`, 05:00 UTC) |
+| `raport_dobowy.py` | wizyty z ostatnich 24 h jako mail (`budget-report.timer`, 05:00 UTC) — **wyłączony**, patrz niżej |
 | `budget-report.conf.example` | wzór `/etc/budget-report.conf` + instrukcja instalacji |
 
 Reguła „prawdopodobnie człowiek” i jej ograniczenia są opisane w docstringu `goscie.py`.
+
+Raport mailowy jest wyłączony (`systemctl disable --now budget-report.timer`):
+wysyłał adresy IP gości przez Gmail, a polityka prywatności mówi, że logi serwera
+nie opuszczają serwera. Wizyty czyta się na serwerze przez `goscie.py`. Przed
+ponownym włączeniem trzeba zmienić politykę prywatności.
 
 ## Plakietki w raporcie
 

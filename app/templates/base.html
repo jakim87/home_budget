@@ -42,7 +42,7 @@
         <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
             <div id="staging-progress-fill" class="bg-blue-600 h-2 rounded-full transition-[width] duration-200 ease-out" style="width:0%"></div>
         </div>
-        <p id="staging-progress-label" class="text-xs text-slate-400 mt-1.5 text-center">Możesz przejść do innej zakładki — operacja trwa w tle.</p>
+        <p id="staging-progress-label" class="text-xs text-slate-400 mt-1.5 text-center">Możesz przejść do innej zakładki - operacja trwa w tle.</p>
     </div>
 
     <!-- max-w-7xl, bo tabela historii operacji ma naturalną szerokość ~1075 px (8 kolumn);
@@ -73,7 +73,7 @@
                 </button>
                 {# Kosz tylko tam, gdzie dev_bp jest zarejestrowany (patrz DEV_RESET_ENABLED
                    w create_app). Bez tego przycisk widnieje na produkcji, a klikniecie
-                   konczy sie 404 — endpoint nie istnieje. #}
+                   konczy sie 404 - endpoint nie istnieje. #}
                 {% if config.DEV_RESET_ENABLED %}
                 <button onclick="resetDevData()" title="Wyczyść wszystkie dane testowe" class="p-2.5 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 hover:border-rose-400 rounded-xl shadow-sm transition-colors" >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -94,7 +94,7 @@
                 Transakcje <span id="potwierdzenia-badge" onclick="pokazDoPotwierdzenia(event)" class="hidden bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
             </button>
             <!-- Ukryta na telefonie, jak Raporty: import zakłada plik z banku na dysku,
-                 a zatwierdzanie poczekalni — szeroką tabelę. Licznik = liczba operacji
+                 a zatwierdzanie poczekalni - szeroką tabelę. Licznik = liczba operacji
                  (para przelewu to dwie). -->
             <button onclick="switchTab('staging')" id="btn-tab-staging" class="tab-inactive pb-2 md:pb-3 px-0.5 md:px-1 text-xs md:text-sm transition-colors focus:outline-none hidden sm:flex items-center gap-2">
                 Import <span id="staging-badge" class="hidden bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
@@ -125,18 +125,18 @@
                     <dl class="flex flex-wrap gap-y-3">
                         <div class="pr-6 lg:pl-6 lg:border-l border-slate-200 min-w-[11rem]">
                             <dt class="text-xs text-slate-500">Miesiąc temu · <span id="dashboard-delta-mc-kiedy"></span></dt>
-                            <dd id="dashboard-delta-mc-wartosc" class="text-xl font-semibold text-slate-800 tabular-nums whitespace-nowrap mt-1">—</dd>
+                            <dd id="dashboard-delta-mc-wartosc" class="text-xl font-semibold text-slate-800 tabular-nums whitespace-nowrap mt-1">-</dd>
                             <dd id="dashboard-delta-mc-zmiana" class="text-xs font-medium whitespace-nowrap"></dd>
                         </div>
                         <div class="pr-6 sm:pl-6 sm:border-l border-slate-200 min-w-[11rem]">
                             <dt class="text-xs text-slate-500">Rok temu · <span id="dashboard-delta-rok-kiedy"></span></dt>
-                            <dd id="dashboard-delta-rok-wartosc" class="text-xl font-semibold text-slate-800 tabular-nums whitespace-nowrap mt-1">—</dd>
+                            <dd id="dashboard-delta-rok-wartosc" class="text-xl font-semibold text-slate-800 tabular-nums whitespace-nowrap mt-1">-</dd>
                             <dd id="dashboard-delta-rok-zmiana" class="text-xs font-medium whitespace-nowrap"></dd>
                         </div>
                     </dl>
                 </div>
 
-                <!-- Majątek w czasie: minimum wyboru — widok i zakres. Klik w miesiąc wybiera go
+                <!-- Majątek w czasie: minimum wyboru - widok i zakres. Klik w miesiąc wybiera go
                      dla sekcji „Udział majątku wg typu kont" (13_dashboard.js). -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
@@ -171,7 +171,7 @@
                             <h2 class="font-bold text-slate-800">Przychody i wydatki wg kategorii</h2>
                             <span class="info-tip">
                                 <button type="button" aria-label="Opis wykresu" aria-describedby="obroty-info">i</button>
-                                <span role="tooltip" id="obroty-info">Suma miesięczna w wybranych kategoriach, bez przelewów wewnętrznych — liczona tak samo jak w Raportach. Zakres jak na wykresie majątku. Kliknij miesiąc, żeby przejść do jego transakcji albo raportu.</span>
+                                <span role="tooltip" id="obroty-info">Suma miesięczna w wybranych kategoriach, bez przelewów wewnętrznych - liczona tak samo jak w Raportach. Zakres jak na wykresie majątku. Kliknij miesiąc, żeby przejść do jego transakcji albo raportu.</span>
                             </span>
                         </div>
                         <div class="relative" id="dash-cat-wrap">
@@ -189,7 +189,7 @@
                     <div class="dashboard-wybor hidden flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 pt-3 border-t border-slate-100"></div>
                 </div>
 
-                <!-- Udział majątku wg typu kont — bieżący miesiąc albo wybrany kliknięciem w wykres. -->
+                <!-- Udział majątku wg typu kont - bieżący miesiąc albo wybrany kliknięciem w wykres. -->
                 <div class="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm" id="dashboard-struktura">
                     <h2 class="font-bold text-slate-800">Udział majątku wg typu kont</h2>
                     <p class="text-xs text-slate-500 mt-1">Stan na koniec <span id="dashboard-struktura-miesiac"></span>. Udział liczony w aktywach (sumie sald dodatnich); kredyty i karty to zobowiązania, więc mają udział ujemny i nie wchodzą na pasek.</p>
@@ -213,7 +213,7 @@
             <!-- ZAKŁADKA 1: TRANSAKCJE -->
             <div id="tab-transactions" class="tab-hidden space-y-8">
                 <!-- Formularz dodawania: szybki wpis jedną linią (21_szybki_wpis.js) nad polami, które
-                     pokazują, co aplikacja z niego zrozumiała. Zapis bez zmian — 11_transactions.js. -->
+                     pokazują, co aplikacja z niego zrozumiała. Zapis bez zmian - 11_transactions.js. -->
                 <div id="tx-form-card" class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
                     <div class="flex flex-wrap justify-between items-baseline gap-x-6 gap-y-2 mb-4">
                         <div class="flex items-center gap-2">
@@ -222,11 +222,11 @@
                                 <button type="button" aria-label="Jak szybko dodać transakcję" aria-describedby="tx-quick-info">i</button>
                                 <span role="tooltip" id="tx-quick-info">
                                     <b>Jak dodać transakcję jedną linią</b><br>
-                                    1. Zacznij pisać nazwę kontrahenta — <kbd>Tab</kbd> dokańcza podpowiedź, strzałki wybierają inną.<br>
+                                    1. Zacznij pisać nazwę kontrahenta - <kbd>Tab</kbd> dokańcza podpowiedź, strzałki wybierają inną.<br>
                                     2. Dopisz kwotę, np. 85,60.<br>
                                     3. Jeśli to nie dziś, dopisz datę: „wczoraj” albo 9.10.<br>
                                     4. <kbd>Enter</kbd> zapisuje i czyści pole na kolejny wpis.<br>
-                                    Dodatki: <b>@</b> zmienia konto, <b>&gt;</b> robi przelew na własne konto. Pola pod spodem pokazują, co aplikacja zrozumiała — każde można poprawić ręcznie.
+                                    Dodatki: <b>@</b> zmienia konto, <b>&gt;</b> robi przelew na własne konto. Pola pod spodem pokazują, co aplikacja zrozumiała - każde można poprawić ręcznie.
                                 </span>
                             </span>
                         </div>
@@ -359,13 +359,13 @@
 
             <!-- ZAKŁADKA: IMPORT WYCIĄGÓW (STAGING) -->
             <!-- Identyfikator „staging" zostaje (06_tabs.js, klucz samouczka); zmieniła się
-                 tylko nazwa wyświetlana. Strona zawsze pokazuje wszystkie konta — „Widok
+                 tylko nazwa wyświetlana. Strona zawsze pokazuje wszystkie konta - „Widok
                  konta" jest na niej ukryty (switchTab). -->
             <div id="tab-staging" class="tab-hidden space-y-6">
                 <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                     <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-4">
                         <h2 id="import-heading" class="font-semibold text-slate-800">Import wyciągów</h2>
-                        <p class="text-xs text-slate-500">ING (CSV, PDF), mBank (CSV, HTML, PDF), Pekao, Millennium, Revolut i PKO BP (CSV) — bank rozpoznaje się po zawartości pliku.</p>
+                        <p class="text-xs text-slate-500">ING (CSV, PDF), mBank (CSV, HTML, PDF), Pekao, Millennium, Revolut i PKO BP (CSV) - bank rozpoznaje się po zawartości pliku.</p>
                     </div>
                     {% if config.DEMO_ENABLED %}
                     <!-- Tryb demo: zwiedzający nie ma pod ręką wyciągu z banku, więc podsuwamy
@@ -383,7 +383,7 @@
                     {% endif %}
                     <div id="import-dropzone" class="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center transition-colors">
                         <p class="font-medium text-slate-700">Przeciągnij tu pliki z banku</p>
-                        <p class="text-xs text-slate-500 mt-1">Najlepiej wyciągi ze wszystkich kont naraz — obie strony przelewu między Twoimi kontami sparują się w poczekalni. Konto rozpoznaje się po numerze rachunku z wyciągu.</p>
+                        <p class="text-xs text-slate-500 mt-1">Najlepiej wyciągi ze wszystkich kont naraz - obie strony przelewu między Twoimi kontami sparują się w poczekalni. Konto rozpoznaje się po numerze rachunku z wyciągu.</p>
                         <div class="mt-4 flex flex-wrap justify-center items-center gap-4">
                             <button type="button" id="pickFilesBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors">Wybierz pliki</button>
                             <button type="button" id="pickFolderBtn" class="text-sm text-blue-700 underline decoration-blue-300 underline-offset-2 hover:decoration-blue-700">albo cały folder</button>
@@ -413,7 +413,7 @@
                                 <select id="import-account-select" class="mt-1 w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white cursor-pointer"></select>
                             </label>
                         </div>
-                        <p class="text-xs text-slate-500 mt-2">Konto wskaż, gdy plik nie zawiera numeru rachunku (Revolut, PKO BP, wyciąg ING z jednym kontem). Ustawienia działają przy wgrywaniu jednego pliku — przy kilku naraz o konto dla pliku bez numeru aplikacja zapyta na liście wyników. Dla mBanku najczytelniejsze opisy ma format HTML („Zestawienie operacji”).</p>
+                        <p class="text-xs text-slate-500 mt-2">Konto wskaż, gdy plik nie zawiera numeru rachunku (Revolut, PKO BP, wyciąg ING z jednym kontem). Ustawienia działają przy wgrywaniu jednego pliku - przy kilku naraz o konto dla pliku bez numeru aplikacja zapyta na liście wyników. Dla mBanku najczytelniejsze opisy ma format HTML („Zestawienie operacji”).</p>
                     </details>
                     <div id="import-results" class="hidden mt-3 border border-slate-200 rounded-lg divide-y divide-slate-100 text-sm"></div>
                     <p id="importError" class="text-rose-500 text-sm mt-2 hidden"></p>
@@ -521,7 +521,7 @@
 
                 <!-- Przeniesione z Dashboardu: trend 12 miesiecy / 5 lat, niezalezny od
                      wybranego wyzej okresu. Filtr kont jak reszta Podsumowania: „Widok
-                     konta" (renderDashboardChart w 13_dashboard.js) — renderowany przy kazdym
+                     konta" (renderDashboardChart w 13_dashboard.js) - renderowany przy kazdym
                      renderSummary(), bo canvas jest ukryty (display:none), dopoki ta
                      zakladka nie jest aktywna, i Chart.js zmierzylby zerowa szerokosc. -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -574,7 +574,7 @@
                             <summary>Jak powstają wnioski</summary>
                             <ul>
                                 <li><b>Typowy miesiąc</b> to mediana z 6 poprzednich pełnych miesięcy (przy krótszej historii z tylu, ile jest, ale co najmniej z 3). Mediana, bo jeden wyjazd albo naprawa auta zawyżyłyby średnią. Miesiąc, w którym konto ma wyraźnie mniej operacji niż zwykle (mniej niż 40%, np. niedokończony import wyciągu), albo w ogóle nie ma operacji, wypada z porównań i sam nie daje wniosków.</li>
-                                <li><b>Trend kategorii</b>: wydatki w kategorii różnią się od typowych o co najmniej 25% i 200 zł (gdy zwykle jest tam mniej niż 50 zł — bez procentu, bo od prawie zera nic nie mówi). Kategoria młodsza niż 3 miesiące milczy. „Mniej niż zwykle” tylko w kategoriach z wydatkami w każdym miesiącu. Dopisek „rośnie od N miesięcy”, gdy każdy kolejny miesiąc jest wyższy od poprzedniego.</li>
+                                <li><b>Trend kategorii</b>: wydatki w kategorii różnią się od typowych o co najmniej 25% i 200 zł (gdy zwykle jest tam mniej niż 50 zł - bez procentu, bo od prawie zera nic nie mówi). Kategoria młodsza niż 3 miesiące milczy. „Mniej niż zwykle” tylko w kategoriach z wydatkami w każdym miesiącu. Dopisek „rośnie od N miesięcy”, gdy każdy kolejny miesiąc jest wyższy od poprzedniego.</li>
                                 <li><b>Jednorazowe zdarzenie</b>: pojedynczy wydatek wynoszący co najmniej 20% typowych miesięcznych wydatków (i co najmniej 500 zł), który nie jest stałą opłatą, regularnym dużym wydatkiem ani wypłatą gotówki; przy co najmniej 6 miesiącach historii pierwsza płatność u nowego kontrahenta od 200 zł; wpływ od 300 zł od nadawcy, od którego nic nie przyszło przez 6 miesięcy.</li>
                                 <li><b>Stała opłata</b>: ten sam kontrahent raz w miesiącu, przez co najmniej 3 miesiące z rzędu, z podobną kwotą (±15%) i w podobnym dniu (±5 dni). Miesiąc z niepełnym importem nie przerywa ciągu. Wniosek przy zmianie kwoty o co najmniej 3%, przy nowej opłacie (do 3 miesięcy od pierwszej płatności) i gdy opłaty nie ma 2 miesiące z rzędu.</li>
                                 <li><b>Bilans</b>: odsetek przychodów, który został, różni się od typowego o co najmniej 10 punktów; przychody różnią się od typowych o co najmniej 10% i 300 zł.</li>
@@ -683,7 +683,7 @@
                 <div class="flex flex-col sm:flex-row gap-4 sm:gap-6">
 
                     <!-- Sidebar: nawigacja słowników. Na telefonie w-44 zostawial panelowi
-                         ~140px z 375px ekranu — plakietki typu kategorii wychodzily poza
+                         ~140px z 375px ekranu - plakietki typu kategorii wychodzily poza
                          kadr. Full-width nad panelem ponizej sm, jak dotychczas obok. -->
                     <div class="w-full sm:w-44 sm:shrink-0">
                         <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden sm:sticky sm:top-4">
@@ -782,14 +782,14 @@
                                             <input type="text" id="acc-number" placeholder="Nr rachunku (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-mono">
                                             <select id="acc-type" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                                                 <option value="">Typ konta (opcjonalnie)</option>
-                                                <option value="ROR">ROR — konto osobiste</option>
-                                                <option value="KO">KO — konto oszczędnościowe</option>
+                                                <option value="ROR">ROR - konto osobiste</option>
+                                                <option value="KO">KO - konto oszczędnościowe</option>
                                                 <option value="Kredyt">Kredyt (saldo ujemne)</option>
                                                 <option value="Rach. Maklerski">Rach. Maklerski</option>
                                                 <option value="IKZE">IKZE</option>
                                             </select>
                                             <select id="acc-currency" title="Waluta konta" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                                                <option value="PLN">PLN — złoty</option>
+                                                <option value="PLN">PLN - złoty</option>
                                             </select>
                                             <input type="text" id="acc-owner" placeholder="Właściciel (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
                                             <input type="text" id="acc-co-owner" placeholder="Współwłaściciel (opcjonalnie)" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
@@ -813,7 +813,7 @@
                                         <h3 class="font-bold text-slate-800 p-5 border-b border-slate-100 flex items-center gap-2">
                                             <span>Konta nieaktywne (archiwalne)</span>
                                         </h3>
-                                        <p class="text-xs text-slate-400 px-5 pt-2">Konta zamknięte/spłacone — poza słownikiem, ale z zachowaną historią transakcji.</p>
+                                        <p class="text-xs text-slate-400 px-5 pt-2">Konta zamknięte/spłacone - poza słownikiem, ale z zachowaną historią transakcji.</p>
                                         <ul id="inactive-accounts-list" class="divide-y divide-slate-100 p-2"></ul>
                                     </div>
                                 </div>
@@ -1010,11 +1010,11 @@
                     Co nie działa albo co dałoby się zrobić lepiej?
                 </label>
                 <textarea id="feedback-content" rows="6" required minlength="10" maxlength="5000"
-                          placeholder="Im konkretniej, tym lepiej — co klikałeś i czego się spodziewałeś."
+                          placeholder="Im konkretniej, tym lepiej - co klikałeś i czego się spodziewałeś."
                           class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white resize-y"></textarea>
                 <p class="text-xs text-slate-400 mt-2">
                     Do zgłoszenia dołączamy nazwę otwartej zakładki, wersję aplikacji i typ przeglądarki.
-                    Zgłoszenia zostają na tym serwerze — nie trafiają nigdzie dalej.
+                    Zgłoszenia zostają na tym serwerze - nie trafiają nigdzie dalej.
                 </p>
                 <p id="feedback-error" class="text-rose-500 text-sm mt-2 hidden"></p>
                 <div class="flex justify-end gap-3 mt-5">
@@ -1285,7 +1285,7 @@
                     </div>
                     <div id="quick-cont-existing-notice" class="hidden p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 flex items-center gap-2">
                         <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        Kontrahent już istnieje — możesz zaktualizować słowa kluczowe i kategorię.
+                        Kontrahent już istnieje - możesz zaktualizować słowa kluczowe i kategorię.
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Słowa kluczowe z wyciągu (opcjonalnie)</label>
@@ -1309,13 +1309,13 @@
     {% include 'reconcile_modal.html' %}
 
     <!-- Modal logowania / rejestracji. Jeden modal, dwa widoki przelaczane przez
-         showAuthView() — nie ma osobnej strony /register, cala aplikacja to jeden
+         showAuthView() - nie ma osobnej strony /register, cala aplikacja to jeden
          szablon (patrz home_bp.index). -->
     <div id="login-modal" class="hidden fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[100] backdrop-blur-sm">
         <!-- max-h/overflow: formularz rejestracji jest wyzszy niz niskie okno (ok. 770 px),
-             a modal jest wysrodkowany w warstwie fixed — bez tego jego gora (naglowek i
+             a modal jest wysrodkowany w warstwie fixed - bez tego jego gora (naglowek i
              pole nazwy uzytkownika) wychodzi poza ekran i nie da sie do niej doscrollowac.
-             Przewija sie kolumna z formularzem, nie cala karta — inaczej panel marki
+             Przewija sie kolumna z formularzem, nie cala karta - inaczej panel marki
              odjezdzalby w gore razem z trescia. -->
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm md:max-w-3xl max-h-[90vh] flex overflow-hidden">
 
@@ -1326,7 +1326,7 @@
                  sasiadem, wiec nie miga przy przelaczaniu. -->
             <div class="flex-1 p-8 overflow-y-auto">
 
-            <!-- Naglowek marki dla waskich ekranow — odpowiednik panelu obok,
+            <!-- Naglowek marki dla waskich ekranow - odpowiednik panelu obok,
                  skrocony do logo i jednego zdania. Poza widokami, zeby nie dublowac
                  go w logowaniu i rejestracji. -->
             <div class="md:hidden text-center mb-5 pb-5 border-b border-slate-200">
@@ -1402,7 +1402,7 @@
                     <!-- Aplikacja nie wysyla maili, wiec nie ma mechanizmu "zapomnialem hasla".
                          Mowimy o tym wprost PRZED zalozeniem konta, nie po fakcie. -->
                     <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-5">
-                        Zapamiętaj hasło — aplikacja nie wysyła jeszcze e-maili, więc nie ma automatycznego odzyskiwania dostępu.
+                        Zapamiętaj hasło - aplikacja nie wysyła jeszcze e-maili, więc nie ma automatycznego odzyskiwania dostępu.
                     </p>
                     <button type="submit" class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow-lg focus:ring-4 focus:ring-blue-300">Załóż konto</button>
                     <p class="text-xs text-slate-500 text-center mt-3">
@@ -1427,7 +1427,7 @@
     <div id="first-account-modal" class="hidden fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[100] px-4 backdrop-blur-sm">
         <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 class="text-2xl font-bold text-slate-800 text-center mb-2">Dodaj pierwsze konto</h2>
-            <p class="text-slate-500 text-center mb-6">Konto to miejsce, w którym trzymasz pieniądze — rachunek w banku, portfel z gotówką albo cel oszczędnościowy.</p>
+            <p class="text-slate-500 text-center mb-6">Konto to miejsce, w którym trzymasz pieniądze - rachunek w banku, portfel z gotówką albo cel oszczędnościowy.</p>
             <form id="first-account-form">
                 <div class="mb-4">
                     <label for="first-account-name" class="block text-sm font-medium text-slate-700 mb-1">Nazwa konta</label>
@@ -1436,7 +1436,7 @@
                 <div class="mb-4">
                     <label for="first-account-balance" class="block text-sm font-medium text-slate-700 mb-1">Ile masz teraz na tym koncie?</label>
                     <input type="number" id="first-account-balance" step="0.01" value="0.00" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                    <p class="text-xs text-slate-400 mt-1">Możesz wpisać 0 i uzupełnić później — saldo da się w każdej chwili uzgodnić.</p>
+                    <p class="text-xs text-slate-400 mt-1">Możesz wpisać 0 i uzupełnić później - saldo da się w każdej chwili uzgodnić.</p>
                     <p id="first-account-error" class="text-rose-500 text-sm mt-2 hidden"></p>
                 </div>
                 <button type="submit" class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow-lg focus:ring-4 focus:ring-blue-300">Gotowe, zaczynamy</button>

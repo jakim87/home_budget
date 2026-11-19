@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{% endblock %} — Ile mam kasy</title>
+    <title>{% block title %}{% endblock %} - Ile mam kasy</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/fonts.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='classical.css') }}">
     <style>
         /* Typografia dokumentu. Tailwind jest bez wtyczki `prose`, a dopisywanie
-           klas do kazdego <p>/<li> zasmiecaloby tresc — dlatego jeden zestaw regul
+           klas do kazdego <p>/<li> zasmiecaloby tresc - dlatego jeden zestaw regul
            zawezony do .legal-doc (nie dotyka reszty aplikacji). */
         .legal-doc h2 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: #1e293b; }
         .legal-doc h2:first-child { margin-top: 0; }
@@ -27,7 +27,7 @@
         .legal-doc th { background: #f8fafc; font-weight: 600; color: #334155; }
     </style>
     <!-- Tailwind ostatni w <head>: dawny skrypt z CDN, zastąpiony tym plikiem, doklejał style na końcu,
-         więc klasy Tailwinda wygrywały remisy z classical.css — kolejność zachowana celowo. -->
+         więc klasy Tailwinda wygrywały remisy z classical.css - kolejność zachowana celowo. -->
     <link rel="stylesheet" href="{{ url_for('static', filename='tailwind.css') }}">
 </head>
 <body class="text-slate-800 antialiased">

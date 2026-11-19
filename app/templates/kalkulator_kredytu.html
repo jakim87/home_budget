@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kalkulator kredytu — Ile mam kasy</title>
-<meta name="description" content="Rata, pełny koszt, RRSO i plan spłaty rata po racie — z prowizją, opłatami i nadpłatami. Liczy się w przeglądarce.">
+<title>Kalkulator kredytu - Ile mam kasy</title>
+<meta name="description" content="Rata, pełny koszt, RRSO i plan spłaty rata po racie - z prowizją, opłatami i nadpłatami. Liczy się w przeglądarce.">
 <link rel="stylesheet" href="{{ url_for('static', filename='landing/classical.css') }}">
 <style>
   body{margin:0;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)}
@@ -38,7 +38,7 @@
 <main style="max-width:1120px;margin:0 auto;padding:clamp(40px,7vh,72px) 24px 96px">
   <a href="/" style="display:inline-flex;align-items:center;gap:6px;font-size:14px;margin:0 0 28px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>Wróć na stronę główną</a>
   <h1 style="font-family:var(--font-heading);font-weight:400;font-size:clamp(40px,5.4vw,64px);line-height:1.05;margin:0 0 14px;text-wrap:balance">Kalkulator kredytu</h1>
-  <p style="font-size:16.5px;line-height:1.7;color:var(--color-neutral-700);margin:0 0 40px;max-width:620px;text-wrap:pretty">Rata, pełny koszt, RRSO i plan spłaty rata po racie — z prowizją, opłatami i nadpłatami. Liczy się w przeglądarce, nic nie trafia na serwer.</p>
+  <p style="font-size:16.5px;line-height:1.7;color:var(--color-neutral-700);margin:0 0 40px;max-width:620px;text-wrap:pretty">Rata, pełny koszt, RRSO i plan spłaty rata po racie - z prowizją, opłatami i nadpłatami. Liczy się w przeglądarce, nic nie trafia na serwer.</p>
 
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:32px 56px;align-items:start">
 
@@ -98,7 +98,7 @@
     <div style="position:sticky;top:88px;border:1px solid var(--color-divider);border-radius:var(--radius-md);background:var(--color-bg);box-shadow:var(--shadow-md);padding:28px" aria-live="polite">
       <div id="kk-wynik">
         <div id="kk-rata-etykieta" style="font-size:13px;color:var(--color-neutral-700)">Rata miesięczna</div>
-        <div id="kk-rata" style="font-size:clamp(36px,4.4vw,52px);line-height:1.1;font-variant-numeric:tabular-nums;margin:2px 0 2px;white-space:nowrap">—</div>
+        <div id="kk-rata" style="font-size:clamp(36px,4.4vw,52px);line-height:1.1;font-variant-numeric:tabular-nums;margin:2px 0 2px;white-space:nowrap">-</div>
         <div id="kk-rata-opis" style="font-size:14px;color:var(--color-neutral-700);margin:0 0 4px">&nbsp;</div>
         <div id="kk-liczba-rat" style="font-size:14px;color:var(--color-neutral-700);margin:0 0 18px">&nbsp;</div>
         <div class="kk-pozycja"><span>Suma odsetek</span><span id="kk-odsetki"></span></div>
@@ -112,7 +112,7 @@
           <span id="kk-koszt" style="font-size:24px"></span>
         </div>
         <div id="kk-rrso-objasnienie" class="kk-objasnienie" hidden style="margin:14px 0 0;padding:14px 16px;border:1px solid var(--color-divider);border-radius:var(--radius-sm);font-size:14px;line-height:1.6;color:var(--color-neutral-800);flex-direction:column;gap:8px;display:flex">
-          <p style="margin:0;text-wrap:pretty"><strong style="font-weight:600">RRSO</strong> — rzeczywista roczna stopa oprocentowania. Pokazuje pełny roczny koszt kredytu w procentach, żeby dało się porównać oferty.</p>
+          <p style="margin:0;text-wrap:pretty"><strong style="font-weight:600">RRSO</strong> - rzeczywista roczna stopa oprocentowania. Pokazuje pełny roczny koszt kredytu w procentach, żeby dało się porównać oferty.</p>
           <p style="margin:0;text-wrap:pretty">Dlaczego <span class="kk-rrso"></span>, a nie <span class="kk-nominalne"></span>?</p>
           <div><span>Oprocentowanie nominalne</span><span class="kk-nominalne"></span></div>
           <div><span>+ odsetki płacone co miesiąc (kapitalizacja)</span><span id="kk-rrso-kapitalizacja"></span></div>
@@ -153,7 +153,7 @@
     </section>
   </div>
 
-  <p style="margin:72px 0 0;font-size:13px;line-height:1.6;color:var(--color-neutral-600);max-width:720px;text-wrap:pretty">Wyliczenia są orientacyjne. Odsetki liczone co miesiąc od salda (stopa roczna / 12, zaokrąglenie do grosza), oprocentowanie stałe przez cały okres — bank może liczyć według rzeczywistej liczby dni, a przy zmiennej stopie rata zmienia się razem z WIBOR-em. RRSO z planu bez nadpłat, jak w ofertach banków. To nie jest oferta ani doradztwo finansowe.</p>
+  <p style="margin:72px 0 0;font-size:13px;line-height:1.6;color:var(--color-neutral-600);max-width:720px;text-wrap:pretty">Wyliczenia są orientacyjne. Odsetki liczone co miesiąc od salda (stopa roczna / 12, zaokrąglenie do grosza), oprocentowanie stałe przez cały okres - bank może liczyć według rzeczywistej liczby dni, a przy zmiennej stopie rata zmienia się razem z WIBOR-em. RRSO z planu bez nadpłat, jak w ofertach banków. To nie jest oferta ani doradztwo finansowe.</p>
 </main>
 
 {% include '_landing_footer.html' %}

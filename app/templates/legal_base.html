@@ -4,13 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{% endblock %} - Ile mam kasy</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/fonts.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='classical.css') }}">
     <style>
-        /* Typografia dokumentu. Tailwind z CDN nie ma wtyczki `prose`, a dopisywanie
+        /* Typografia dokumentu. Tailwind jest bez wtyczki `prose`, a dopisywanie
            klas do kazdego <p>/<li> zasmiecaloby tresc - dlatego jeden zestaw regul
            zawezony do .legal-doc (nie dotyka reszty aplikacji). */
         .legal-doc h2 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: #1e293b; }
@@ -28,6 +26,9 @@
         .legal-doc th, .legal-doc td { border: 1px solid #e2e8f0; padding: 0.5rem 0.65rem; text-align: left; vertical-align: top; color: #475569; }
         .legal-doc th { background: #f8fafc; font-weight: 600; color: #334155; }
     </style>
+    <!-- Tailwind ostatni w <head>: dawny skrypt z CDN, zastąpiony tym plikiem, doklejał style na końcu,
+         więc klasy Tailwinda wygrywały remisy z classical.css - kolejność zachowana celowo. -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='tailwind.css') }}">
 </head>
 <body class="text-slate-800 antialiased">
     <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10">

@@ -8,6 +8,8 @@
 #                      liczą sumy w przeglądarce, więc pytest tej ścieżki nie
 #                      dotyka w ogóle — bez tej bramki liczby oglądane przez
 #                      użytkownika nie są pokryte niczym.
+#                      W tym samym zadaniu: app/static/tailwind.css musi być zbudowany
+#                      z aktualnych szablonów (npm run build:css) — serwer go nie buduje.
 name: Jakość
 
 on:
@@ -88,3 +90,6 @@ jobs:
 
       - name: vitest
         run: npm test
+
+      - name: tailwind.css aktualny względem szablonów i modułów JS
+        run: npm run build:css && git diff --exit-code app/static/tailwind.css

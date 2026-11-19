@@ -64,7 +64,7 @@ Poza importem z banku dostępne są:
 - **Baza danych:** PostgreSQL (produkcja), SQLite in-memory (testy)
 - **Uwierzytelnianie:** Flask-Login
 - **Serializacja:** Marshmallow
-- **Frontend:** Jinja2, Tailwind CSS (CDN), Chart.js (CDN), driver.js (samouczek, CDN)
+- **Frontend:** Jinja2, Tailwind CSS (budowany lokalnie: `npm run build:css`), Chart.js, driver.js (samouczek) — wszystko serwowane z `app/static`, bez zewnętrznych CDN
 - **Testy:** pytest
 
 ## Wymagane narzędzia
@@ -134,6 +134,7 @@ flask feedback-delete --id 7        # Usuń zgłoszenie nr 7
 pytest                              # Uruchom wszystkie testy (backend)
 npm install                         # Jednorazowo: zależności testów frontu
 npm test                            # Testy JS — liczenie na Dashboardzie, w Raportach i we Wnioskach
+npm run build:css                   # Przebudowa app/static/tailwind.css po zmianie klas w szablonach/JS (commitujemy wynik)
 pytest tests/test_plik.py           # Pojedynczy plik
 pytest tests/test_plik.py::test_nazwa -vv --tb=long   # Pojedynczy test, tryb szczegółowy
 
@@ -208,6 +209,9 @@ budget/
 │   ├── static/
 │   │   ├── js/                   # Frontend (SPA) — moduły ładowane w kolejności
 │   │   │                         #   prefiksów: 01_state.js … 19_bulk_edit.js, 99_bootstrap.js
+│   │   ├── fonts/                # Czcionki (woff2) + fonts.css — zamiast Google Fonts
+│   │   ├── vendor/               # Chart.js i driver.js w przypiętych wersjach — zamiast CDN
+│   │   ├── tailwind.css          # Zbudowany Tailwind (npm run build:css) — nie edytować ręcznie
 │   │   └── style.css             # Style uzupełniające Tailwind
 │   ├── templates/
 │   │   └── base.html             # Główny szablon HTML

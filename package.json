@@ -1,12 +1,14 @@
 {
   "name": "home-budget-frontend-tests",
   "private": true,
-  "description": "Wylacznie testy modulow JS z app/static/js. Aplikacja nie ma kroku budowania — pliki JS ida do przegladarki wprost.",
+  "description": "Testy modulow JS z app/static/js i budowanie app/static/tailwind.css (npm run build:css). Pozostale pliki JS ida do przegladarki wprost.",
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:css": "tailwindcss -i app/static/src/tailwind.css -o app/static/tailwind.css --minify"
   },
   "devDependencies": {
     "jsdom": "^25.0.1",
+    "tailwindcss": "3.4.17",
     "vitest": "^2.1.8"
   }
 }

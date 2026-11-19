@@ -65,6 +65,7 @@ flask fix-transfer-contractors   # Ujednolica nazwy kontrahentów „Moje konto:
 # Tests
 pytest                           # Run all tests (~430 testów w 39 plikach; ok. 2 minuty lokalnie)
 npm test                         # Testy JS (vitest): liczenie na Dashboardzie i w Raportach
+npm run build:css                # Przebudowa app/static/tailwind.css (po zmianie klas Tailwinda)
 pytest tests/test_file.py        # Single file
 pytest tests/test_file.py::test_name -vv --tb=long  # Single test, verbose
 ```
@@ -96,7 +97,9 @@ Default dev credentials after `flask seed`: **default_user / password**. Hasło 
 - **Auth**: Flask-Login + Flask-Limiter (limity per-IP na `/api/login` i `/api/register`)
 - **Serialization**: Marshmallow
 - **Parsowanie wyciągów**: PyMuPDF (PDF), BeautifulSoup4 (HTML mBanku), `csv` ze stdlib
-- **Frontend**: Jinja2 (jeden szablon `base.html` = SPA z zakładkami) + Tailwind CSS + Chart.js (dashboard i Raporty) + driver.js (samouczek) — wszystko z CDN
+- **Frontend**: Jinja2 (jeden szablon `base.html` = SPA z zakładkami) + Tailwind CSS + Chart.js (dashboard i Raporty) + driver.js (samouczek) — wszystko serwowane z `app/static`, **bez zewnętrznych CDN** (adres IP użytkownika nie trafia do obcych dostawców; pilnuje `tests/test_zasoby_lokalne.py`):
+  - Tailwind 3.4.17 budowany lokalnie: `npm run build:css` → `app/static/tailwind.css`. Plik jest **commitowany** (serwer niczego nie buduje), a CI (`jakosc.yml`) sprawdza, że jest aktualny — po dodaniu klasy w szablonie albo module JS przebuduj go. Nie sklejaj klas w locie (`'bg-' + kolor`) — skaner ich nie znajdzie. Link do `tailwind.css` stoi **ostatni w `<head>`**, tam gdzie style doklejał dawny skrypt z CDN; inna kolejność zmienia kaskadę względem `classical.css`.
+  - Chart.js i driver.js w `app/static/vendor/` (wersja w nazwie pliku); czcionki Lora i Cormorant Garamond w `app/static/fonts/` (`fonts.css`).
 
 ## Architecture
 
@@ -207,7 +210,7 @@ Przelew wewnętrzny między kontami w **różnych walutach** nigdy nie dostaje l
 - „Udział majątku wg typu kont” (`strukturaMajatku()`): udział w aktywach (suma sald dodatnich), zobowiązania z udziałem ujemnym.
 - Klik w miesiąc na którymkolwiek wykresie wybiera go dla sekcji udziałów i pokazuje przejścia „Pokaż transakcje” / „Szczegółowy raport”.
 
-`renderDashboardChart()` z tego samego pliku rysuje wykres „Przychody vs Wydatki” w zakładce **Podsumowanie** i — jak reszta tej zakładki — słucha „Widoku konta”. Wykresy Chart.js ładowane z CDN.
+`renderDashboardChart()` z tego samego pliku rysuje wykres „Przychody vs Wydatki” w zakładce **Podsumowanie** i — jak reszta tej zakładki — słucha „Widoku konta”.
 
 **Wnioski** (`22_wnioski_reguly.js` + `23_wnioski.js`, styl `wnioski.css`): zakładka obok Podsumowania i Raportów — te dwie znikną w osobnym PR, gdy Wnioski się sprawdzą. Liczy w przeglądarce z globalnego stanu, w PLN po kursie z końca miesiąca, zawsze bez przelewów wewnętrznych i uzgodnień salda; „Widok konta” jest na niej ukryty (konta wybiera się w filtrze widoku). Własny wybór miesiąca (`wnYm`, domyślnie ostatni pełny), niezależny od `viewDate` Transakcji.
 - **Reguły** to czyste funkcje w `22_wnioski_reguly.js` (bez DOM i sieci): `wnPrzygotuj()` raz przygotowuje operacje i agregaty, każda reguła `(dane, i) → ciekawostki` jest wpisana w `WN_REGULY`, a `wnWnioskiZa()` zwraca listę od największej wagi. Wspólny format ciekawostki (opis przy `wnCiekawostka`) jest pod przyszłą belkę na telefonie — nowa reguła = test w `tests/js/wnioski_reguly.test.js` + funkcja + wpis w `WN_REGULY`. Progi w `WN_PROGI` to stałe startowe, niesprawdzone jeszcze na prawdziwych danych. Historia liczy się od pierwszej prawdziwej operacji (nie od uzgodnień salda z migracji). Bieżący miesiąc, historia krótsza niż 3 miesiące i miesiąc z luką w imporcie nie dają wniosków; luka to miesiąc bez żadnej operacji albo konto z ≥ 5 operacjami w 2 poprzednich miesiącach, które ma teraz < 40% mediany swoich operacji. Luka wypada z mediany i nie przerywa ciągu stałej opłaty (`wnPoprzednie()`). Wypłaty gotówki nigdy nie są „jednorazowym zdarzeniem”.

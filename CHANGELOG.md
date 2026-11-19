@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.0](https://github.com/jakim87/home_budget/compare/v1.7.0...v1.8.0) (2026-11-19)
+
+
+### Funkcje
+
+* baner po zalogowaniu informuje o zmianie regulaminu i polityki prywatności ([#283](https://github.com/jakim87/home_budget/issues/283)) ([b8268ce](https://github.com/jakim87/home_budget/commit/b8268ce4c2402c6f4e173c42c30e0de3f72c79e7))
+
+
+### Poprawki
+
+* interfejs nie łączy się z zewnętrznymi CDN — Tailwind, Chart.js, driver.js i czcionki serwowane z aplikacji ([#281](https://github.com/jakim87/home_budget/issues/281)) ([b4dfd1f](https://github.com/jakim87/home_budget/commit/b4dfd1ff577d1fab2799243239e91d45c8248296))
+* polityka prywatności opisuje logi serwera i kopie zapasowe; licencja BSL spójna na stronach ([#279](https://github.com/jakim87/home_budget/issues/279)) ([4264ad4](https://github.com/jakim87/home_budget/commit/4264ad46b3c0f911c1937df61cbe55ee37db81ef))
+* regulamin, polityka i strona O aplikacji bez wzmianek o niekomercyjności; łączniki zamiast pauz ([#282](https://github.com/jakim87/home_budget/issues/282)) ([949051f](https://github.com/jakim87/home_budget/commit/949051fd7a7e347ff0ba26b0c7ac478109dbf906))
+
 ## [1.7.0](https://github.com/jakim87/home_budget/compare/v1.6.0...v1.7.0) (2026-11-17)
 
 

@@ -23,6 +23,7 @@ async function fetchInitialData({ skipStagingRefresh = false } = {}) {
         monthlyRates = data.monthly_rates || {};
         savedViews = data.saved_views || [];
         doPotwierdzenia = data.do_potwierdzenia || [];
+        renderKomunikatPrawny(data.legal_notice);
         odswiezLicznikPotwierdzen();
 
         updateCategorySelects();

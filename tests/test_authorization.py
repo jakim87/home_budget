@@ -571,3 +571,15 @@ def test_intruder_cannot_favorite_foreign_account(intruder_client, owner_data):
     assert resp.status_code == 404
     db.session.expire_all()
     assert db.session.get(Account, acc.id).is_favorite is False
+
+
+def test_potwierdzenie_dokumentow_dotyczy_tylko_zalogowanego(client, test_user, other_user, test_user_id):
+    """Potwierdzenie banera zapisuje się tylko na koncie wołającego — nie na cudzym."""
+    from app.models import User
+    from app.services.legal_notice_service import DOCS_LAST_UPDATED_DATE
+    login_as(client, 'testuser')
+    assert client.post('/api/legal-ack').status_code == 200
+    assert db.session.get(User, test_user_id).legal_docs_ack == DOCS_LAST_UPDATED_DATE
+    assert db.session.get(User, other_user.id).legal_docs_ack is None
+    login_as(client, 'intruz')
+    assert client.get('/api/init').get_json()['legal_notice']['show'] is True

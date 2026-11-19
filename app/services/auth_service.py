@@ -3,6 +3,7 @@ import logging
 from app import db
 from app.models import User
 from app.services.category_service import create_starter_categories
+from app.services.legal_notice_service import DOCS_LAST_UPDATED_DATE
 from werkzeug.security import generate_password_hash, check_password_hash
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,10 @@ def register_user(data):
             raise ValueError("Konto z tym adresem email już istnieje.")
 
         hashed_pwd = generate_password_hash(data['password'])
-        new_user = User(username=data['username'], email=data['email'], password_hash=hashed_pwd)
+        # Nowe konto akceptuje dokumenty przy rejestracji — baner o zmianach dotyczy tych,
+        # którzy znali wcześniejszą wersję.
+        new_user = User(username=data['username'], email=data['email'], password_hash=hashed_pwd,
+                        legal_docs_ack=DOCS_LAST_UPDATED_DATE)
 
         db.session.add(new_user)
         # flush nadaje token UUID (default przy insercie) — potrzebny jako wlasciciel

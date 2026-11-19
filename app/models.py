@@ -82,6 +82,9 @@ class User(db.Model, UserMixin):
     email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     token: Mapped[str] = mapped_column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+    # Wersja dokumentów prawnych (data ich ostatniej zmiany), którą użytkownik potwierdził
+    # banerem po zalogowaniu. NULL = jeszcze nie potwierdzał.
+    legal_docs_ack: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     def get_id(self):
         """Identyfikator w ciasteczku sesji = id + znacznik wersji hasła.

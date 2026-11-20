@@ -132,6 +132,29 @@ def register_commands(app):
         if not current_app.config['DEMO_ENABLED']:
             click.echo("Uwaga: DEMO_ENABLED nie jest ustawione — przycisk demo nie pokaże się na ekranie logowania.")
 
+    @app.cli.command('legal-ack-list')
+    @click.option('--tylko-bez-potwierdzenia', is_flag=True,
+                  help='Tylko konta, które nie potwierdziły bieżącej wersji dokumentów.')
+    @with_appcontext
+    def legal_ack_list_command(tylko_bez_potwierdzenia):
+        """Wypisuje, kto potwierdził bieżącą wersję regulaminu i polityki (baner „Rozumiem”).
+
+        Pokazuje nazwę użytkownika, wersję (datę publikacji) i moment kliknięcia (UTC);
+        „przy rejestracji” = wersja przyjęta przy zakładaniu konta, bez kliknięcia.
+        """
+        from app.services.legal_notice_service import DOCS_LAST_UPDATED_DATE, lista_potwierdzen
+
+        wiersze = lista_potwierdzen(tylko_bez_potwierdzenia)
+        click.echo(f'Bieżąca wersja dokumentów: {DOCS_LAST_UPDATED_DATE.isoformat()}')
+        opisy = {'potwierdzil': 'potwierdzono', 'rejestracja': 'przy rejestracji', 'brak': 'BRAK potwierdzenia'}
+        for w in wiersze:
+            wersja = w['wersja'].isoformat() if w['wersja'] else '-'
+            kiedy = f"{w['potwierdzono']:%Y-%m-%d %H:%M} UTC" if w['potwierdzono'] else ''
+            click.echo(bezpieczny_tekst(f"{w['username']:<24} wersja {wersja:<10}  {opisy[w['stan']]} {kiedy}".rstrip()))
+        liczniki = {s: sum(1 for w in wiersze if w['stan'] == s) for s in opisy}
+        click.echo(f"Razem: {len(wiersze)} (potwierdzili: {liczniki['potwierdzil']}, "
+                   f"przy rejestracji: {liczniki['rejestracja']}, bez potwierdzenia: {liczniki['brak']})")
+
     @app.cli.command('feedback-list')
     @click.option('--limit', default=50, show_default=True, help='Ile ostatnich zgłoszeń wypisać.')
     @with_appcontext

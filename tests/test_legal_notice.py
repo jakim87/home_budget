@@ -1,5 +1,5 @@
 """Komunikat o zmianie dokumentów prawnych: baner w /api/init i potwierdzenie."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app import db
 from app.models import User
@@ -63,3 +63,41 @@ def test_strony_prawne_pokazuja_te_sama_date(client):
     tekst = lns.format_pl(lns.DOCS_LAST_UPDATED_DATE)
     assert tekst in client.get('/regulamin').get_data(as_text=True)
     assert tekst in client.get('/polityka-prywatnosci').get_data(as_text=True)
+
+
+def test_potwierdzenie_zapisuje_moment_klikniecia(logged_in_client, test_user_id):
+    assert db.session.get(User, test_user_id).legal_docs_ack_at is None
+    logged_in_client.post('/api/legal-ack')
+    kiedy = db.session.get(User, test_user_id).legal_docs_ack_at
+    assert kiedy is not None and abs((datetime.now(timezone.utc).replace(tzinfo=None) - kiedy).total_seconds()) < 60
+
+
+def test_rejestracja_nie_udaje_klikniecia(client):
+    client.post('/api/register', json={
+        'username': 'nowy2', 'email': 'nowy2@test.com', 'password': 'Haslo1234!x'})
+    u = db.session.query(User).filter_by(username='nowy2').one()
+    assert u.legal_docs_ack == lns.DOCS_LAST_UPDATED_DATE and u.legal_docs_ack_at is None
+
+
+def test_lista_potwierdzen_rozroznia_trzy_stany(app, client, test_user, other_user):
+    client.post('/api/register', json={
+        'username': 'nowy3', 'email': 'nowy3@test.com', 'password': 'Haslo1234!x'})
+    login_as(client, 'testuser')
+    client.post('/api/legal-ack')
+    stany = {w['username']: w['stan'] for w in lns.lista_potwierdzen()}
+    assert stany == {'testuser': 'potwierdzil', 'intruz': 'brak', 'nowy3': 'rejestracja'}
+    assert [w['username'] for w in lns.lista_potwierdzen(tylko_bez_potwierdzenia=True)] == ['intruz']
+
+
+def test_lista_potwierdzen_pomija_demo(app, test_user):
+    app.config['DEMO_USERNAME'] = 'testuser'
+    assert lns.lista_potwierdzen() == []
+
+
+def test_komenda_legal_ack_list(app, logged_in_client):
+    logged_in_client.post('/api/legal-ack')
+    wynik = app.test_cli_runner().invoke(args=['legal-ack-list'])
+    assert wynik.exit_code == 0
+    assert 'testuser' in wynik.output and 'potwierdzono' in wynik.output
+    assert 'potwierdzili: 1' in wynik.output
+    assert 'email' not in wynik.output.lower()

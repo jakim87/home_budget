@@ -5,7 +5,7 @@ nowsza niż ta, którą użytkownik potwierdził. To jedyne miejsce z tą datą 
 strony `/regulamin` i `/polityka-prywatnosci` formatują ją z tej samej stałej.
 """
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 
 from flask import current_app
 
@@ -46,6 +46,28 @@ def notice_state(user_token: str) -> dict:
     return {'show': pokaz, 'updated': format_pl(DOCS_LAST_UPDATED_DATE)}
 
 
+def lista_potwierdzen(tylko_bez_potwierdzenia: bool = False) -> list[dict]:
+    """Stan potwierdzenia aktualnej wersji dokumentów dla każdego zwykłego konta (do CLI).
+
+    `stan`: 'potwierdzil' (kliknął „Rozumiem” na bieżącej wersji), 'rejestracja' (wersja
+    przyjęta przy zakładaniu konta, bez kliknięcia), 'brak' (nie potwierdził bieżącej wersji).
+    Konto demo jest pomijane - nie zapisuje potwierdzeń.
+    """
+    wynik = []
+    for u in db.session.query(User).order_by(User.id).all():
+        if _is_demo(u):
+            continue
+        if u.legal_docs_ack is None or u.legal_docs_ack < DOCS_LAST_UPDATED_DATE:
+            stan = 'brak'
+        else:
+            stan = 'potwierdzil' if u.legal_docs_ack_at else 'rejestracja'
+        if tylko_bez_potwierdzenia and stan != 'brak':
+            continue
+        wynik.append({'username': u.username, 'wersja': u.legal_docs_ack,
+                      'potwierdzono': u.legal_docs_ack_at, 'stan': stan})
+    return wynik
+
+
 def acknowledge(user_token: str) -> None:
     """Zapisuje, że użytkownik zapoznał się z aktualną wersją dokumentów."""
     user = _get_user(user_token)
@@ -53,6 +75,7 @@ def acknowledge(user_token: str) -> None:
         raise PermissionError("Konto demo nie zapisuje potwierdzeń.")
     try:
         user.legal_docs_ack = DOCS_LAST_UPDATED_DATE
+        user.legal_docs_ack_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.session.commit()
         logger.info("Potwierdzono dokumenty prawne (token=%s)", user_token)
     except Exception:

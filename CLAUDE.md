@@ -82,6 +82,7 @@ pip install -r requirements.txt -r requirements-dev.txt
 #            TRUST_PROXY=1            (opcjonalny; TYLKO za reverse proxy — patrz niżej)
 #            APP_ADMIN_NAME=...       (opcjonalny; administrator danych na stronach Regulamin/RODO)
 #            APP_CONTACT_EMAIL=...    (opcjonalny; adres kontaktowy na tych stronach)
+#            SITE_URL=...             (opcjonalny; domyślnie https://ilemamkasy.pl — canonical, sitemap.xml, robots.txt)
 #            DEMO_ENABLED=1           (opcjonalny; pokazuje przycisk „Zobacz demo" — patrz Konto demo)
 #            DEMO_USERNAME=/DEMO_PASSWORD=  (opcjonalne; domyślnie demo / demo-do-ogladania)
 flask db upgrade

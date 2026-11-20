@@ -1,5 +1,5 @@
 """Komunikat o zmianie dokumentów prawnych: baner w /api/init i potwierdzenie."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app import db
 from app.models import User
@@ -65,6 +65,42 @@ def test_strony_prawne_pokazuja_te_sama_date(client):
     assert tekst in client.get('/polityka-prywatnosci').get_data(as_text=True)
 
 
+def test_potwierdzenie_zapisuje_moment_klikniecia(logged_in_client, test_user_id):
+    assert db.session.get(User, test_user_id).legal_docs_ack_at is None
+    logged_in_client.post('/api/legal-ack')
+    kiedy = db.session.get(User, test_user_id).legal_docs_ack_at
+    assert kiedy is not None and abs((datetime.now(timezone.utc).replace(tzinfo=None) - kiedy).total_seconds()) < 60
+
+
+def test_rejestracja_nie_udaje_klikniecia(client):
+    client.post('/api/register', json={
+        'username': 'nowy2', 'email': 'nowy2@test.com', 'password': 'Haslo1234!x'})
+    u = db.session.query(User).filter_by(username='nowy2').one()
+    assert u.legal_docs_ack == lns.DOCS_LAST_UPDATED_DATE and u.legal_docs_ack_at is None
+
+
+def test_lista_potwierdzen_rozroznia_trzy_stany(app, client, test_user, other_user):
+    client.post('/api/register', json={
+        'username': 'nowy3', 'email': 'nowy3@test.com', 'password': 'Haslo1234!x'})
+    login_as(client, 'testuser')
+    client.post('/api/legal-ack')
+    stany = {w['username']: w['stan'] for w in lns.lista_potwierdzen()}
+    assert stany == {'testuser': 'potwierdzil', 'intruz': 'brak', 'nowy3': 'rejestracja'}
+    assert [w['username'] for w in lns.lista_potwierdzen(tylko_bez_potwierdzenia=True)] == ['intruz']
+
+
+def test_lista_potwierdzen_pomija_demo(app, test_user):
+    app.config['DEMO_USERNAME'] = 'testuser'
+    assert lns.lista_potwierdzen() == []
+
+
+def test_komenda_legal_ack_list(app, logged_in_client):
+    logged_in_client.post('/api/legal-ack')
+    wynik = app.test_cli_runner().invoke(args=['legal-ack-list'])
+    assert wynik.exit_code == 0
+    assert 'testuser' in wynik.output and 'potwierdzono' in wynik.output
+    assert 'potwierdzili: 1' in wynik.output
+    assert 'email' not in wynik.output.lower()
 def test_dziennik_zmian_jest_od_najnowszej_i_ma_streszczenia():
     wpisy = lns.ZMIANY_DOKUMENTOW
     daty = [w['data'] for w in wpisy]
@@ -101,3 +137,13 @@ def test_data_wejscia_w_zycie_tylko_dopoki_w_przyszlosci():
 def test_strona_regulaminu_pokazuje_date_wejscia_w_zycie(client, monkeypatch):
     monkeypatch.setattr(lns, 'obowiazuje_od', lambda dzis=None: '27 listopada 2026')
     assert 'zmiany obowiązują od 27 listopada 2026' in client.get('/regulamin').get_data(as_text=True)
+
+
+def test_ponowne_klikniecie_nie_nadpisuje_pierwszego_momentu(logged_in_client, test_user_id):
+    logged_in_client.post('/api/legal-ack')
+    u = db.session.get(User, test_user_id)
+    pierwszy = datetime(2026, 11, 20, 8, 0, 0)
+    u.legal_docs_ack_at = pierwszy
+    db.session.commit()
+    assert logged_in_client.post('/api/legal-ack').status_code == 200
+    assert db.session.get(User, test_user_id).legal_docs_ack_at == pierwszy

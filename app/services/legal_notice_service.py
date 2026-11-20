@@ -115,8 +115,10 @@ def acknowledge(user_token: str) -> None:
     if _is_demo(user):
         raise PermissionError("Konto demo nie zapisuje potwierdzeń.")
     try:
-        user.legal_docs_ack = DOCS_LAST_UPDATED_DATE
-        user.legal_docs_ack_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        # Ponowne kliknięcie tej samej wersji nie nadpisuje pierwszego momentu potwierdzenia.
+        if user.legal_docs_ack != DOCS_LAST_UPDATED_DATE or user.legal_docs_ack_at is None:
+            user.legal_docs_ack = DOCS_LAST_UPDATED_DATE
+            user.legal_docs_ack_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.session.commit()
         logger.info("Potwierdzono dokumenty prawne (token=%s)", user_token)
     except Exception:

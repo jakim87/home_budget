@@ -65,42 +65,6 @@ def test_strony_prawne_pokazuja_te_sama_date(client):
     assert tekst in client.get('/polityka-prywatnosci').get_data(as_text=True)
 
 
-def test_dziennik_zmian_jest_od_najnowszej_i_ma_streszczenia():
-    wpisy = lns.ZMIANY_DOKUMENTOW
-    daty = [w['data'] for w in wpisy]
-    assert daty == sorted(daty, reverse=True) and len(set(daty)) == len(daty)
-    assert lns.DOCS_LAST_UPDATED_DATE == daty[0]
-    for w in wpisy:
-        assert w['punkty'] and all(p.strip() for p in w['punkty'])
-        assert w['od'] >= w['data']
-
-
-def test_baner_zawiera_streszczenie_tylko_nowszych_zmian(logged_in_client, test_user_id):
-    db.session.get(User, test_user_id).legal_docs_ack = lns.ZMIANY_DOKUMENTOW[1]['data']
-    db.session.commit()
-    zmiany = _stan(logged_in_client)['changes']
-    assert [z['date'] for z in zmiany] == [lns.format_pl(lns.ZMIANY_DOKUMENTOW[0]['data'])]
-    assert zmiany[0]['punkty'] == list(lns.ZMIANY_DOKUMENTOW[0]['punkty'])
-
-
-def test_uzytkownik_bez_potwierdzenia_dostaje_cala_historie(logged_in_client):
-    assert len(_stan(logged_in_client)['changes']) == len(lns.ZMIANY_DOKUMENTOW)
-
-
-def test_po_potwierdzeniu_brak_zmian_w_odpowiedzi(logged_in_client):
-    logged_in_client.post('/api/legal-ack')
-    assert _stan(logged_in_client)['changes'] == []
-
-
-def test_data_wejscia_w_zycie_tylko_dopoki_w_przyszlosci():
-    od = lns.ZMIANY_DOKUMENTOW[0]['od']
-    assert lns.obowiazuje_od(od - timedelta(days=1)) == lns.format_pl(od)
-    assert lns.obowiazuje_od(od) is None
-
-
-def test_strona_regulaminu_pokazuje_date_wejscia_w_zycie(client, monkeypatch):
-    monkeypatch.setattr(lns, 'obowiazuje_od', lambda dzis=None: '27 listopada 2026')
-    assert 'zmiany obowiązują od 27 listopada 2026' in client.get('/regulamin').get_data(as_text=True)
 def test_potwierdzenie_zapisuje_moment_klikniecia(logged_in_client, test_user_id):
     assert db.session.get(User, test_user_id).legal_docs_ack_at is None
     logged_in_client.post('/api/legal-ack')
@@ -137,3 +101,49 @@ def test_komenda_legal_ack_list(app, logged_in_client):
     assert 'testuser' in wynik.output and 'potwierdzono' in wynik.output
     assert 'potwierdzili: 1' in wynik.output
     assert 'email' not in wynik.output.lower()
+def test_dziennik_zmian_jest_od_najnowszej_i_ma_streszczenia():
+    wpisy = lns.ZMIANY_DOKUMENTOW
+    daty = [w['data'] for w in wpisy]
+    assert daty == sorted(daty, reverse=True) and len(set(daty)) == len(daty)
+    assert lns.DOCS_LAST_UPDATED_DATE == daty[0]
+    for w in wpisy:
+        assert w['punkty'] and all(p.strip() for p in w['punkty'])
+        assert w['od'] >= w['data']
+
+
+def test_baner_zawiera_streszczenie_tylko_nowszych_zmian(logged_in_client, test_user_id):
+    db.session.get(User, test_user_id).legal_docs_ack = lns.ZMIANY_DOKUMENTOW[1]['data']
+    db.session.commit()
+    zmiany = _stan(logged_in_client)['changes']
+    assert [z['date'] for z in zmiany] == [lns.format_pl(lns.ZMIANY_DOKUMENTOW[0]['data'])]
+    assert zmiany[0]['punkty'] == list(lns.ZMIANY_DOKUMENTOW[0]['punkty'])
+
+
+def test_uzytkownik_bez_potwierdzenia_dostaje_cala_historie(logged_in_client):
+    assert len(_stan(logged_in_client)['changes']) == len(lns.ZMIANY_DOKUMENTOW)
+
+
+def test_po_potwierdzeniu_brak_zmian_w_odpowiedzi(logged_in_client):
+    logged_in_client.post('/api/legal-ack')
+    assert _stan(logged_in_client)['changes'] == []
+
+
+def test_data_wejscia_w_zycie_tylko_dopoki_w_przyszlosci():
+    od = lns.ZMIANY_DOKUMENTOW[0]['od']
+    assert lns.obowiazuje_od(od - timedelta(days=1)) == lns.format_pl(od)
+    assert lns.obowiazuje_od(od) is None
+
+
+def test_strona_regulaminu_pokazuje_date_wejscia_w_zycie(client, monkeypatch):
+    monkeypatch.setattr(lns, 'obowiazuje_od', lambda dzis=None: '27 listopada 2026')
+    assert 'zmiany obowiązują od 27 listopada 2026' in client.get('/regulamin').get_data(as_text=True)
+
+
+def test_ponowne_klikniecie_nie_nadpisuje_pierwszego_momentu(logged_in_client, test_user_id):
+    logged_in_client.post('/api/legal-ack')
+    u = db.session.get(User, test_user_id)
+    pierwszy = datetime(2026, 11, 20, 8, 0, 0)
+    u.legal_docs_ack_at = pierwszy
+    db.session.commit()
+    assert logged_in_client.post('/api/legal-ack').status_code == 200
+    assert db.session.get(User, test_user_id).legal_docs_ack_at == pierwszy

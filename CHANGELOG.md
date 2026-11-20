@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.9.0](https://github.com/jakim87/home_budget/compare/v1.8.0...v1.9.0) (2026-11-20)
+
+
+### Funkcje
+
+* baner o zmianie dokumentów streszcza zmiany, a regulamin zapowiada je z 7-dniowym wyprzedzeniem ([#287](https://github.com/jakim87/home_budget/issues/287)) ([1a86f7a](https://github.com/jakim87/home_budget/commit/1a86f7a2f1c1d1999de2baed7814dbdb32ec934d))
+* polityka prywatności opisuje zapis potwierdzenia zmian dokumentów ([#290](https://github.com/jakim87/home_budget/issues/290)) ([d362a7a](https://github.com/jakim87/home_budget/commit/d362a7a1d0ef77174f8c332835c07d25e6d8c4a0))
+* robots.txt, sitemap.xml i metadane SEO publicznych stron ([#284](https://github.com/jakim87/home_budget/issues/284)) ([3de5e77](https://github.com/jakim87/home_budget/commit/3de5e777438a9eefb054cdda129dc10fee553a26))
+* zapisujemy, kiedy użytkownik potwierdził zmiany dokumentów, i pokazujemy to w CLI ([#289](https://github.com/jakim87/home_budget/issues/289)) ([5e8a191](https://github.com/jakim87/home_budget/commit/5e8a1911d58cfd3bf71018e5b18e37e1ad421a9f))
+
 ## [1.8.0](https://github.com/jakim87/home_budget/compare/v1.7.0...v1.8.0) (2026-11-19)
 
 

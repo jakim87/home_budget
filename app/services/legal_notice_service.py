@@ -26,6 +26,8 @@ ZMIANY_DOKUMENTOW = (
         'a przed ich wejściem w życie możesz zrezygnować z korzystania z Aplikacji i usunąć konto',
         'Regulamin: zmienić go możemy tylko z podanych przyczyn (zmiana funkcji Aplikacji lub przepisów prawa)',
         'Aplikacja po zalogowaniu pokazuje streszczenie zmian dokumentów',
+        'Polityka prywatności: zapisujemy datę i godzinę, kiedy potwierdzasz komunikat o zmianie dokumentów, '
+        'żeby wykazać, że zmiana została Ci zakomunikowana',
     )},
     {'data': date(2026, 11, 19), 'od': date(2026, 11, 19), 'punkty': (
         'Polityka prywatności: dokładniej opisaliśmy logi serwera i kopie zapasowe',

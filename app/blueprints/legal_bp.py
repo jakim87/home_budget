@@ -23,6 +23,12 @@ legal_bp = Blueprint('legal', __name__)
 DOCS_LAST_UPDATED = legal_notice_service.format_pl(legal_notice_service.DOCS_LAST_UPDATED_DATE)
 
 
+@legal_bp.context_processor
+def _data_wejscia_w_zycie():
+    # legal_base.html dopisuje ją pod datą aktualizacji, dopóki zmiany jeszcze nie obowiązują.
+    return {'obowiazuje_od': legal_notice_service.obowiazuje_od()}
+
+
 @legal_bp.route('/regulamin')
 def regulamin():
     return render_template('regulamin.html', last_updated=DOCS_LAST_UPDATED, seo={

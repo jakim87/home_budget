@@ -5,7 +5,7 @@ nowsza niż ta, którą użytkownik potwierdził. To jedyne miejsce z tą datą 
 strony `/regulamin` i `/polityka-prywatnosci` formatują ją z tej samej stałej.
 """
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 
 from flask import current_app
 
@@ -26,6 +26,8 @@ ZMIANY_DOKUMENTOW = (
         'a przed ich wejściem w życie możesz zrezygnować z korzystania z Aplikacji i usunąć konto',
         'Regulamin: zmienić go możemy tylko z podanych przyczyn (zmiana funkcji Aplikacji lub przepisów prawa)',
         'Aplikacja po zalogowaniu pokazuje streszczenie zmian dokumentów',
+        'Polityka prywatności: zapisujemy datę i godzinę, kiedy potwierdzasz komunikat o zmianie dokumentów, '
+        'żeby wykazać, że zmiana została Ci zakomunikowana',
     )},
     {'data': date(2026, 11, 19), 'od': date(2026, 11, 19), 'punkty': (
         'Polityka prywatności: dokładniej opisaliśmy logi serwera i kopie zapasowe',
@@ -85,6 +87,28 @@ def notice_state(user_token: str) -> dict:
             'changes': _zmiany_po(user.legal_docs_ack) if pokaz else []}
 
 
+def lista_potwierdzen(tylko_bez_potwierdzenia: bool = False) -> list[dict]:
+    """Stan potwierdzenia aktualnej wersji dokumentów dla każdego zwykłego konta (do CLI).
+
+    `stan`: 'potwierdzil' (kliknął „Rozumiem” na bieżącej wersji), 'rejestracja' (wersja
+    przyjęta przy zakładaniu konta, bez kliknięcia), 'brak' (nie potwierdził bieżącej wersji).
+    Konto demo jest pomijane - nie zapisuje potwierdzeń.
+    """
+    wynik = []
+    for u in db.session.query(User).order_by(User.id).all():
+        if _is_demo(u):
+            continue
+        if u.legal_docs_ack is None or u.legal_docs_ack < DOCS_LAST_UPDATED_DATE:
+            stan = 'brak'
+        else:
+            stan = 'potwierdzil' if u.legal_docs_ack_at else 'rejestracja'
+        if tylko_bez_potwierdzenia and stan != 'brak':
+            continue
+        wynik.append({'username': u.username, 'wersja': u.legal_docs_ack,
+                      'potwierdzono': u.legal_docs_ack_at, 'stan': stan})
+    return wynik
+
+
 def acknowledge(user_token: str) -> None:
     """Zapisuje, że użytkownik zapoznał się z aktualną wersją dokumentów."""
     user = _get_user(user_token)
@@ -92,6 +116,7 @@ def acknowledge(user_token: str) -> None:
         raise PermissionError("Konto demo nie zapisuje potwierdzeń.")
     try:
         user.legal_docs_ack = DOCS_LAST_UPDATED_DATE
+        user.legal_docs_ack_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.session.commit()
         logger.info("Potwierdzono dokumenty prawne (token=%s)", user_token)
     except Exception:

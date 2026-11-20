@@ -85,6 +85,9 @@ class User(db.Model, UserMixin):
     # Wersja dokumentów prawnych (data ich ostatniej zmiany), którą użytkownik potwierdził
     # banerem po zalogowaniu. NULL = jeszcze nie potwierdzał.
     legal_docs_ack: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # Kiedy (UTC) użytkownik kliknął „Rozumiem” - dowód, że potwierdził. NULL przy ustawionym
+    # legal_docs_ack = wersja przyjęta przy rejestracji (bez kliknięcia).
+    legal_docs_ack_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
     def get_id(self):
         """Identyfikator w ciasteczku sesji = id + znacznik wersji hasła.

@@ -280,4 +280,7 @@ canvas { max-width: 100%; }
 .komunikat-prawny { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 1rem; padding: 0.75rem 1rem; background: var(--color-accent-100); border: 1px solid var(--color-accent-300); color: var(--color-accent-700); font-size: 0.875rem; }
 .komunikat-prawny.hidden { display: none; }
 .komunikat-prawny a { text-decoration: underline; font-weight: 600; }
+.komunikat-prawny summary { cursor: pointer; margin-top: 0.25rem; font-size: 0.8125rem; }
+.komunikat-prawny h4 { margin: 0.5rem 0 0.125rem; font-weight: 600; font-size: 0.8125rem; }
+.komunikat-prawny ul { margin: 0; padding-left: 1.125rem; list-style: disc; }
 .komunikat-prawny button { padding: 0.25rem 0.875rem; border: 1px solid var(--color-accent-600); background: var(--color-accent-600); color: #fff; font-weight: 600; }

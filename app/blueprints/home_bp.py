@@ -9,7 +9,12 @@ def index():
     # Zalogowany trafia od razu do aplikacji, gość widzi wizytówkę.
     if current_user.is_authenticated:
         return render_template('base.html')
-    return render_template('landing.html')
+    return render_template('landing.html', seo={
+        'path': '/',
+        'title': 'Ile mam kasy — drugi mózg od pieniędzy',
+        'description': 'Salda wszystkich kont, wartość netto i plan budżetu w jednym miejscu. '
+                       'Import wyciągów z polskich banków i kalkulator kredytu.',
+    })
 
 @home_bp.route('/login')
 def login():
@@ -18,7 +23,14 @@ def login():
     # parametrem. Adres składamy sami — nic z zapytania nie trafia do przekierowania.
     if current_user.is_authenticated:
         return redirect('/?dodaj=1' if request.args.get('dodaj') else '/')
-    return render_template('base.html')
+    # Ten sam ekran co wizytówka pod innym adresem (także ?demo=1, ?rejestracja=1):
+    # poza indeksem, a canonical wskazuje stronę główną.
+    return render_template('base.html', seo={
+        'path': '/',
+        'title': 'Ile mam kasy',
+        'description': 'Logowanie do aplikacji Ile mam kasy.',
+        'noindex': True,
+    })
 
 @home_bp.route('/api/init', methods=['GET'])
 @login_required

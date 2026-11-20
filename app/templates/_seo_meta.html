@@ -1,0 +1,15 @@
+{# Metadane SEO publicznych stron. Widok przekazuje `seo` (path, title, description,
+   opcjonalnie noindex); bez `seo` nic się nie wypisuje (np. aplikacja zalogowanego).
+   Canonical budują SITE_URL + path - bez parametrów zapytania, www i ukośnika. #}
+{% if seo %}
+{% if seo.noindex %}<meta name="robots" content="noindex,follow">{% endif %}
+<meta name="description" content="{{ seo.description }}">
+<link rel="canonical" href="{{ config.SITE_URL }}{{ seo.path }}">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pl_PL">
+<meta property="og:site_name" content="Ile mam kasy">
+<meta property="og:title" content="{{ seo.title }}">
+<meta property="og:description" content="{{ seo.description }}">
+<meta property="og:url" content="{{ config.SITE_URL }}{{ seo.path }}">
+<meta property="og:image" content="{{ config.SITE_URL }}{{ url_for('static', filename='landing/img/budzet.png') }}">
+{% endif %}

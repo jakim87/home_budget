@@ -58,6 +58,8 @@ class Config:
     APP_AUTHOR_URL = 'https://github.com/jakim87'
     # Lista zmian dla użytkownika: strona wydań na GitHubie (tworzy je release-please).
     APP_RELEASES_URL = 'https://github.com/jakim87/home_budget/releases'
+    # Adres publiczny: canonical, sitemap.xml i robots.txt. Bez ukośnika na końcu.
+    SITE_URL = os.getenv('SITE_URL', 'https://ilemamkasy.pl').rstrip('/')
     APP_ADMIN_NAME = os.getenv('APP_ADMIN_NAME', 'jakim87')
     APP_CONTACT_EMAIL = os.getenv('APP_CONTACT_EMAIL', 'jakim87@gmail.com')
 

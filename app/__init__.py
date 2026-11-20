@@ -84,6 +84,7 @@ def create_app(config_class=Config):
     from app.blueprints.planned_transactions_bp import planned_bp # NEW
     from app.blueprints.import_bp import import_bp
     from app.blueprints.legal_bp import legal_bp
+    from app.blueprints.seo_bp import seo_bp
     from app.blueprints.feedback_bp import feedback_bp
     from app.blueprints.budget_bp import budget_bp
     from app.blueprints.views_bp import views_bp
@@ -99,6 +100,7 @@ def create_app(config_class=Config):
     app.register_blueprint(planned_bp) # NEW
     app.register_blueprint(import_bp)
     app.register_blueprint(legal_bp)
+    app.register_blueprint(seo_bp)
     app.register_blueprint(feedback_bp)
     app.register_blueprint(budget_bp)
     app.register_blueprint(views_bp)
@@ -130,6 +132,9 @@ def create_app(config_class=Config):
             "%s %s -> %s (%.1f ms) user=%s",
             request.method, request.path, response.status_code, duration_ms, user
         )
+        # JSON API nie jest stroną - nawet gdyby ktoś zalinkował adres, nie trafi do indeksu.
+        if request.path.startswith('/api/'):
+            response.headers['X-Robots-Tag'] = 'noindex, nofollow'
         return response
 
     # --- Globalny handler nieobsłużonych wyjątków ---

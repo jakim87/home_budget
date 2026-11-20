@@ -25,22 +25,42 @@ DOCS_LAST_UPDATED = legal_notice_service.format_pl(legal_notice_service.DOCS_LAS
 
 @legal_bp.route('/regulamin')
 def regulamin():
-    return render_template('regulamin.html', last_updated=DOCS_LAST_UPDATED)
+    return render_template('regulamin.html', last_updated=DOCS_LAST_UPDATED, seo={
+        'path': '/regulamin',
+        'title': 'Regulamin aplikacji Ile mam kasy',
+        'description': 'Zasady korzystania z aplikacji Ile mam kasy: konto, import wyciągów, '
+                       'dane użytkownika, odpowiedzialność i zasady usuwania danych.',
+    })
 
 
 @legal_bp.route('/polityka-prywatnosci')
 def polityka_prywatnosci():
-    return render_template('polityka_prywatnosci.html', last_updated=DOCS_LAST_UPDATED)
+    return render_template('polityka_prywatnosci.html', last_updated=DOCS_LAST_UPDATED, seo={
+        'path': '/polityka-prywatnosci',
+        'title': 'Polityka prywatności (RODO) - Ile mam kasy',
+        'description': 'Jakie dane przetwarza aplikacja Ile mam kasy, na jakiej podstawie, '
+                       'jak długo i jakie prawa przysługują użytkownikowi.',
+    })
 
 
 @legal_bp.route('/o-aplikacji')
 def o_aplikacji():
-    return render_template('o_aplikacji.html', last_updated=DOCS_LAST_UPDATED)
+    return render_template('o_aplikacji.html', last_updated=DOCS_LAST_UPDATED, seo={
+        'path': '/o-aplikacji',
+        'title': 'O aplikacji Ile mam kasy',
+        'description': 'Czym jest Ile mam kasy, kto ją tworzy i na jakiej licencji jest '
+                       'udostępniony kod źródłowy.',
+    })
 
 
 @legal_bp.route('/kalkulator-kredytu')
 def kalkulator_kredytu():
-    return render_template('kalkulator_kredytu.html')
+    return render_template('kalkulator_kredytu.html', seo={
+        'path': '/kalkulator-kredytu',
+        'title': 'Kalkulator kredytu - Ile mam kasy',
+        'description': 'Rata, pełny koszt, RRSO i plan spłaty rata po racie - z prowizją, '
+                       'opłatami i nadpłatami. Liczy się w przeglądarce.',
+    })
 
 
 @legal_bp.route('/api/legal-ack', methods=['POST'])
